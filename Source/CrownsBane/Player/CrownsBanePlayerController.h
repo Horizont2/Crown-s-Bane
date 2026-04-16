@@ -8,6 +8,7 @@ class ADocksZone;
 class AUpgradeManager;
 class UPlayerInventory;
 class AShipPawn;
+class UInputMappingContext;
 
 UCLASS()
 class CROWNSBANE_API ACrownsBanePlayerController : public APlayerController
@@ -20,7 +21,6 @@ public:
 protected:
 	virtual void BeginPlay() override;
 	virtual void SetupInputComponent() override;
-	virtual void Tick(float DeltaTime) override;
 
 public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory")
@@ -32,14 +32,12 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "Docks")
 	ADocksZone* CurrentDocksZone = nullptr;
 
-	// Called by DocksZone when player enters/exits
 	UFUNCTION(BlueprintCallable, Category = "Docks")
 	void OnEnterDocks(ADocksZone* DocksZone);
 
 	UFUNCTION(BlueprintCallable, Category = "Docks")
 	void OnExitDocks();
 
-	// Show/hide the upgrade UI
 	UFUNCTION(BlueprintCallable, Category = "UI")
 	void OpenUpgradeUI();
 
@@ -49,13 +47,11 @@ public:
 	UFUNCTION(BlueprintPure, Category = "UI")
 	bool IsUpgradeUIOpen() const { return bUpgradeUIOpen; }
 
-	// Upgrade: buy a specific category (called from UI)
 	UFUNCTION(BlueprintCallable, Category = "Upgrades")
 	bool BuyUpgrade(uint8 CategoryByte);
 
 private:
-	void InputOpenUpgradeUI();
-	void InputCloseUpgradeUI();
+	void ToggleUpgradeUI();
 
 	bool bUpgradeUIOpen = false;
 

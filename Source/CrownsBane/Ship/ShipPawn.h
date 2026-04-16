@@ -9,8 +9,10 @@ class USpringArmComponent;
 class UCameraComponent;
 class UCannonComponent;
 class UHealthComponent;
-class UFloatingPawnMovement;
 class AWindSystem;
+class UInputMappingContext;
+class UInputAction;
+struct FInputActionValue;
 
 UENUM(BlueprintType)
 enum class ESailLevel : uint8
@@ -53,6 +55,26 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	UHealthComponent* HealthComponent;
 
+	// ---- Enhanced Input ----
+	// Assign these in your Blueprint (BP_PlayerShip) Details panel
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	UInputMappingContext* ShipMappingContext;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	UInputAction* IA_IncreaseSail;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	UInputAction* IA_DecreaseSail;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	UInputAction* IA_Turn;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	UInputAction* IA_FireLeft;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	UInputAction* IA_FireRight;
+
 	// ---- Movement Settings ----
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
 	float MaxSpeed = 1500.0f;
@@ -66,31 +88,25 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
 	float DecelerationRate = 60.0f;
 
-	// Turn rate in degrees/second (reduced at higher speeds for wider turning radius)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
 	float BaseTurnRate = 45.0f;
 
-	// At full speed, turn rate is multiplied by this factor (< 1 for wider radius)
+	// At full speed, turn rate is multiplied by this (< 1 = wider radius)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
 	float HighSpeedTurnFactor = 0.4f;
 
-	// Ship mass for inertia calculations
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
-	float ShipMass = 5000.0f;
-
 	// ---- Wind ----
-	// Wind provides up to +20% or -20% speed bonus based on alignment
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wind")
 	float WindInfluenceFactor = 0.2f;
 
-	// ---- Sail State ----
+	// ---- State (read-only) ----
 	UPROPERTY(BlueprintReadOnly, Category = "Movement")
 	ESailLevel CurrentSailLevel = ESailLevel::Stop;
 
 	UPROPERTY(BlueprintReadOnly, Category = "Movement")
 	float CurrentSpeed = 0.0f;
 
-	// ---- Speed Penalty (from chain shot) ----
+	// ---- Public API ----
 	UFUNCTION(BlueprintCallable, Category = "Movement")
 	void ApplySpeedPenalty(float PenaltyFraction, float Duration);
 
@@ -100,7 +116,6 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Movement")
 	ESailLevel GetSailLevel() const { return CurrentSailLevel; }
 
-	// Called by upgrade system
 	UFUNCTION(BlueprintCallable, Category = "Movement")
 	void UpgradeMaxSpeed(float BonusSpeed);
 
@@ -108,24 +123,19 @@ public:
 	void UpgradeTurnRate(float BonusTurnRate);
 
 protected:
-	// Input handlers
-	void IncreaseSail();
-	void DecreaseSail();
-	void TurnRight(float Value);
-	void FireLeft();
-	void FireRight();
+	void Input_IncreaseSail(const FInputActionValue& Value);
+	void Input_DecreaseSail(const FInputActionValue& Value);
+	void Input_Turn(const FInputActionValue& Value);
+	void Input_FireLeft(const FInputActionValue& Value);
+	void Input_FireRight(const FInputActionValue& Value);
 
 private:
 	void UpdateMovement(float DeltaTime);
-	void UpdateTurning(float DeltaTime, float TurnInput);
 	float GetTargetSpeed() const;
 	float GetWindMultiplier() const;
 
 	AWindSystem* CachedWindSystem;
-
 	float TurnInputValue = 0.0f;
-
-	// Speed penalty from chain shot
 	float SpeedPenaltyFraction = 0.0f;
 	float SpeedPenaltyTimeRemaining = 0.0f;
 };
