@@ -4,6 +4,7 @@
 #include "Systems/WantedLevelManager.h"
 #include "Systems/WindSystem.h"
 #include "Systems/EnemySpawner.h"
+#include "Upgrades/UpgradeManager.h"
 #include "Player/CrownsBanePlayerController.h"
 #include "Ship/ShipPawn.h"
 #include "UI/CrownsBaneHUD.h"
@@ -59,6 +60,16 @@ void ACrownsBaneGameMode::BeginPlay()
 	else
 	{
 		EnemySpawner = World->SpawnActor<AEnemySpawner>(AEnemySpawner::StaticClass(), FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams);
+	}
+
+	// Spawn Upgrade Manager
+	if (UpgradeManagerClass)
+	{
+		UpgradeManager = World->SpawnActor<AUpgradeManager>(UpgradeManagerClass, FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams);
+	}
+	else
+	{
+		UpgradeManager = World->SpawnActor<AUpgradeManager>(AUpgradeManager::StaticClass(), FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams);
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("CrownsBaneGameMode: All game systems initialized."));

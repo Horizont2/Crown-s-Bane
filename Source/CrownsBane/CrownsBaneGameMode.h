@@ -7,6 +7,7 @@
 class AWantedLevelManager;
 class AWindSystem;
 class AEnemySpawner;
+class AUpgradeManager;
 
 UCLASS(minimalapi)
 class ACrownsBaneGameMode : public AGameModeBase
@@ -30,6 +31,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Game Systems")
 	TSubclassOf<AEnemySpawner> EnemySpawnerClass;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Game Systems")
+	TSubclassOf<AUpgradeManager> UpgradeManagerClass;
+
 	UPROPERTY(BlueprintReadOnly, Category = "Game Systems")
 	AWantedLevelManager* WantedLevelManager;
 
@@ -38,6 +42,9 @@ public:
 
 	UPROPERTY(BlueprintReadOnly, Category = "Game Systems")
 	AEnemySpawner* EnemySpawner;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Game Systems")
+	AUpgradeManager* UpgradeManager;
 
 	UFUNCTION(BlueprintCallable, Category = "Game Systems")
 	AWantedLevelManager* GetWantedLevelManager() const { return WantedLevelManager; }

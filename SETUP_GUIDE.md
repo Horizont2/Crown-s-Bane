@@ -1,318 +1,250 @@
 # Crown's Bane — Покроковий гайд налаштування в UE5
 
-> **Час:** ~4-5 годин для першого запуску гри.  
-> **Потрібно:** Unreal Engine 5.3 або новіший (безкоштовно через Epic Games Launcher).
+> **Час на перший запуск:** ~1 година (раніше було 4-5, скоротили завдяки автоматизації).  
+> **Потрібно:** Unreal Engine 5.3 через Epic Games Launcher.
+
+Що **автоматично** тепер (нічого не треба клікати в Project Settings):
+- Enhanced Input Component клас
+- Game Instance = `CrownsBaneGameInstance`
+- Global GameMode = `CrownsBaneGameMode`
+- Плагіни Water, EnhancedInput, Niagara — вже в `.uproject`
+- GameMode вже знає свої Pawn/Controller/HUD класи
+- GameMode сам спавнить `WindSystem`, `WantedLevelManager`, `EnemySpawner`, `UpgradeManager`
+- `ToggleUpgradeUI` вже на Tab/Escape через `DefaultInput.ini`
 
 ---
 
-## ДЕНЬ 1 — Створення проекту та рух корабля
+## ЧАСТИНА 1 — Створення проекту (15 хв)
 
-### Крок 1: Встановлення UE5
+### 1. Встанови UE 5.3
+Epic Games Launcher → Unreal Engine → Library → встановити 5.3.
 
-1. Завантаж і встанови **Epic Games Launcher** з [unrealengine.com](https://www.unrealengine.com)
-2. У Launcher → вкладка **Unreal Engine** → **Library** → кнопка **+** → встанови **UE 5.3**
-3. Натисни **Launch** поруч з 5.3
+### 2. Клонуй репозиторій
+```
+git clone https://github.com/horizont2/crown-s-bane
+cd crown-s-bane
+git checkout claude/unreal-pirate-game-tvSGi
+```
 
-### Крок 2: Створення проекту
+### 3. Генерація .sln та компіляція
+1. Правою на `CrownsBane.uproject` → **Generate Visual Studio project files**
+2. Відкрий `.sln` у Visual Studio 2022
+3. **Build → Build Solution** (Ctrl+Shift+B) — ~5 хв першого разу
+4. Двічі клікни `CrownsBane.uproject` — відкриється Editor
 
-1. У вікні вибору шаблону → **Games** → **Blank**
-2. Тип проекту: **C++** (не Blueprint!)
-3. Якість: **Scalable** (можна потім підвищити)
-4. Raytracing: **вимкнено**
-5. Назва проекту: **CrownsBane**
-6. Шлях: вибери папку (НЕ ту саму що репозиторій)
-7. Натисни **Create**
-8. UE5 відкриє Visual Studio і скомпілює проект (~5 хвилин першого разу)
+> Якщо редактор запитає "missing modules, rebuild?" → Yes.
 
-### Крок 3: Підключення нашого коду
+---
 
-1. Закрий Unreal Editor
-2. Відкрий папку новоствореного проекту (наприклад `C:/Projects/CrownsBane/`)
-3. Видали папку `Source/CrownsBane/` — вона порожня після шаблону
-4. Скопіюй нашу папку `Source/CrownsBane/` з репозиторію в папку проекту
-5. Скопіюй файл `CrownsBane.uproject` з репозиторію (замінить існуючий)
-6. Клікни правою кнопкою на `CrownsBane.uproject` → **Generate Visual Studio project files**
-7. Відкрий `.sln` файл у Visual Studio → **Build → Build Solution** (Ctrl+Shift+B)
-8. Після успішної збірки — двічі клікни `CrownsBane.uproject`
+## ЧАСТИНА 2 — Створення Input Actions (10 хв)
 
-### Крок 4: Налаштування Enhanced Input (обов'язково!)
+**Content Browser** → правою → **New Folder** → `Input`.
 
-1. **Edit → Project Settings → Input**
-2. **Default Input Component Class** → вибери `EnhancedInputComponent`
-3. **Default Player Input Class** → вибери `EnhancedPlayerInput`
-4. Закрий Settings
+Створи 5 Input Actions (правою → **Input → Input Action**):
 
-### Крок 5: Створення Input Actions
+| Файл              | Value Type       |
+|-------------------|------------------|
+| `IA_IncreaseSail` | `Digital (bool)` |
+| `IA_DecreaseSail` | `Digital (bool)` |
+| `IA_Turn`         | `Axis1D (float)` |
+| `IA_FireLeft`     | `Digital (bool)` |
+| `IA_FireRight`    | `Digital (bool)` |
 
-У **Content Browser** (внизу) → правою кнопкою → **New Folder** → назви `Input`  
-Зайди в папку `Input`.
+Створи Mapping Context (правою → **Input → Input Mapping Context**) → `IMC_Ship`.
 
-Для кожного action: **правою кнопкою → Input → Input Action**
+Відкрий `IMC_Ship`, натисни **+** біля "Mappings", і для кожного action додай клавішу:
 
-| Назва файлу     | Value Type | Призначення          |
-|-----------------|------------|----------------------|
-| `IA_IncreaseSail` | Digital (bool) | W — більше вітрила |
-| `IA_DecreaseSail` | Digital (bool) | S — менше вітрила  |
-| `IA_Turn`         | Axis1D (float) | A/D — поворот      |
-| `IA_FireLeft`     | Digital (bool) | ЛКМ — лівий борт  |
-| `IA_FireRight`    | Digital (bool) | ПКМ — правий борт |
+| Action            | Клавіша          | Modifiers                     |
+|-------------------|------------------|-------------------------------|
+| `IA_IncreaseSail` | `W`              | —                             |
+| `IA_DecreaseSail` | `S`              | —                             |
+| `IA_Turn`         | `D`              | —                             |
+| `IA_Turn`         | `A`              | **Negate** (в Modifiers → +)  |
+| `IA_FireLeft`     | Left Mouse Button| —                             |
+| `IA_FireRight`    | Right Mouse Button| —                            |
 
-### Крок 6: Створення Mapping Context
+Save All (Ctrl+Shift+S).
 
-1. Правою кнопкою → **Input → Input Mapping Context** → назви `IMC_Ship`
-2. Відкрий `IMC_Ship`
-3. Натисни **+** для кожного action:
+---
 
-| Action           | Клавіша            | Modifiers           |
-|------------------|--------------------|---------------------|
-| `IA_IncreaseSail`| W                  | —                   |
-| `IA_DecreaseSail`| S                  | —                   |
-| `IA_Turn`        | D                  | —                   |
-| `IA_Turn`        | A                  | Negate (інвертувати)|
-| `IA_FireLeft`    | Left Mouse Button  | —                   |
-| `IA_FireRight`   | Right Mouse Button | —                   |
+## ЧАСТИНА 3 — Blueprint корабля (15 хв)
 
-4. Збережи (Ctrl+S)
+### 1. Створи `BP_PlayerShip`
 
-### Крок 7: Підключення Ocean (Water Plugin)
+Content Browser → Blueprints папка → правою → **Blueprint Class** → шукай `ShipPawn` → `BP_PlayerShip`.
 
-1. **Edit → Plugins** → знайди **Water** → увімкни → Restart Editor
-2. На панелі зліва (Place Actors) → **Water** → перетягни **Water Body Ocean** на сцену
-3. Ocean налаштується автоматично — зелена кнопка **Build** якщо є помилки
+### 2. Налаштуй меш і Input
 
-### Крок 8: Створення Blueprint корабля гравця
+Відкрий `BP_PlayerShip`:
 
-1. Content Browser → Правою → **Blueprint Class** → шукай `ShipPawn` → вибери → `BP_PlayerShip`
-2. Відкрий `BP_PlayerShip`
-3. **Ліва панель** → клікни `ShipMesh (StaticMeshComponent)`
-4. **Права панель → Details → Static Mesh** → вибери будь-який тимчасовий меш (наприклад `Shape_Cube`)
-5. У **Details → Input** (прокрути вниз) → заповни:
-   - `Ship Mapping Context` → `IMC_Ship`
-   - `IA_IncreaseSail` → `IA_IncreaseSail`
-   - `IA_DecreaseSail` → `IA_DecreaseSail`
-   - `IA_Turn` → `IA_Turn`
-   - `IA_FireLeft` → `IA_FireLeft`
-   - `IA_FireRight` → `IA_FireRight`
+1. Ліва панель → клікни `ShipMesh`
+2. Details → **Static Mesh** → для тесту: `Shape_Cube` (зі Starter Content)
+3. **Scale** → `5, 2, 2` (щоб візуально виглядало як корабель)
+
+4. Клікни сам `BP_PlayerShip` у Components панелі (верхній рядок)
+5. Details → прокрути до секції **Input**:
+
+| Поле                 | Значення          |
+|----------------------|-------------------|
+| Ship Mapping Context | `IMC_Ship`        |
+| IA_IncreaseSail      | `IA_IncreaseSail` |
+| IA_DecreaseSail      | `IA_DecreaseSail` |
+| IA_Turn              | `IA_Turn`         |
+| IA_FireLeft          | `IA_FireLeft`     |
+| IA_FireRight         | `IA_FireRight`    |
+
 6. **Compile** → **Save**
 
-### Крок 9: Налаштування GameMode
+### 3. Налаштуй GameMode на використання цього BP
 
-1. Content Browser → Правою → **Blueprint Class** → `CrownsBaneGameMode` → `BP_GameMode`
-2. Відкрий `BP_GameMode` → Details:
-   - **Default Pawn Class** → `BP_PlayerShip`
-   - **Player Controller Class** → `CrownsBanePlayerController`
-   - **HUD Class** → `CrownsBaneHUD`
-3. **Edit → Project Settings → Maps & Modes**:
-   - **Default GameMode** → `BP_GameMode`
-4. Compile & Save
+Content Browser → правою → **Blueprint Class** → `CrownsBaneGameMode` → `BP_GameMode`.
 
-### Крок 10: Налаштування GameInstance (для збереження)
+Відкрий `BP_GameMode`:
+- **Default Pawn Class** → `BP_PlayerShip`
+- Compile & Save.
 
-1. **Edit → Project Settings → Maps & Modes**
-2. **Game Instance Class** → вибери `CrownsBaneGameInstance`
-
-### Крок 11: Розміщення на сцені та перший запуск
-
-1. Перетягни `BP_PlayerShip` на сцену (над водою)
-2. Додай **Player Start** (з Place Actors) — поруч з кораблем
-3. Натисни **Play (зелена кнопка)** → W/S для вітрил, A/D для повороту!
+**Edit → Project Settings → Maps & Modes → Default GameMode** → `BP_GameMode`.
 
 ---
 
-## ДЕНЬ 2 — Гармати та стрільба
+## ЧАСТИНА 4 — Сцена та перший запуск (5 хв)
 
-### Крок 12: Налаштування сокетів гармат на меші
+1. **File → New Level** → вибери **Basic** → збережи як `OpenSea` у `Content/Maps/`
+2. На панелі зліва (Place Actors) → **Water** → перетягни **Water Body Ocean** на сцену
+3. **Build → Build All Levels** (або зелена кнопка Build)
+4. Перетягни `BP_PlayerShip` на сцену **над** водою (Z=200+)
+5. Видали `Player Start` якщо він є, або постав його поруч з кораблем
+6. Натисни **Play** → керуй W/S/A/D!
 
-Щоб гармати знали ЗВІДКИ стріляти, потрібні сокети на 3D-моделі:
+### Що має показуватись на екрані (debug):
+- Зелений текст: `IMC registered: IMC_Ship`
+- Жовтий текст: `[Ship] Sail=Stop  Speed=0  Turn=0.00  Controller=PlayerController_0`
 
-1. Відкрий Static Mesh корабля (двічі клікни)
-2. Вверху → **Window → Socket Manager**
-3. Натисни **Create Socket** для кожної гармати:
+Натисни W — Sail має змінитись на `Half` → `Full`. A/D — Turn має стати ±1.00.
 
-```
-CannonLeft_0   — лівий борт, перша гармата
-CannonLeft_1   — лівий борт, друга гармата
-CannonRight_0  — правий борт, перша гармата
-CannonRight_1  — правий борт, друга гармата
-```
-
-4. Переміщуй сокети на потрібні позиції на моделі
-5. Save
-
-> **Порада:** Якщо тимчасово використовуєш куб — просто додай сокети по боках.
-
-### Крок 13: Blueprint для Cannonball
-
-1. Content → Правою → **Blueprint Class** → `Cannonball` → `BP_Cannonball`
-2. Відкрий → клікни `ProjectileMesh` → Details:
-   - Static Mesh → `Shape_Sphere` (тимчасово)
-   - Scale → `0.2, 0.2, 0.2`
-3. У `BP_PlayerShip` → Details → Cannon Component → **Cannonball Class** → `BP_Cannonball`
-4. Compile & Save
+**Якщо нічого не з'являється** — дивись секцію "Діагностика" нижче.
 
 ---
 
-## ДЕНЬ 3 — Вороги (AI)
+## ЧАСТИНА 5 — Гармати (Day 2 — 20 хв)
 
-### Крок 14: Створення ворожих Blueprints
+### 1. Сокети на меші корабля
 
-Для кожного типу корабля:
+1. Двічі клікни Static Mesh куба (або твоєї моделі корабля)
+2. **Window → Socket Manager**
+3. Створи 4 сокети:
 
-1. Content → Правою → **Blueprint Class** → вибери відповідний C++ клас:
-   - `SloopShip` → `BP_Sloop`
-   - `BrigShip` → `BP_Brig`
-   - `GalleonShip` → `BP_Galleon`
+| Назва сокета     | Позиція (приблизно) |
+|------------------|---------------------|
+| `CannonLeft_0`   | зліва, ближче до носа  |
+| `CannonLeft_1`   | зліва, ближче до корми |
+| `CannonRight_0`  | справа, ближче до носа |
+| `CannonRight_1`  | справа, ближче до корми|
 
-2. У кожному Blueprint → `ShipMesh`:
-   - Встанови відповідний меш (або куб тимчасово)
-   - Прикрути сокети гармат
+> Поверни сокети так щоб їхня X-вісь (червона стрілка) дивилась ПЕРПЕНДИКУЛЯРНО до бортa — це напрямок стрільби.
 
-3. Для кожного → `CannonComponent` → **Cannonball Class** → `BP_Cannonball`
+### 2. Blueprint ядра
 
-### Крок 15: Navigation Mesh (потрібен для AI)
+Правою в Content → **Blueprint Class** → `Cannonball` → `BP_Cannonball`.
 
-1. Вверху меню → **Build → Build Navigation** або натисни **P** щоб показати NavMesh
-2. У **Place Actors** → **Volumes** → перетягни **Nav Mesh Bounds Volume** на сцену
-3. Розтягни так, щоб покривав весь океан
-4. Натисни **Build → Build Navigation**
+Відкрий, Details → `ProjectileMesh` → `Shape_Sphere`, Scale `0.2, 0.2, 0.2`.
 
-### Крок 16: AI Controller
+### 3. Прив'яжи ядро до корабля
 
-Кожен ворожий Blueprint автоматично використовує `ShipAIController` (вже прописано в C++ коді).  
-Просто розміщуй `BP_Sloop`, `BP_Brig` на сцені — вони почнуть рухатись до гравця.
+`BP_PlayerShip` → Details → `CannonComponent`:
+- **Cannonball Class** → `BP_Cannonball`
+- **Cannons Per Side** → `2`
 
----
-
-## ДЕНЬ 4 — Здоров'я та смерть
-
-### Крок 17: Перевірка HP
-
-`HealthComponent` вже підключено в C++. Щоб побачити HP:
-
-1. Відкрий `BP_PlayerShip` → вибери `HealthComponent` → Details:
-   - **Max Health** → 200 (або скільки хочеш)
-
-При отриманні урону від ядра `HealthComponent` автоматично зменшує HP і кличе делегат `OnDeath`.
-
-### Крок 18: Візуальний ефект смерті (Niagara)
-
-1. Content → **Particle Systems** → правою → **Niagara System** → `NS_ShipExplosion`
-2. Вибери шаблон **Fountain** і налаштуй (дим + вогонь)
-3. У `EnemyShipBase.cpp` функція `HandleDeath()` — ми вже викликаємо `UGameplayStatics::SpawnEmitterAtLocation`
-4. У C++ коді знайди і заміни `nullptr` на `NS_ShipExplosion`:
-
-```cpp
-// В EnemyShipBase.cpp, функція HandleDeath():
-// Знайди рядок:
-UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), DeathEffect, GetActorLocation());
-// DeathEffect — це UPROPERTY в EnemyShipBase.h, встанови його в Blueprint
-```
-
-У `BP_Sloop/BP_Brig/BP_Galleon` → Details → `DeathEffect` → `NS_ShipExplosion`
+Compile & Save. Тепер ЛКМ стріляє лівим бортом, ПКМ — правим.
 
 ---
 
-## ДЕНЬ 5 — Лут та ресурси
+## ЧАСТИНА 6 — Вороги (Day 3 — 30 хв)
 
-### Крок 19: Blueprint лута
+### 1. Створи Blueprints ворогів
 
-1. Content → Правою → **Blueprint Class** → `LootPickup` → `BP_LootPickup`
-2. Відкрий → `ResourceMesh` → Static Mesh → `Shape_Cylinder` (тимчасово)
-3. Scale → `0.5, 0.5, 0.5`
+Content → правою → **Blueprint Class** → вибирай батьківський C++ клас:
 
-### Крок 20: Налаштування LootSpawner
+| C++ клас        | BP              | Меш (тимчасово)             |
+|-----------------|-----------------|------------------------------|
+| `SloopShip`     | `BP_Sloop`      | куб Scale `4, 1.5, 1.5`     |
+| `BrigShip`      | `BP_Brig`       | куб Scale `6, 2, 2`         |
+| `GalleonShip`   | `BP_Galleon`    | куб Scale `9, 3, 3`         |
 
-1. Content → Правою → **Blueprint Class** → `LootSpawner` → `BP_LootSpawner`
-2. Відкрий → Details:
-   - **Loot Pickup Class** → `BP_LootPickup`
-3. Перетягни `BP_LootSpawner` на сцену (1 штука)
+Для кожного:
+- `CannonComponent` → Cannonball Class = `BP_Cannonball`
+- Details → `ShipMesh` → встанови меш і додай ті ж самі сокети гармат
 
-Тепер при знищенні ворожого корабля LootSpawner автоматично спавнить ресурси.
+### 2. Navigation Mesh
 
----
+1. **Place Actors → Volumes → Nav Mesh Bounds Volume** → перетягни на сцену
+2. Розтягни так щоб покривав всю воду (Scale X/Y до 200-500)
+3. Натисни **P** — зеленим підсвітиться навігаційна сітка
+4. **Build → Build Navigation**
 
-## ДЕНЬ 6 — Доки та апгрейди
+### 3. Прив'яжи вороги до EnemySpawner
 
-### Крок 21: Створення Docks зони
+GameMode вже спавнить `EnemySpawner` автоматично. Щоб він знав які кораблі спавнити, створи `BP_EnemySpawner`:
 
-1. Content → Правою → **Blueprint Class** → `DocksZone` → `BP_Docks`
-2. Відкрий → вибери `BoxComponent` → Details → **Box Extent** → `1000, 1000, 500`
-3. Перетягни на сцену — розміщуй у бухті (берег)
-
-### Крок 22: UpgradeManager
-
-1. Content → Правою → **Blueprint Class** → `UpgradeManager` → `BP_UpgradeManager`
-2. Перетягни `BP_UpgradeManager` на сцену (1 штука, де завгодно)
-
-### Крок 23: UI Upgrade Menu (UMG Widget)
-
-1. Content → Правою → **User Interface → Widget Blueprint** → `WBP_UpgradeMenu`
-2. Відкрий → у **Designer** створи простий UI:
-   - 4 кнопки: "Корпус", "Вітрила", "Зброя", "Гармати"
-   - Текст ресурсів: Золото / Дерево / Метал
-3. У **Graph** для кожної кнопки **On Clicked**:
-   ```
-   Get Player Controller → Cast to CrownsBanePlayerController → Buy Upgrade (CategoryByte=0/1/2/3)
-   ```
-4. У `BP_GameMode` або в `OnEnterDocks` event — показуй `WBP_UpgradeMenu`
-
-> **Підказка:** CategoryByte: Hull=0, Sails=1, Weapons=2, CannonCount=3
-
----
-
-## ДЕНЬ 7 — Рівень розшуку, вітер, HUD
-
-### Крок 24: WindSystem та WantedLevelManager
-
-1. Content → Правою → **Blueprint Class** → `WindSystem` → `BP_WindSystem`
-2. Content → Правою → **Blueprint Class** → `WantedLevelManager` → `BP_WantedLevelManager`
-3. Content → Правою → **Blueprint Class** → `EnemySpawner` → `BP_EnemySpawner`
-4. Перетягни всі три на сцену (по одному примірнику)
-
-У `BP_EnemySpawner` → Details:
+Content → **Blueprint Class** → `EnemySpawner` → `BP_EnemySpawner`. Відкрий, Details:
 - **Sloop Class** → `BP_Sloop`
 - **Brig Class** → `BP_Brig`
 - **Galleon Class** → `BP_Galleon`
 
-### Крок 25: HUD налаштування
-
-`CrownsBaneHUD` вже підключено через `BP_GameMode`. HUD автоматично малює:
-- HP bar (зелений, знизу зліва)
-- Таймери перезарядки (ліво/право)
-- Зірки розшуку (зверху)
-- Ресурси: золото/дерево/метал
-- Стрілка вітру
+У `BP_GameMode` → Details → **Enemy Spawner Class** → `BP_EnemySpawner`.
 
 ---
 
-## ФІНАЛЬНИЙ ЧЕКЛИСТ
+## ЧАСТИНА 7 — Лут, Доки, UI (Day 5-6 — 40 хв)
 
-- [ ] W/S рухають корабель (з інерцією)
-- [ ] A/D повертають корабель (ширший радіус на швидкості)
-- [ ] ЛКМ/ПКМ стріляють гарматами з відповідного борту
-- [ ] Вороги рухаються до гравця та стріляють у відповідь
-- [ ] Знищений ворог залишає лут на воді
-- [ ] Корабель підбирає лут, проплив крізь нього
-- [ ] При в'їзді в Доки відкривається меню апгрейдів
-- [ ] Апгрейди витрачають ресурси та покращують характеристики
-- [ ] При 4+ зірках розшуку спавняться галеони-переслідувачі
-- [ ] Прогрес зберігається між сесіями
+### 1. Лут
+
+- Blueprint: `LootPickup` → `BP_LootPickup` (меш = Shape_Cylinder, Scale 0.5)
+- Blueprint: `LootSpawner` → `BP_LootSpawner`, Details → Loot Pickup Class = `BP_LootPickup`
+- Перетягни `BP_LootSpawner` на сцену (1 штука)
+
+### 2. Доки
+
+- Blueprint: `DocksZone` → `BP_Docks`
+- Перетягни `BP_Docks` на сцену (у бухту на березі)
+- Details → Box Component → Box Extent = `1000, 1000, 500`
+
+### 3. UMG Upgrade Widget
+
+Content → правою → **User Interface → Widget Blueprint** → `WBP_UpgradeMenu`.
+
+Відкрий. У Designer додай:
+- 4 `Button` з текстом: "Корпус", "Вітрила", "Зброя", "Гармати"
+- 3 `TextBlock` для: `Gold: {0}`, `Wood: {0}`, `Metal: {0}`
+
+У Graph, для кожної кнопки On Clicked → **Get Player Controller → Cast to CrownsBanePlayerController → Buy Upgrade** (Category Byte: Hull=0, Sails=1, Weapons=2, CannonCount=3).
+
+### 4. Показ віджета в доках
+
+У `BP_Docks` → Event Graph → **Event On Player Enter Docks** → Create Widget (`WBP_UpgradeMenu`) → Add to Viewport.
 
 ---
 
-## Корисні ресурси для 3D моделей (безкоштовно)
+## Діагностика (якщо щось не працює)
 
-- **Fab.com** (колишній UE Marketplace) → шукай "Pirate Ship" → фільтр "Free"
-- **Sketchfab** → безкоштовні моделі, імпортуй через FBX
-- **KayKit Ship Pack** (itch.io) — низькополігональні кораблі для аркад, ідеально підходять
+| Симптом                                 | Причина та рішення                                                                                  |
+|-----------------------------------------|-----------------------------------------------------------------------------------------------------|
+| На екрані червоний текст "ShipMappingContext NOT assigned" | Відкрий `BP_PlayerShip` → Details → Input → Ship Mapping Context = `IMC_Ship`               |
+| На екрані: "EnhancedInput subsystem missing" | `Edit → Plugins → Enhanced Input` має бути ON (має бути вже увімкнено через `.uproject`)       |
+| Controller=NONE в debug                  | `BP_PlayerShip` → Details → **Auto Possess Player** = Player 0 (має бути вже в C++ конструкторі)  |
+| Sail змінюється але корабель не рухається | У Details **MaxSpeed** не 0 (має бути 1500). Перевір що **ShipMesh → Simulate Physics** = OFF     |
+| Ядра не спавняться                       | CannonComponent → **Cannonball Class** = `BP_Cannonball`. Також перевір що є сокети на меші       |
+| AI стоїть на місці                       | Build → Build Navigation. Перевір Nav Mesh Bounds Volume покриває воду                             |
+| Апгрейди не працюють                     | GameMode спавнить UpgradeManager автоматично. Перевір Output Log — не має бути warnings           |
+| Збереження не працює                     | `Config/DefaultEngine.ini` має `GameInstanceClass=/Script/CrownsBane.CrownsBaneGameInstance`       |
 
-## Помилки та рішення
+**Де дивитись логи:** `Window → Output Log` → фільтр "ShipPawn" — всі важливі події підписані `[ShipPawn]`.
 
-| Помилка | Рішення |
-|---------|---------|
-| `EnhancedInputComponent not found` | Edit → Project Settings → Input → Default Input Component = EnhancedInputComponent |
-| Корабель не рухається | Переконайся що `IMC_Ship` призначено в `BP_PlayerShip` у полі `Ship Mapping Context` |
-| Ядра не спавняться | У `BP_PlayerShip` → CannonComponent → Cannonball Class → вибери `BP_Cannonball` |
-| AI не рухається | Переконайся що NavMesh покриває сцену (Build → Build Navigation) |
-| Лут не підбирається | У `BP_PlayerShip` є Collision → Overlap → переконайся що `LootPickup` має OverlapEvents = true |
-| Збереження не працює | Edit → Project Settings → Maps & Modes → Game Instance Class = CrownsBaneGameInstance |
+---
+
+## Безкоштовні ресурси
+
+- **Fab.com** — "Pirate Ship" з фільтром "Free"
+- **KayKit Ship Pack** на itch.io — низькополігональні кораблі
+- **Quixel Megascans** — безкоштовно всередині UE5
+- **Sketchfab** (фільтр CC0) — імпорт через FBX

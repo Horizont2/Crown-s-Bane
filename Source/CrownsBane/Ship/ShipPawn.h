@@ -32,6 +32,8 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void PawnClientRestart() override;
+	virtual void NotifyControllerChanged() override;
 
 public:
 	virtual void Tick(float DeltaTime) override;
@@ -40,6 +42,9 @@ public:
 		AController* EventInstigator, AActor* DamageCauser) override;
 
 	// ---- Components ----
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	class USceneComponent* SceneRoot;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	UStaticMeshComponent* ShipMesh;
 
@@ -55,8 +60,7 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	UHealthComponent* HealthComponent;
 
-	// ---- Enhanced Input ----
-	// Assign these in your Blueprint (BP_PlayerShip) Details panel
+	// ---- Enhanced Input (assign in BP_PlayerShip Details) ----
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	UInputMappingContext* ShipMappingContext;
 
@@ -75,6 +79,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	UInputAction* IA_FireRight;
 
+	// Show debug text on screen (HUD-like)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Debug")
+	bool bShowDebugOnScreen = true;
+
 	// ---- Movement Settings ----
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
 	float MaxSpeed = 1500.0f;
@@ -83,30 +91,35 @@ public:
 	float HalfSailSpeedMultiplier = 0.5f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
-	float AccelerationRate = 80.0f;
+	float AccelerationRate = 200.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
-	float DecelerationRate = 60.0f;
+	float DecelerationRate = 150.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
 	float BaseTurnRate = 45.0f;
 
-	// At full speed, turn rate is multiplied by this (< 1 = wider radius)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
 	float HighSpeedTurnFactor = 0.4f;
+
+	// Visual roll when turning (degrees at max turn)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Visual")
+	float MaxVisualRoll = 8.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Visual")
+	float VisualRollInterpSpeed = 2.0f;
 
 	// ---- Wind ----
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wind")
 	float WindInfluenceFactor = 0.2f;
 
-	// ---- State (read-only) ----
+	// ---- State ----
 	UPROPERTY(BlueprintReadOnly, Category = "Movement")
 	ESailLevel CurrentSailLevel = ESailLevel::Stop;
 
 	UPROPERTY(BlueprintReadOnly, Category = "Movement")
 	float CurrentSpeed = 0.0f;
 
-	// ---- Public API ----
 	UFUNCTION(BlueprintCallable, Category = "Movement")
 	void ApplySpeedPenalty(float PenaltyFraction, float Duration);
 
@@ -126,11 +139,17 @@ protected:
 	void Input_IncreaseSail(const FInputActionValue& Value);
 	void Input_DecreaseSail(const FInputActionValue& Value);
 	void Input_Turn(const FInputActionValue& Value);
+	void Input_TurnCompleted(const FInputActionValue& Value);
 	void Input_FireLeft(const FInputActionValue& Value);
 	void Input_FireRight(const FInputActionValue& Value);
 
+	// Registers IMC on the possessing PlayerController's Enhanced Input subsystem.
+	// Called from PawnClientRestart (canonical), NotifyControllerChanged, and BeginPlay (fallback).
+	void AddInputMappingContext();
+
 private:
 	void UpdateMovement(float DeltaTime);
+	void UpdateVisualRoll(float DeltaTime);
 	float GetTargetSpeed() const;
 	float GetWindMultiplier() const;
 
@@ -138,4 +157,5 @@ private:
 	float TurnInputValue = 0.0f;
 	float SpeedPenaltyFraction = 0.0f;
 	float SpeedPenaltyTimeRemaining = 0.0f;
+	float CurrentVisualRoll = 0.0f;
 };

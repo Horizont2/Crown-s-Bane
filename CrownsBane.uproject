@@ -11,7 +11,10 @@
 			"AdditionalDependencies": [
 				"Engine",
 				"AIModule",
-				"NavigationSystem"
+				"NavigationSystem",
+				"EnhancedInput",
+				"UMG",
+				"Water"
 			]
 		}
 	],
@@ -22,6 +25,14 @@
 		},
 		{
 			"Name": "EnhancedInput",
+			"Enabled": true
+		},
+		{
+			"Name": "Water",
+			"Enabled": true
+		},
+		{
+			"Name": "Niagara",
 			"Enabled": true
 		}
 	]

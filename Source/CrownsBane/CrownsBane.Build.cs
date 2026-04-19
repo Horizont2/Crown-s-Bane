@@ -39,7 +39,8 @@ public class CrownsBane : ModuleRules
 
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
-			"RenderCore"
+			"RenderCore",
+			"Niagara"
 		});
 	}
 }
