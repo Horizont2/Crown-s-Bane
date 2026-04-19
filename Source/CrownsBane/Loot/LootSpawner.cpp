@@ -44,7 +44,11 @@ ALootPickup* ALootSpawner::SpawnPickup(FVector Location, EResourceType ResourceT
 	FActorSpawnParameters SpawnParams;
 	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-	TSubclassOf<ALootPickup> ClassToSpawn = LootPickupClass ? LootPickupClass : ALootPickup::StaticClass();
+	TSubclassOf<ALootPickup> ClassToSpawn = LootPickupClass;
+	if (!ClassToSpawn)
+	{
+		ClassToSpawn = ALootPickup::StaticClass();
+	}
 	ALootPickup* Pickup = World->SpawnActor<ALootPickup>(ClassToSpawn, Location, FRotator::ZeroRotator, SpawnParams);
 	if (Pickup)
 	{

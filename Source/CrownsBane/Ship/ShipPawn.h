@@ -36,6 +36,7 @@ protected:
 public:
 	virtual void Tick(float DeltaTime) override;
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+	virtual void PawnClientRestart() override; // дндюмн дкъ ярюа╡кэмнцн ╡мосрс
 	virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent,
 		AController* EventInstigator, AActor* DamageCauser) override;
 
@@ -56,7 +57,6 @@ public:
 	UHealthComponent* HealthComponent;
 
 	// ---- Enhanced Input ----
-	// Assign these in your Blueprint (BP_PlayerShip) Details panel
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	UInputMappingContext* ShipMappingContext;
 
@@ -91,7 +91,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
 	float BaseTurnRate = 45.0f;
 
-	// At full speed, turn rate is multiplied by this (< 1 = wider radius)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
 	float HighSpeedTurnFactor = 0.4f;
 

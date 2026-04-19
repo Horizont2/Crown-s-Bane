@@ -1,5 +1,3 @@
-// Copyright 2024 Crown's Bane. All Rights Reserved.
-
 #include "Ship/ShipPawn.h"
 #include "Combat/CannonComponent.h"
 #include "Components/HealthComponent.h"
@@ -40,6 +38,7 @@ AShipPawn::AShipPawn()
 	HealthComponent = CreateDefaultSubobject<UHealthComponent>(TEXT("HealthComponent"));
 	HealthComponent->MaxHealth = 200.0f;
 
+	// Примусове вселення гравця при старті
 	AutoPossessPlayer = EAutoReceiveInput::Player0;
 }
 
@@ -47,26 +46,43 @@ void AShipPawn::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// Register the Enhanced Input mapping context
+	TArray<AActor*> Found;
+	UGameplayStatics::GetAllActorsOfClass(GetWorld(), AWindSystem::StaticClass(), Found);
+	CachedWindSystem = Found.Num() > 0 ? Cast<AWindSystem>(Found[0]) : nullptr;
+}
+
+// ОФІЦІЙНИЙ МЕТОД ПІДКЛЮЧЕННЯ КАРТИ КНОПОК
+void AShipPawn::PawnClientRestart()
+{
+	Super::PawnClientRestart();
+
 	if (APlayerController* PC = Cast<APlayerController>(GetController()))
 	{
-		if (UEnhancedInputLocalPlayerSubsystem* Subsystem =
-			ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PC->GetLocalPlayer()))
+		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PC->GetLocalPlayer()))
 		{
+			Subsystem->ClearAllMappings(); // Очищаємо старі баги
 			if (ShipMappingContext)
 			{
 				Subsystem->AddMappingContext(ShipMappingContext, 0);
 			}
 		}
 	}
+}
 
-	// Cache wind system
-	TArray<AActor*> Found;
-	UGameplayStatics::GetAllActorsOfClass(GetWorld(), AWindSystem::StaticClass(), Found);
-	CachedWindSystem = Found.Num() > 0 ? Cast<AWindSystem>(Found[0]) : nullptr;
+void AShipPawn::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
+{
+	Super::SetupPlayerInputComponent(PlayerInputComponent);
 
-	UE_LOG(LogTemp, Log, TEXT("ShipPawn BeginPlay. Wind: %s"),
-		CachedWindSystem ? TEXT("found") : TEXT("not found"));
+	UEnhancedInputComponent* EIC = Cast<UEnhancedInputComponent>(PlayerInputComponent);
+	if (!EIC) return;
+
+	if (IA_IncreaseSail) EIC->BindAction(IA_IncreaseSail, ETriggerEvent::Started, this, &AShipPawn::Input_IncreaseSail);
+	if (IA_DecreaseSail) EIC->BindAction(IA_DecreaseSail, ETriggerEvent::Started, this, &AShipPawn::Input_DecreaseSail);
+	if (IA_FireLeft)     EIC->BindAction(IA_FireLeft, ETriggerEvent::Started, this, &AShipPawn::Input_FireLeft);
+	if (IA_FireRight)    EIC->BindAction(IA_FireRight, ETriggerEvent::Started, this, &AShipPawn::Input_FireRight);
+
+	if (IA_Turn)         EIC->BindAction(IA_Turn, ETriggerEvent::Triggered, this, &AShipPawn::Input_Turn);
+	if (IA_Turn)         EIC->BindAction(IA_Turn, ETriggerEvent::Completed, this, &AShipPawn::Input_Turn);
 }
 
 void AShipPawn::Tick(float DeltaTime)
@@ -85,7 +101,6 @@ void AShipPawn::Tick(float DeltaTime)
 
 	UpdateMovement(DeltaTime);
 
-	// Apply turning from accumulated input
 	if (!FMath::IsNearlyZero(TurnInputValue))
 	{
 		float SpeedFraction = MaxSpeed > 0.0f ? CurrentSpeed / MaxSpeed : 0.0f;
@@ -94,36 +109,10 @@ void AShipPawn::Tick(float DeltaTime)
 	}
 }
 
-void AShipPawn::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
-{
-	Super::SetupPlayerInputComponent(PlayerInputComponent);
-
-	UEnhancedInputComponent* EIC = Cast<UEnhancedInputComponent>(PlayerInputComponent);
-	if (!EIC)
-	{
-		UE_LOG(LogTemp, Error, TEXT("ShipPawn: Enhanced Input Component not found! "
-			"Check Project Settings > Input > Default Input Component Class = EnhancedInputComponent"));
-		return;
-	}
-
-	if (IA_IncreaseSail) EIC->BindAction(IA_IncreaseSail, ETriggerEvent::Triggered, this, &AShipPawn::Input_IncreaseSail);
-	if (IA_DecreaseSail) EIC->BindAction(IA_DecreaseSail, ETriggerEvent::Triggered, this, &AShipPawn::Input_DecreaseSail);
-	if (IA_Turn)         EIC->BindAction(IA_Turn,         ETriggerEvent::Triggered, this, &AShipPawn::Input_Turn);
-	if (IA_FireLeft)     EIC->BindAction(IA_FireLeft,     ETriggerEvent::Triggered, this, &AShipPawn::Input_FireLeft);
-	if (IA_FireRight)    EIC->BindAction(IA_FireRight,    ETriggerEvent::Triggered, this, &AShipPawn::Input_FireRight);
-
-	// Reset turn when keys are released
-	if (IA_Turn) EIC->BindAction(IA_Turn, ETriggerEvent::Completed, this,
-		[this](const FInputActionValue&) { TurnInputValue = 0.0f; });
-}
-
-float AShipPawn::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent,
-	AController* EventInstigator, AActor* DamageCauser)
+float AShipPawn::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
 {
 	return Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
 }
-
-// ---- Input handlers ----
 
 void AShipPawn::Input_IncreaseSail(const FInputActionValue& Value)
 {
@@ -152,17 +141,13 @@ void AShipPawn::Input_Turn(const FInputActionValue& Value)
 
 void AShipPawn::Input_FireLeft(const FInputActionValue& Value)
 {
-	if (CannonComponent)
-		CannonComponent->FireBroadside(ECannonSide::Left);
+	if (CannonComponent) CannonComponent->FireBroadside(ECannonSide::Left);
 }
 
 void AShipPawn::Input_FireRight(const FInputActionValue& Value)
 {
-	if (CannonComponent)
-		CannonComponent->FireBroadside(ECannonSide::Right);
+	if (CannonComponent) CannonComponent->FireBroadside(ECannonSide::Right);
 }
-
-// ---- Movement ----
 
 float AShipPawn::GetTargetSpeed() const
 {
@@ -194,7 +179,10 @@ void AShipPawn::UpdateMovement(float DeltaTime)
 		CurrentSpeed = FMath::Max(CurrentSpeed - DecelerationRate * DeltaTime, Target);
 
 	if (CurrentSpeed > 0.01f)
-		AddActorWorldOffset(GetActorForwardVector() * CurrentSpeed * DeltaTime, true);
+	{
+		// ГОЛОВНЕ ВИПРАВЛЕННЯ: false в кінці дозволяє кораблю ігнорувати колізію океану!
+		AddActorWorldOffset(GetActorForwardVector() * CurrentSpeed * DeltaTime, false);
+	}
 }
 
 void AShipPawn::ApplySpeedPenalty(float PenaltyFraction, float Duration)

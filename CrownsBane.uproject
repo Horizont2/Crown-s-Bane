@@ -1,27 +1,25 @@
 {
 	"FileVersion": 3,
-	"EngineAssociation": "5.3",
+	"EngineAssociation": "5.7",
 	"Category": "",
-	"Description": "Arcade pirate ship action game - Crown's Bane",
+	"Description": "",
 	"Modules": [
 		{
 			"Name": "CrownsBane",
 			"Type": "Runtime",
-			"LoadingPhase": "Default",
-			"AdditionalDependencies": [
-				"Engine",
-				"AIModule",
-				"NavigationSystem"
-			]
+			"LoadingPhase": "Default"
 		}
 	],
 	"Plugins": [
 		{
-			"Name": "ModelViewViewModel",
-			"Enabled": true
+			"Name": "ModelingToolsEditorMode",
+			"Enabled": true,
+			"TargetAllowList": [
+				"Editor"
+			]
 		},
 		{
-			"Name": "EnhancedInput",
+			"Name": "Water",
 			"Enabled": true
 		}
 	]

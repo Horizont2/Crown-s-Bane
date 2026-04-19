@@ -1,45 +1,36 @@
 // Copyright 2024 Crown's Bane. All Rights Reserved.
 
 using UnrealBuildTool;
+using System.IO;
 
 public class CrownsBane : ModuleRules
 {
-	public CrownsBane(ReadOnlyTargetRules Target) : base(Target)
-	{
-		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
+    public CrownsBane(ReadOnlyTargetRules Target) : base(Target)
+    {
+        PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
-		PublicIncludePaths.AddRange(new string[] {
-			"CrownsBane",
-			"CrownsBane/Ship",
-			"CrownsBane/Combat",
-			"CrownsBane/Components",
-			"CrownsBane/AI",
-			"CrownsBane/Loot",
-			"CrownsBane/Player",
-			"CrownsBane/Upgrades",
-			"CrownsBane/Docks",
-			"CrownsBane/Systems",
-			"CrownsBane/UI"
+        // Використовуємо ModuleDirectory для автоматичного правильного шляху від кореня
+        PublicIncludePaths.Add(ModuleDirectory);
+
+        PublicDependencyModuleNames.AddRange(new string[]
+        {
+            "Core",
+            "CoreUObject",
+            "Engine",
+            "InputCore",
+            "EnhancedInput",
+            "AIModule",
+            "NavigationSystem",
+            "GameplayTasks",
+            "UMG",
+            "Slate",
+            "SlateCore",
+            "Niagara" // ДОДАНО: Для візуальних ефектів вибухів та стрільби
 		});
 
-		PublicDependencyModuleNames.AddRange(new string[]
-		{
-			"Core",
-			"CoreUObject",
-			"Engine",
-			"InputCore",
-			"EnhancedInput",
-			"AIModule",
-			"NavigationSystem",
-			"GameplayTasks",
-			"UMG",
-			"Slate",
-			"SlateCore"
-		});
-
-		PrivateDependencyModuleNames.AddRange(new string[]
-		{
-			"RenderCore"
-		});
-	}
+        PrivateDependencyModuleNames.AddRange(new string[]
+        {
+            "RenderCore"
+        });
+    }
 }
