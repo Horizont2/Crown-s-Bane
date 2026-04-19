@@ -14,6 +14,8 @@ ACrownsBanePlayerController::ACrownsBanePlayerController()
 {
 	PrimaryActorTick.bCanEverTick = false;
 	PlayerInventory = CreateDefaultSubobject<UPlayerInventory>(TEXT("PlayerInventory"));
+	bIsInDocks = false;
+	bUpgradeUIOpen = false;
 }
 
 void ACrownsBanePlayerController::BeginPlay()
@@ -25,12 +27,9 @@ void ACrownsBanePlayerController::SetupInputComponent()
 {
 	Super::SetupInputComponent();
 
-	// Tab opens/closes upgrade UI when in docks.
-	// Bind via Project Settings > Input > Action Mappings > "ToggleUpgradeUI" = Tab
 	if (InputComponent)
 	{
-		InputComponent->BindAction("ToggleUpgradeUI", IE_Pressed, this,
-			&ACrownsBanePlayerController::ToggleUpgradeUI);
+		InputComponent->BindAction("ToggleUpgradeUI", IE_Pressed, this, &ACrownsBanePlayerController::ToggleUpgradeUI);
 	}
 }
 

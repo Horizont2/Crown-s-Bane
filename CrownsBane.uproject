@@ -1,6 +1,6 @@
 {
 	"FileVersion": 3,
-	"EngineAssociation": "5.3",
+	"EngineAssociation": "5.7",
 	"Category": "",
 	"Description": "Arcade pirate ship action game - Crown's Bane",
 	"Modules": [
@@ -14,18 +14,18 @@
 				"NavigationSystem",
 				"EnhancedInput",
 				"UMG",
-				"Water"
+				"Water",
+				"Niagara"
 			]
 		}
 	],
 	"Plugins": [
 		{
-			"Name": "ModelViewViewModel",
-			"Enabled": true
-		},
-		{
-			"Name": "EnhancedInput",
-			"Enabled": true
+			"Name": "ModelingToolsEditorMode",
+			"Enabled": true,
+			"TargetAllowList": [
+				"Editor"
+			]
 		},
 		{
 			"Name": "Water",
@@ -33,6 +33,10 @@
 		},
 		{
 			"Name": "Niagara",
+			"Enabled": true
+		},
+		{
+			"Name": "EnhancedInput",
 			"Enabled": true
 		}
 	]

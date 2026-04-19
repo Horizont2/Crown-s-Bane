@@ -182,7 +182,11 @@ void UCannonComponent::SpawnCannonball(FVector SpawnLocation, FVector Direction,
 
 	FRotator SpawnRotation = Direction.Rotation();
 
-	TSubclassOf<ACannonball> ClassToSpawn = CannonballClass ? CannonballClass : ACannonball::StaticClass();
+	TSubclassOf<ACannonball> ClassToSpawn = CannonballClass;
+	if (!ClassToSpawn)
+	{
+		ClassToSpawn = ACannonball::StaticClass();
+	}
 	ACannonball* Ball = World->SpawnActor<ACannonball>(ClassToSpawn, SpawnLocation, SpawnRotation, SpawnParams);
 	if (Ball)
 	{

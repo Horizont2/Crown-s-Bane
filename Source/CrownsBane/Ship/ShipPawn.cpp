@@ -1,5 +1,3 @@
-// Copyright 2024 Crown's Bane. All Rights Reserved.
-
 #include "Ship/ShipPawn.h"
 #include "Combat/CannonComponent.h"
 #include "Components/HealthComponent.h"
@@ -238,8 +236,6 @@ float AShipPawn::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent,
 	return Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
 }
 
-// ---- Input handlers ----
-
 void AShipPawn::Input_IncreaseSail(const FInputActionValue& Value)
 {
 	switch (CurrentSailLevel)
@@ -274,17 +270,13 @@ void AShipPawn::Input_TurnCompleted(const FInputActionValue& Value)
 
 void AShipPawn::Input_FireLeft(const FInputActionValue& Value)
 {
-	if (CannonComponent)
-		CannonComponent->FireBroadside(ECannonSide::Left);
+	if (CannonComponent) CannonComponent->FireBroadside(ECannonSide::Left);
 }
 
 void AShipPawn::Input_FireRight(const FInputActionValue& Value)
 {
-	if (CannonComponent)
-		CannonComponent->FireBroadside(ECannonSide::Right);
+	if (CannonComponent) CannonComponent->FireBroadside(ECannonSide::Right);
 }
-
-// ---- Movement ----
 
 float AShipPawn::GetTargetSpeed() const
 {

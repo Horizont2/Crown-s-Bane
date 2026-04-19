@@ -1,6 +1,7 @@
 // Copyright 2024 Crown's Bane. All Rights Reserved.
 
 using UnrealBuildTool;
+using System.IO;
 
 public class CrownsBane : ModuleRules
 {
@@ -8,19 +9,8 @@ public class CrownsBane : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
-		PublicIncludePaths.AddRange(new string[] {
-			"CrownsBane",
-			"CrownsBane/Ship",
-			"CrownsBane/Combat",
-			"CrownsBane/Components",
-			"CrownsBane/AI",
-			"CrownsBane/Loot",
-			"CrownsBane/Player",
-			"CrownsBane/Upgrades",
-			"CrownsBane/Docks",
-			"CrownsBane/Systems",
-			"CrownsBane/UI"
-		});
+		// Use ModuleDirectory so "#include "Ship/ShipPawn.h"" works from any subfolder
+		PublicIncludePaths.Add(ModuleDirectory);
 
 		PublicDependencyModuleNames.AddRange(new string[]
 		{
@@ -34,13 +24,13 @@ public class CrownsBane : ModuleRules
 			"GameplayTasks",
 			"UMG",
 			"Slate",
-			"SlateCore"
+			"SlateCore",
+			"Niagara"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
-			"RenderCore",
-			"Niagara"
+			"RenderCore"
 		});
 	}
 }
