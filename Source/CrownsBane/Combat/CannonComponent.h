@@ -6,6 +6,9 @@
 #include "CannonComponent.generated.h"
 
 class ACannonball;
+class UNiagaraSystem;
+class USoundBase;
+class UCameraShakeBase;
 
 UENUM(BlueprintType)
 enum class ECannonSide : uint8
@@ -72,6 +75,22 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cannon")
 	float ElevationAngle = 5.0f;
 
+	// ---- FX ----
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cannon|FX")
+	UNiagaraSystem* MuzzleFlashFX = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cannon|FX")
+	USoundBase* FireSound = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cannon|FX")
+	TSubclassOf<UCameraShakeBase> FireCameraShake;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cannon|FX")
+	float FireCameraShakeScale = 1.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cannon|FX")
+	float FireSoundVolume = 1.0f;
+
 private:
 	float LeftReloadTimer = 0.0f;
 	float RightReloadTimer = 0.0f;
@@ -79,4 +98,5 @@ private:
 	bool bRightReady = true;
 
 	void SpawnCannonball(FVector SpawnLocation, FVector Direction, const FCannonballData& Data);
+	void PlayFireFX(const FVector& Location, const FRotator& Rotation);
 };

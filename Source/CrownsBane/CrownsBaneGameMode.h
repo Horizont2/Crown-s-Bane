@@ -8,6 +8,7 @@ class AWantedLevelManager;
 class AWindSystem;
 class AEnemySpawner;
 class AUpgradeManager;
+class AShipPawn;
 
 UCLASS(minimalapi)
 class ACrownsBaneGameMode : public AGameModeBase
@@ -54,4 +55,12 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Game Systems")
 	AEnemySpawner* GetEnemySpawner() const { return EnemySpawner; }
+
+private:
+	// Failsafe: if Player 0 has no ShipPawn after startup, find one in level and possess it.
+	// This handles the common case where BP_PlayerShip was dragged into the level but
+	// GameMode's DefaultPawnClass or AutoPossessPlayer is misconfigured.
+	void EnsurePlayerPossessesShip();
+	FTimerHandle PossessRetryTimer;
+	int32 PossessRetryCount = 0;
 };

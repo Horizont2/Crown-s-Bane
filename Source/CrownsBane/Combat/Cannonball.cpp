@@ -7,6 +7,7 @@
 #include "Components/HealthComponent.h"
 #include "Ship/ShipPawn.h"
 #include "Kismet/GameplayStatics.h"
+#include "NiagaraFunctionLibrary.h"
 #include "UObject/ConstructorHelpers.h"
 
 ACannonball::ACannonball()
@@ -90,6 +91,29 @@ void ACannonball::OnHit(UPrimitiveComponent* HitComponent, AActor* OtherActor,
 	if (CannonballData.Type == ECannonballType::Chain)
 	{
 		ApplySlowEffect(OtherActor);
+	}
+
+	// Impact FX
+	UWorld* World = GetWorld();
+	if (World)
+	{
+		const FVector ImpactLoc = Hit.ImpactPoint.IsZero() ? GetActorLocation() : Hit.ImpactPoint;
+		const FRotator ImpactRot = Hit.ImpactNormal.IsNearlyZero()
+			? FRotator::ZeroRotator
+			: Hit.ImpactNormal.Rotation();
+
+		const bool bHitShip = OtherActor->IsA(AShipPawn::StaticClass());
+		UNiagaraSystem* FX = bHitShip ? ImpactHullFX : ImpactWaterFX;
+		USoundBase* SFX = bHitShip ? ImpactSound : WaterSplashSound;
+
+		if (FX)
+		{
+			UNiagaraFunctionLibrary::SpawnSystemAtLocation(World, FX, ImpactLoc, ImpactRot);
+		}
+		if (SFX)
+		{
+			UGameplayStatics::PlaySoundAtLocation(World, SFX, ImpactLoc);
+		}
 	}
 
 	Destroy();

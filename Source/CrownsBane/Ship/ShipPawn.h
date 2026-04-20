@@ -12,6 +12,9 @@ class UHealthComponent;
 class AWindSystem;
 class UInputMappingContext;
 class UInputAction;
+class UNiagaraComponent;
+class UNiagaraSystem;
+class USoundBase;
 struct FInputActionValue;
 
 UENUM(BlueprintType)
@@ -59,6 +62,49 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	UHealthComponent* HealthComponent;
+
+	// ---- FX Components (always-on children of ShipMesh) ----
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "FX")
+	UNiagaraComponent* DamageSmokeFX;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "FX")
+	UNiagaraComponent* DamageFireFX;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "FX")
+	UNiagaraComponent* BowWakeFX;
+
+	// Assets (assign in BP_PlayerShip Details, otherwise components stay empty)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FX")
+	UNiagaraSystem* SmokeAsset = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FX")
+	UNiagaraSystem* FireAsset = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FX")
+	UNiagaraSystem* WakeAsset = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FX")
+	UNiagaraSystem* DeathExplosionAsset = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FX")
+	USoundBase* DeathSound = nullptr;
+
+	// HP thresholds for visual damage states (0..1)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FX", meta=(ClampMin="0.0", ClampMax="1.0"))
+	float SmokeHPThreshold = 0.6f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FX", meta=(ClampMin="0.0", ClampMax="1.0"))
+	float FireHPThreshold = 0.3f;
+
+	// Local-space offsets for damage FX (relative to ShipMesh)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FX")
+	FVector SmokeSocketOffset = FVector(0.f, 0.f, 200.f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FX")
+	FVector FireSocketOffset = FVector(0.f, 0.f, 100.f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FX")
+	FVector BowWakeOffset = FVector(400.f, 0.f, -30.f);
 
 	// ---- Enhanced Input (assign in BP_PlayerShip Details) ----
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
@@ -150,8 +196,16 @@ protected:
 private:
 	void UpdateMovement(float DeltaTime);
 	void UpdateVisualRoll(float DeltaTime);
+	void UpdateDamageFX();
+	void UpdateBowWake();
 	float GetTargetSpeed() const;
 	float GetWindMultiplier() const;
+
+	UFUNCTION()
+	void HandleHealthChanged(float CurrentHealth, float MaxHealth);
+
+	UFUNCTION()
+	void HandleDeath();
 
 	AWindSystem* CachedWindSystem;
 	float TurnInputValue = 0.0f;
