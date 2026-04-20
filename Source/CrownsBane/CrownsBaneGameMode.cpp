@@ -6,6 +6,7 @@
 #include "Systems/StormSystem.h"
 #include "Systems/EnemySpawner.h"
 #include "Upgrades/UpgradeManager.h"
+#include "Loot/TreasureQuestManager.h"
 #include "Player/CrownsBanePlayerController.h"
 #include "Ship/ShipPawn.h"
 #include "UI/CrownsBaneHUD.h"
@@ -86,6 +87,16 @@ void ACrownsBaneGameMode::BeginPlay()
 	else
 	{
 		UpgradeManager = World->SpawnActor<AUpgradeManager>(AUpgradeManager::StaticClass(), FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams);
+	}
+
+	// Spawn Treasure Quest Manager
+	if (TreasureQuestManagerClass)
+	{
+		TreasureQuestManager = World->SpawnActor<ATreasureQuestManager>(TreasureQuestManagerClass, FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams);
+	}
+	else
+	{
+		TreasureQuestManager = World->SpawnActor<ATreasureQuestManager>(ATreasureQuestManager::StaticClass(), FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams);
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("CrownsBaneGameMode: All game systems initialized."));

@@ -9,6 +9,7 @@ class AWindSystem;
 class AStormSystem;
 class AEnemySpawner;
 class AUpgradeManager;
+class ATreasureQuestManager;
 class AShipPawn;
 
 UCLASS(minimalapi)
@@ -39,6 +40,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Game Systems")
 	TSubclassOf<AUpgradeManager> UpgradeManagerClass;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Game Systems")
+	TSubclassOf<ATreasureQuestManager> TreasureQuestManagerClass;
+
 	UPROPERTY(BlueprintReadOnly, Category = "Game Systems")
 	AWantedLevelManager* WantedLevelManager;
 
@@ -54,6 +58,9 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "Game Systems")
 	AUpgradeManager* UpgradeManager;
 
+	UPROPERTY(BlueprintReadOnly, Category = "Game Systems")
+	ATreasureQuestManager* TreasureQuestManager;
+
 	UFUNCTION(BlueprintCallable, Category = "Game Systems")
 	AWantedLevelManager* GetWantedLevelManager() const { return WantedLevelManager; }
 
@@ -65,6 +72,9 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Game Systems")
 	AEnemySpawner* GetEnemySpawner() const { return EnemySpawner; }
+
+	UFUNCTION(BlueprintCallable, Category = "Game Systems")
+	ATreasureQuestManager* GetTreasureQuestManager() const { return TreasureQuestManager; }
 
 private:
 	// Failsafe: if Player 0 has no ShipPawn after startup, find one in level and possess it.
