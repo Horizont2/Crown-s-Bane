@@ -9,6 +9,9 @@ class UStaticMeshComponent;
 class UHealthComponent;
 class ALootSpawner;
 class AWantedLevelManager;
+class UNiagaraComponent;
+class UNiagaraSystem;
+class USoundBase;
 
 UENUM(BlueprintType)
 enum class EShipAIState : uint8
@@ -16,6 +19,7 @@ enum class EShipAIState : uint8
 	Patrol  UMETA(DisplayName = "Patrol"),
 	Chase   UMETA(DisplayName = "Chase"),
 	Attack  UMETA(DisplayName = "Attack"),
+	Retreat UMETA(DisplayName = "Retreat"),
 	Sink    UMETA(DisplayName = "Sink")
 };
 
@@ -45,6 +49,31 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	UHealthComponent* HealthComponent;
 
+	// ---- Damage FX ----
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "FX")
+	UNiagaraComponent* DamageSmokeFX;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "FX")
+	UNiagaraComponent* DamageFireFX;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FX")
+	UNiagaraSystem* SmokeAsset = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FX")
+	UNiagaraSystem* FireAsset = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FX")
+	UNiagaraSystem* DeathExplosionAsset = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FX")
+	USoundBase* DeathSound = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FX", meta=(ClampMin="0.0", ClampMax="1.0"))
+	float SmokeHPThreshold = 0.6f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FX", meta=(ClampMin="0.0", ClampMax="1.0"))
+	float FireHPThreshold = 0.3f;
+
 	// ---- AI Settings ----
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI")
 	float DetectionRange = 4000.0f;
@@ -55,7 +84,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI")
 	float FireRange = 1800.0f;
 
-	// Desired distance from player (for sloops that keep distance)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI")
 	float PreferredEngagementDistance = 1500.0f;
 
@@ -71,11 +99,21 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI")
 	float TurnRate = 35.0f;
 
-	// Time between fire attempts
+	// HP fraction at which this ship abandons combat and flees (0 = never retreat)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI", meta=(ClampMin="0.0", ClampMax="1.0"))
+	float RetreatHealthThreshold = 0.25f;
+
+	// Speed during retreat (usually faster than chase)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI")
+	float RetreatSpeed = 700.0f;
+
+	// Set false in subclasses that should never retreat (e.g. enraged Galleon)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI")
+	bool bCanRetreat = true;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI")
 	float FireCooldown = 5.0f;
 
-	// Patrol radius around spawn point
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI")
 	float PatrolRadius = 3000.0f;
 
@@ -104,6 +142,7 @@ protected:
 	virtual void HandleStatePatrol(float DeltaTime);
 	virtual void HandleStateChase(float DeltaTime);
 	virtual void HandleStateAttack(float DeltaTime);
+	virtual void HandleStateRetreat(float DeltaTime);
 	virtual void HandleStateSink(float DeltaTime);
 
 	void TransitionToState(EShipAIState NewState);
@@ -111,6 +150,7 @@ protected:
 	APawn* GetPlayerPawn() const;
 	bool IsBroadsideAligned(ECannonSide& OutSide) const;
 	void TryFireAtPlayer();
+	void UpdateDamageFX();
 
 	FVector SpawnLocation;
 	FVector PatrolTarget;
@@ -122,4 +162,7 @@ protected:
 
 	UFUNCTION()
 	void OnDeathDelegate();
+
+	UFUNCTION()
+	void OnHealthChangedHandler(float CurrentHealth, float MaxHealth);
 };

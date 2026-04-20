@@ -16,6 +16,7 @@
 #include "NiagaraComponent.h"
 #include "NiagaraSystem.h"
 #include "NiagaraFunctionLibrary.h"
+#include "Camera/CameraShakeBase.h"
 
 AShipPawn::AShipPawn()
 {
@@ -264,7 +265,21 @@ void AShipPawn::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 float AShipPawn::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent,
 	AController* EventInstigator, AActor* DamageCauser)
 {
-	return Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+	float Actual = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+
+	if (DamageAmount > 0.0f && HitCameraShake)
+	{
+		if (APlayerController* PC = Cast<APlayerController>(GetController()))
+		{
+			// Scale shake with damage fraction so big hits feel bigger
+			const float MaxHP = HealthComponent ? HealthComponent->GetMaxHealth() : 200.0f;
+			const float Scale = FMath::Clamp(HitCameraShakeScale * (DamageAmount / MaxHP) * 5.0f,
+				0.3f, HitCameraShakeScale * 2.0f);
+			PC->ClientStartCameraShake(HitCameraShake, Scale);
+		}
+	}
+
+	return Actual;
 }
 
 void AShipPawn::Input_IncreaseSail(const FInputActionValue& Value)

@@ -21,7 +21,10 @@ ACrownsBaneGameMode::ACrownsBaneGameMode()
 {
 	PrimaryActorTick.bCanEverTick = true;
 
-	DefaultPawnClass = AShipPawn::StaticClass();
+	// nullptr: the player's BP_PlayerShip placed in the level has AutoPossessPlayer=Player0
+	// and handles possession itself. Setting a C++ class here would spawn a raw pawn
+	// with no assets assigned, which breaks IMC registration.
+	DefaultPawnClass = nullptr;
 	PlayerControllerClass = ACrownsBanePlayerController::StaticClass();
 	HUDClass = ACrownsBaneHUD::StaticClass();
 }

@@ -75,6 +75,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cannon")
 	float ElevationAngle = 5.0f;
 
+	// Random horizontal spread per cannon — each ball deviates ±half this value
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cannon", meta=(ClampMin="0.0", ClampMax="15.0"))
+	float CannonSpreadAngle = 4.0f;
+
 	// ---- FX ----
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cannon|FX")
 	UNiagaraSystem* MuzzleFlashFX = nullptr;
