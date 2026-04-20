@@ -3,6 +3,7 @@
 #include "CrownsBaneGameMode.h"
 #include "Systems/WantedLevelManager.h"
 #include "Systems/WindSystem.h"
+#include "Systems/StormSystem.h"
 #include "Systems/EnemySpawner.h"
 #include "Upgrades/UpgradeManager.h"
 #include "Player/CrownsBanePlayerController.h"
@@ -45,6 +46,16 @@ void ACrownsBaneGameMode::BeginPlay()
 	else
 	{
 		WindSystem = World->SpawnActor<AWindSystem>(AWindSystem::StaticClass(), FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams);
+	}
+
+	// Spawn Storm System (must come after WindSystem so it can cache base values)
+	if (StormSystemClass)
+	{
+		StormSystem = World->SpawnActor<AStormSystem>(StormSystemClass, FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams);
+	}
+	else
+	{
+		StormSystem = World->SpawnActor<AStormSystem>(AStormSystem::StaticClass(), FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams);
 	}
 
 	// Spawn Wanted Level Manager

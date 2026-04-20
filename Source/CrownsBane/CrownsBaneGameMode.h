@@ -6,6 +6,7 @@
 
 class AWantedLevelManager;
 class AWindSystem;
+class AStormSystem;
 class AEnemySpawner;
 class AUpgradeManager;
 class AShipPawn;
@@ -30,6 +31,9 @@ public:
 	TSubclassOf<AWindSystem> WindSystemClass;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Game Systems")
+	TSubclassOf<AStormSystem> StormSystemClass;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Game Systems")
 	TSubclassOf<AEnemySpawner> EnemySpawnerClass;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Game Systems")
@@ -42,6 +46,9 @@ public:
 	AWindSystem* WindSystem;
 
 	UPROPERTY(BlueprintReadOnly, Category = "Game Systems")
+	AStormSystem* StormSystem;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Game Systems")
 	AEnemySpawner* EnemySpawner;
 
 	UPROPERTY(BlueprintReadOnly, Category = "Game Systems")
@@ -52,6 +59,9 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Game Systems")
 	AWindSystem* GetWindSystem() const { return WindSystem; }
+
+	UFUNCTION(BlueprintCallable, Category = "Game Systems")
+	AStormSystem* GetStormSystem() const { return StormSystem; }
 
 	UFUNCTION(BlueprintCallable, Category = "Game Systems")
 	AEnemySpawner* GetEnemySpawner() const { return EnemySpawner; }
