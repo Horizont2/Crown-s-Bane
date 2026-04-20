@@ -97,7 +97,8 @@ void ACannonball::OnHit(UPrimitiveComponent* HitComponent, AActor* OtherActor,
 	UWorld* World = GetWorld();
 	if (World)
 	{
-		const FVector ImpactLoc = Hit.ImpactPoint.IsZero() ? GetActorLocation() : Hit.ImpactPoint;
+		// бхопюбкемн рср:
+		const FVector ImpactLoc = Hit.ImpactPoint.IsZero() ? GetActorLocation() : FVector(Hit.ImpactPoint);
 		const FRotator ImpactRot = Hit.ImpactNormal.IsNearlyZero()
 			? FRotator::ZeroRotator
 			: Hit.ImpactNormal.Rotation();
