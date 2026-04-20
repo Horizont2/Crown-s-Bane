@@ -8,6 +8,11 @@
 #include "Components/StaticMeshComponent.h"
 #include "Components/MeshComponent.h"
 #include "GameFramework/Actor.h"
+#include "GameFramework/Pawn.h"
+#include "GameFramework/PlayerController.h"
+#include "Kismet/GameplayStatics.h"
+#include "NiagaraFunctionLibrary.h"
+#include "Camera/CameraShakeBase.h"
 #include "DrawDebugHelpers.h"
 
 UCannonComponent::UCannonComponent()
@@ -121,6 +126,8 @@ void UCannonComponent::FireBroadside(ECannonSide Side)
 		MeshComp = Owner->FindComponentByClass<USkeletalMeshComponent>();
 	}
 
+	FRotator SpawnRot = ElevatedDir.Rotation();
+
 	bool bFiredFromSocket = false;
 	if (MeshComp)
 	{
@@ -131,6 +138,7 @@ void UCannonComponent::FireBroadside(ECannonSide Side)
 			{
 				FVector SpawnLoc = MeshComp->GetSocketLocation(SocketName);
 				SpawnCannonball(SpawnLoc, ElevatedDir, Data);
+				PlayFireFX(SpawnLoc, SpawnRot);
 				bFiredFromSocket = true;
 			}
 		}
@@ -151,6 +159,19 @@ void UCannonComponent::FireBroadside(ECannonSide Side)
 			FVector SpawnLoc = Owner->GetActorLocation() + BaseOffset + LengthDir * LengthOffset
 				+ FVector(0.0f, 0.0f, 50.0f);
 			SpawnCannonball(SpawnLoc, ElevatedDir, Data);
+			PlayFireFX(SpawnLoc, SpawnRot);
+		}
+	}
+
+	// Camera shake — only once per broadside, played on the instigator PC.
+	if (FireCameraShake)
+	{
+		if (APawn* OwnerPawn = Cast<APawn>(Owner))
+		{
+			if (APlayerController* PC = Cast<APlayerController>(OwnerPawn->GetController()))
+			{
+				PC->ClientStartCameraShake(FireCameraShake, FireCameraShakeScale);
+			}
 		}
 	}
 
@@ -191,6 +212,21 @@ void UCannonComponent::SpawnCannonball(FVector SpawnLocation, FVector Direction,
 	if (Ball)
 	{
 		Ball->InitCannonball(Data, GetOwner());
+	}
+}
+
+void UCannonComponent::PlayFireFX(const FVector& Location, const FRotator& Rotation)
+{
+	UWorld* World = GetWorld();
+	if (!World) return;
+
+	if (MuzzleFlashFX)
+	{
+		UNiagaraFunctionLibrary::SpawnSystemAtLocation(World, MuzzleFlashFX, Location, Rotation);
+	}
+	if (FireSound)
+	{
+		UGameplayStatics::PlaySoundAtLocation(World, FireSound, Location, FireSoundVolume);
 	}
 }
 

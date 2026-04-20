@@ -13,6 +13,9 @@
 #include "InputActionValue.h"
 #include "InputMappingContext.h"
 #include "InputAction.h"
+#include "NiagaraComponent.h"
+#include "NiagaraSystem.h"
+#include "NiagaraFunctionLibrary.h"
 
 AShipPawn::AShipPawn()
 {
@@ -46,6 +49,21 @@ AShipPawn::AShipPawn()
 	HealthComponent = CreateDefaultSubobject<UHealthComponent>(TEXT("HealthComponent"));
 	HealthComponent->MaxHealth = 200.0f;
 
+	DamageSmokeFX = CreateDefaultSubobject<UNiagaraComponent>(TEXT("DamageSmokeFX"));
+	DamageSmokeFX->SetupAttachment(ShipMesh);
+	DamageSmokeFX->bAutoActivate = false;
+	DamageSmokeFX->SetRelativeLocation(SmokeSocketOffset);
+
+	DamageFireFX = CreateDefaultSubobject<UNiagaraComponent>(TEXT("DamageFireFX"));
+	DamageFireFX->SetupAttachment(ShipMesh);
+	DamageFireFX->bAutoActivate = false;
+	DamageFireFX->SetRelativeLocation(FireSocketOffset);
+
+	BowWakeFX = CreateDefaultSubobject<UNiagaraComponent>(TEXT("BowWakeFX"));
+	BowWakeFX->SetupAttachment(ShipMesh);
+	BowWakeFX->bAutoActivate = false;
+	BowWakeFX->SetRelativeLocation(BowWakeOffset);
+
 	// CRITICAL: auto-possess by Player 0, disable AI auto-possess
 	AutoPossessPlayer = EAutoReceiveInput::Player0;
 	AutoPossessAI     = EAutoPossessAI::Disabled;
@@ -65,6 +83,18 @@ void AShipPawn::BeginPlay()
 	TArray<AActor*> Found;
 	UGameplayStatics::GetAllActorsOfClass(GetWorld(), AWindSystem::StaticClass(), Found);
 	CachedWindSystem = Found.Num() > 0 ? Cast<AWindSystem>(Found[0]) : nullptr;
+
+	// Bind health events for damage FX
+	if (HealthComponent)
+	{
+		HealthComponent->OnHealthChanged.AddDynamic(this, &AShipPawn::HandleHealthChanged);
+		HealthComponent->OnDeath.AddDynamic(this, &AShipPawn::HandleDeath);
+	}
+
+	// Assign Niagara assets to components if provided via BP
+	if (DamageSmokeFX && SmokeAsset) DamageSmokeFX->SetAsset(SmokeAsset);
+	if (DamageFireFX && FireAsset)   DamageFireFX->SetAsset(FireAsset);
+	if (BowWakeFX && WakeAsset)      BowWakeFX->SetAsset(WakeAsset);
 
 	UE_LOG(LogTemp, Log, TEXT("[ShipPawn] BeginPlay. Controller=%s  Wind=%s"),
 		GetController() ? *GetController()->GetName() : TEXT("NULL"),
@@ -165,6 +195,7 @@ void AShipPawn::Tick(float DeltaTime)
 	}
 
 	UpdateVisualRoll(DeltaTime);
+	UpdateBowWake();
 
 	if (GEngine && bShowDebugOnScreen)
 	{
@@ -340,4 +371,67 @@ void AShipPawn::UpgradeMaxSpeed(float BonusSpeed)
 void AShipPawn::UpgradeTurnRate(float BonusTurnRate)
 {
 	BaseTurnRate += BonusTurnRate;
+}
+
+void AShipPawn::UpdateDamageFX()
+{
+	if (!HealthComponent) return;
+	const float Pct = HealthComponent->GetHealthPercent();
+
+	if (DamageSmokeFX)
+	{
+		const bool bShouldSmoke = (Pct < SmokeHPThreshold) && HealthComponent->IsAlive();
+		if (bShouldSmoke && !DamageSmokeFX->IsActive()) DamageSmokeFX->Activate(true);
+		else if (!bShouldSmoke && DamageSmokeFX->IsActive()) DamageSmokeFX->Deactivate();
+	}
+
+	if (DamageFireFX)
+	{
+		const bool bShouldBurn = (Pct < FireHPThreshold) && HealthComponent->IsAlive();
+		if (bShouldBurn && !DamageFireFX->IsActive()) DamageFireFX->Activate(true);
+		else if (!bShouldBurn && DamageFireFX->IsActive()) DamageFireFX->Deactivate();
+	}
+}
+
+void AShipPawn::UpdateBowWake()
+{
+	if (!BowWakeFX) return;
+
+	const bool bMoving = CurrentSpeed > 50.0f;
+	if (bMoving && !BowWakeFX->IsActive()) BowWakeFX->Activate(true);
+	else if (!bMoving && BowWakeFX->IsActive()) BowWakeFX->Deactivate();
+
+	if (BowWakeFX->IsActive())
+	{
+		const float SpeedNorm = MaxSpeed > 0 ? FMath::Clamp(CurrentSpeed / MaxSpeed, 0.f, 1.f) : 0.f;
+		BowWakeFX->SetVariableFloat(TEXT("SpeedScale"), SpeedNorm);
+	}
+}
+
+void AShipPawn::HandleHealthChanged(float /*CurrentHealth*/, float /*MaxHealth*/)
+{
+	UpdateDamageFX();
+}
+
+void AShipPawn::HandleDeath()
+{
+	// Play death FX at ship location
+	UWorld* World = GetWorld();
+	if (World)
+	{
+		const FVector Loc = GetActorLocation();
+		if (DeathExplosionAsset)
+		{
+			UNiagaraFunctionLibrary::SpawnSystemAtLocation(World, DeathExplosionAsset, Loc, GetActorRotation());
+		}
+		if (DeathSound)
+		{
+			UGameplayStatics::PlaySoundAtLocation(World, DeathSound, Loc);
+		}
+	}
+
+	// Stop persistent FX
+	if (DamageSmokeFX) DamageSmokeFX->Deactivate();
+	if (DamageFireFX)  DamageFireFX->Deactivate();
+	if (BowWakeFX)     BowWakeFX->Deactivate();
 }

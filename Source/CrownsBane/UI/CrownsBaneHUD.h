@@ -9,6 +9,8 @@ class UCannonComponent;
 class UPlayerInventory;
 class AWantedLevelManager;
 class AWindSystem;
+class AStormSystem;
+class ATreasureQuestManager;
 class AShipPawn;
 
 UCLASS()
@@ -72,6 +74,23 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HUD|Layout")
 	float WindArrowRadius = 40.0f;
 
+	// ---- Storm indicator ----
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HUD|Colors")
+	FLinearColor StormBarColor = FLinearColor(0.25f, 0.45f, 0.9f, 1.0f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HUD|Colors")
+	FLinearColor StormBarBGColor = FLinearColor(0.1f, 0.1f, 0.12f, 0.8f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HUD|Layout")
+	float StormBarWidth = 180.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HUD|Layout")
+	float StormBarHeight = 14.0f;
+
+	// ---- Treasure quest compass ----
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HUD|Colors")
+	FLinearColor TreasureArrowColor = FLinearColor(1.0f, 0.8f, 0.1f, 1.0f);
+
 	// Show upgrade UI prompt when in docks
 	UPROPERTY(BlueprintReadWrite, Category = "HUD")
 	bool bShowDocksPrompt = false;
@@ -82,6 +101,8 @@ private:
 	void DrawWantedStars(AWantedLevelManager* WLM);
 	void DrawResourceCounts(UPlayerInventory* Inventory);
 	void DrawWindArrow(AWindSystem* Wind, AShipPawn* Ship);
+	void DrawStormIndicator(AStormSystem* Storm);
+	void DrawTreasureCompass(ATreasureQuestManager* Manager, AShipPawn* Ship);
 	void DrawDocksPrompt();
 
 	void DrawFilledRect(float X, float Y, float W, float H, FLinearColor Color);
@@ -93,5 +114,7 @@ private:
 	AShipPawn* GetPlayerShip() const;
 	AWantedLevelManager* GetWantedLevelManager() const;
 	AWindSystem* GetWindSystem() const;
+	AStormSystem* GetStormSystem() const;
+	ATreasureQuestManager* GetTreasureQuestManager() const;
 	UPlayerInventory* GetPlayerInventory() const;
 };

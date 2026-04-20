@@ -7,6 +7,8 @@
 #include "Player/PlayerInventory.h"
 #include "Systems/WantedLevelManager.h"
 #include "Systems/WindSystem.h"
+#include "Systems/StormSystem.h"
+#include "Loot/TreasureQuestManager.h"
 #include "Engine/Canvas.h"
 #include "Engine/Font.h"
 #include "Kismet/GameplayStatics.h"
@@ -31,6 +33,8 @@ void ACrownsBaneHUD::DrawHUD()
 	AShipPawn* Ship = GetPlayerShip();
 	AWantedLevelManager* WLM = GetWantedLevelManager();
 	AWindSystem* Wind = GetWindSystem();
+	AStormSystem* Storm = GetStormSystem();
+	ATreasureQuestManager* TreasureMgr = GetTreasureQuestManager();
 	UPlayerInventory* Inventory = GetPlayerInventory();
 
 	if (Ship)
@@ -56,6 +60,16 @@ void ACrownsBaneHUD::DrawHUD()
 	if (Wind && Ship)
 	{
 		DrawWindArrow(Wind, Ship);
+	}
+
+	if (Storm)
+	{
+		DrawStormIndicator(Storm);
+	}
+
+	if (TreasureMgr && Ship)
+	{
+		DrawTreasureCompass(TreasureMgr, Ship);
 	}
 
 	if (bShowDocksPrompt)
@@ -238,6 +252,88 @@ void ACrownsBaneHUD::DrawWindArrow(AWindSystem* Wind, AShipPawn* Ship)
 	DrawText(TEXT("WIND"), FColor::White, CX - 16.0f, CY - WindArrowRadius - 18.0f, nullptr, 0.8f, false);
 }
 
+void ACrownsBaneHUD::DrawStormIndicator(AStormSystem* Storm)
+{
+	if (!Storm) return;
+
+	const float Intensity = Storm->GetStormIntensity();
+	const EStormPhase Phase = Storm->GetStormPhase();
+
+	// Hide during Clear weather with near-zero intensity
+	if (Phase == EStormPhase::Clear && Intensity < 0.02f) return;
+
+	const float ScreenW = Canvas->ClipX;
+	const float BarX = ScreenW * 0.5f - StormBarWidth * 0.5f;
+	const float BarY = HUDPaddingY + StarSize + 34.0f; // Below wanted stars row
+
+	// Background
+	DrawFilledRect(BarX - 2, BarY - 2, StormBarWidth + 4, StormBarHeight + 4, StormBarBGColor);
+
+	// Intensity fill
+	FLinearColor Fill = FLinearColor::LerpUsingHSV(StormBarColor, FLinearColor(0.9f, 0.2f, 0.1f, 1.f), Intensity);
+	DrawFilledRect(BarX, BarY, StormBarWidth * Intensity, StormBarHeight, Fill);
+
+	// Label
+	FString PhaseLabel;
+	FColor LabelColor = FColor::Cyan;
+	switch (Phase)
+	{
+	case EStormPhase::Clear:       PhaseLabel = TEXT("CLEAR SKIES");          LabelColor = FColor(160, 200, 255); break;
+	case EStormPhase::BuildingUp:  PhaseLabel = TEXT("STORM INCOMING!");      LabelColor = FColor::Yellow;        break;
+	case EStormPhase::Storm:       PhaseLabel = TEXT("STORM - HANG ON!");     LabelColor = FColor::Red;           break;
+	case EStormPhase::Dissipating: PhaseLabel = TEXT("STORM DISSIPATING");    LabelColor = FColor::Orange;        break;
+	}
+	DrawText(PhaseLabel, LabelColor, BarX, BarY - 18.0f, nullptr, 0.85f, false);
+}
+
+void ACrownsBaneHUD::DrawTreasureCompass(ATreasureQuestManager* Manager, AShipPawn* Ship)
+{
+	if (!Manager || !Ship) return;
+
+	const TArray<FTreasureQuest>& Quests = Manager->GetActiveQuests();
+	if (Quests.Num() == 0) return;
+
+	FVector NearestLoc;
+	float NearestDist = 0.0f;
+	const FVector ShipLoc = Ship->GetActorLocation();
+	if (!Manager->GetNearestActiveQuestLocation(ShipLoc, NearestLoc, NearestDist))
+	{
+		return;
+	}
+
+	const float ScreenW = Canvas->ClipX;
+	const float ScreenH = Canvas->ClipY;
+	const float CX = ScreenW * 0.5f;
+	const float CY = ScreenH * 0.18f;
+	const float Radius = 38.0f;
+
+	// Compass background
+	DrawFilledRect(CX - Radius - 4, CY - Radius - 4,
+		(Radius + 4) * 2, (Radius + 4) * 2,
+		FLinearColor(0.0f, 0.0f, 0.0f, 0.55f));
+
+	// Direction from ship to chest, relative to world, then normalized to 2D
+	FVector ToChest = NearestLoc - ShipLoc;
+	ToChest.Z = 0.0f;
+	ToChest.Normalize();
+	const float ChestWorldAngle = FMath::RadiansToDegrees(FMath::Atan2(ToChest.Y, ToChest.X));
+
+	// Rotate relative to ship heading so arrow points forward when aligned
+	const FVector ShipFwd = Ship->GetActorForwardVector();
+	const float ShipAngle = FMath::RadiansToDegrees(FMath::Atan2(ShipFwd.Y, ShipFwd.X));
+	const float RelAngle = ChestWorldAngle - ShipAngle - 90.0f; // -90 so "up" = forward
+
+	DrawArrow(CX, CY, Radius, RelAngle, TreasureArrowColor);
+
+	const FString DistLabel = FString::Printf(TEXT("TREASURE %.0f m"), NearestDist / 100.0f);
+	DrawText(DistLabel, FColor(255, 210, 60), CX - 60.0f, CY + Radius + 6.0f, nullptr, 0.9f, false);
+
+	const FString CountLabel = (Quests.Num() > 1)
+		? FString::Printf(TEXT("+%d more maps"), Quests.Num() - 1)
+		: TEXT("Active Quest");
+	DrawText(CountLabel, FColor::White, CX - 50.0f, CY - Radius - 18.0f, nullptr, 0.75f, false);
+}
+
 void ACrownsBaneHUD::DrawDocksPrompt()
 {
 	float ScreenW = Canvas->ClipX;
@@ -355,6 +451,20 @@ AWindSystem* ACrownsBaneHUD::GetWindSystem() const
 	TArray<AActor*> Actors;
 	UGameplayStatics::GetAllActorsOfClass(GetWorld(), AWindSystem::StaticClass(), Actors);
 	return (Actors.Num() > 0) ? Cast<AWindSystem>(Actors[0]) : nullptr;
+}
+
+AStormSystem* ACrownsBaneHUD::GetStormSystem() const
+{
+	TArray<AActor*> Actors;
+	UGameplayStatics::GetAllActorsOfClass(GetWorld(), AStormSystem::StaticClass(), Actors);
+	return (Actors.Num() > 0) ? Cast<AStormSystem>(Actors[0]) : nullptr;
+}
+
+ATreasureQuestManager* ACrownsBaneHUD::GetTreasureQuestManager() const
+{
+	TArray<AActor*> Actors;
+	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ATreasureQuestManager::StaticClass(), Actors);
+	return (Actors.Num() > 0) ? Cast<ATreasureQuestManager>(Actors[0]) : nullptr;
 }
 
 UPlayerInventory* ACrownsBaneHUD::GetPlayerInventory() const

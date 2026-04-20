@@ -8,6 +8,8 @@
 
 class UProjectileMovementComponent;
 class USphereComponent;
+class UNiagaraSystem;
+class USoundBase;
 
 UCLASS()
 class CROWNSBANE_API ACannonball : public AActor
@@ -44,6 +46,19 @@ public:
 
 	UPROPERTY(BlueprintReadOnly, Category = "Cannonball")
 	AActor* OwnerInstigator;
+
+	// ---- Impact FX ----
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cannonball|FX")
+	UNiagaraSystem* ImpactHullFX = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cannonball|FX")
+	UNiagaraSystem* ImpactWaterFX = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cannonball|FX")
+	USoundBase* ImpactSound = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cannonball|FX")
+	USoundBase* WaterSplashSound = nullptr;
 
 protected:
 	UFUNCTION()
