@@ -129,6 +129,16 @@ void UCannonComponent::FireBroadside(ECannonSide Side)
 	FRotator SpawnRot = ElevatedDir.Rotation();
 
 	bool bFiredFromSocket = false;
+	const float HalfSpread = CannonSpreadAngle * 0.5f;
+
+	auto ApplySpread = [&](FVector BaseDir) -> FVector
+	{
+		float YawJitter   = FMath::FRandRange(-HalfSpread, HalfSpread);
+		float PitchJitter = FMath::FRandRange(-HalfSpread * 0.3f, HalfSpread * 0.3f);
+		FRotator Jitter(PitchJitter, YawJitter, 0.0f);
+		return Jitter.RotateVector(BaseDir).GetSafeNormal();
+	};
+
 	if (MeshComp)
 	{
 		for (int32 i = 0; i < CannonsPerSide; ++i)
@@ -137,8 +147,9 @@ void UCannonComponent::FireBroadside(ECannonSide Side)
 			if (MeshComp->DoesSocketExist(SocketName))
 			{
 				FVector SpawnLoc = MeshComp->GetSocketLocation(SocketName);
-				SpawnCannonball(SpawnLoc, ElevatedDir, Data);
-				PlayFireFX(SpawnLoc, SpawnRot);
+				FVector ShotDir  = ApplySpread(ElevatedDir);
+				SpawnCannonball(SpawnLoc, ShotDir, Data);
+				PlayFireFX(SpawnLoc, ShotDir.Rotation());
 				bFiredFromSocket = true;
 			}
 		}
@@ -153,13 +164,13 @@ void UCannonComponent::FireBroadside(ECannonSide Side)
 
 		for (int32 i = 0; i < CannonsPerSide; ++i)
 		{
-			// Spread cannons along the ship's length
 			float LengthOffset = (i - (CannonsPerSide - 1) * 0.5f) * CannonSpacing;
 			FVector LengthDir = Owner->GetActorForwardVector();
 			FVector SpawnLoc = Owner->GetActorLocation() + BaseOffset + LengthDir * LengthOffset
 				+ FVector(0.0f, 0.0f, 50.0f);
-			SpawnCannonball(SpawnLoc, ElevatedDir, Data);
-			PlayFireFX(SpawnLoc, SpawnRot);
+			FVector ShotDir  = ApplySpread(ElevatedDir);
+			SpawnCannonball(SpawnLoc, ShotDir, Data);
+			PlayFireFX(SpawnLoc, ShotDir.Rotation());
 		}
 	}
 

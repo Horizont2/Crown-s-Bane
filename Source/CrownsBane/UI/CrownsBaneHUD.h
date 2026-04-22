@@ -11,6 +11,7 @@ class AWantedLevelManager;
 class AWindSystem;
 class AStormSystem;
 class ATreasureQuestManager;
+class AEnemyShipBase;
 class AShipPawn;
 
 UCLASS()
@@ -91,6 +92,23 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HUD|Colors")
 	FLinearColor TreasureArrowColor = FLinearColor(1.0f, 0.8f, 0.1f, 1.0f);
 
+	// ---- Enemy health bars ----
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HUD|Colors")
+	FLinearColor EnemyHPBarColor = FLinearColor(0.85f, 0.1f, 0.1f, 1.0f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HUD|Colors")
+	FLinearColor EnemyHPBarBGColor = FLinearColor(0.12f, 0.05f, 0.05f, 0.85f);
+
+	// Maximum world distance to draw enemy health bars (cm)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HUD|Layout")
+	float EnemyHPDrawRange = 8000.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HUD|Layout")
+	float EnemyHPBarWidth = 100.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HUD|Layout")
+	float EnemyHPBarHeight = 8.0f;
+
 	// Show upgrade UI prompt when in docks
 	UPROPERTY(BlueprintReadWrite, Category = "HUD")
 	bool bShowDocksPrompt = false;
@@ -103,6 +121,7 @@ private:
 	void DrawWindArrow(AWindSystem* Wind, AShipPawn* Ship);
 	void DrawStormIndicator(AStormSystem* Storm);
 	void DrawTreasureCompass(ATreasureQuestManager* Manager, AShipPawn* Ship);
+	void DrawEnemyHealthBars(AShipPawn* PlayerShip);
 	void DrawDocksPrompt();
 
 	void DrawFilledRect(float X, float Y, float W, float H, FLinearColor Color);

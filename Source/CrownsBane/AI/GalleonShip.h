@@ -17,6 +17,8 @@ protected:
 	virtual void BeginPlay() override;
 	virtual void HandleStateChase(float DeltaTime) override;
 	virtual void HandleStateAttack(float DeltaTime) override;
+	// Enraged Galleon never retreats — it fights to the death
+	virtual void HandleStateRetreat(float DeltaTime) override;
 
 	// Boss phase: enrage when below 30% health
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Galleon")

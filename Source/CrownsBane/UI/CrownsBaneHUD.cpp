@@ -9,6 +9,9 @@
 #include "Systems/WindSystem.h"
 #include "Systems/StormSystem.h"
 #include "Loot/TreasureQuestManager.h"
+#include "AI/EnemyShipBase.h"
+#include "Components/HealthComponent.h"
+#include "EngineUtils.h"
 #include "Engine/Canvas.h"
 #include "Engine/Font.h"
 #include "Kismet/GameplayStatics.h"
@@ -70,6 +73,11 @@ void ACrownsBaneHUD::DrawHUD()
 	if (TreasureMgr && Ship)
 	{
 		DrawTreasureCompass(TreasureMgr, Ship);
+	}
+
+	if (Ship)
+	{
+		DrawEnemyHealthBars(Ship);
 	}
 
 	if (bShowDocksPrompt)
@@ -332,6 +340,64 @@ void ACrownsBaneHUD::DrawTreasureCompass(ATreasureQuestManager* Manager, AShipPa
 		? FString::Printf(TEXT("+%d more maps"), Quests.Num() - 1)
 		: TEXT("Active Quest");
 	DrawText(CountLabel, FColor::White, CX - 50.0f, CY - Radius - 18.0f, nullptr, 0.75f, false);
+}
+
+void ACrownsBaneHUD::DrawEnemyHealthBars(AShipPawn* PlayerShip)
+{
+	if (!PlayerShip || !Canvas) return;
+
+	const FVector PlayerLoc = PlayerShip->GetActorLocation();
+
+	for (TActorIterator<AEnemyShipBase> It(GetWorld()); It; ++It)
+	{
+		AEnemyShipBase* Enemy = *It;
+		if (!Enemy || !IsValid(Enemy)) continue;
+		if (!Enemy->HealthComponent || !Enemy->HealthComponent->IsAlive()) continue;
+
+		// Distance cull
+		const float DistSq = FVector::DistSquared(PlayerLoc, Enemy->GetActorLocation());
+		if (DistSq > FMath::Square(EnemyHPDrawRange)) continue;
+
+		// Project world pos to screen (above the ship mesh)
+		const FVector WorldBarPos = Enemy->GetActorLocation() + FVector(0.f, 0.f, 280.f);
+		const FVector Screen = Canvas->Project(WorldBarPos);
+
+		// Behind camera or off-screen
+		if (Screen.Z <= 0.f) continue;
+		if (Screen.X < 0.f || Screen.X > Canvas->ClipX) continue;
+		if (Screen.Y < 0.f || Screen.Y > Canvas->ClipY) continue;
+
+		const float Pct  = Enemy->HealthComponent->GetHealthPercent();
+		const float BX   = Screen.X - EnemyHPBarWidth * 0.5f;
+		const float BY   = Screen.Y;
+
+		// Background
+		DrawFilledRect(BX - 1.f, BY - 1.f, EnemyHPBarWidth + 2.f, EnemyHPBarHeight + 2.f, EnemyHPBarBGColor);
+
+		// HP fill — green to red gradient
+		const FLinearColor FillColor = FLinearColor::LerpUsingHSV(
+			FLinearColor(0.85f, 0.1f, 0.1f, 1.f),
+			FLinearColor(0.15f, 0.75f, 0.15f, 1.f),
+			Pct);
+		DrawFilledRect(BX, BY, EnemyHPBarWidth * Pct, EnemyHPBarHeight, FillColor);
+
+		// AI state tag
+		const EShipAIState State = Enemy->GetAIState();
+		FString StateTag;
+		FColor StateColor = FColor::White;
+		switch (State)
+		{
+		case EShipAIState::Patrol:  StateTag = TEXT("PATROL");  StateColor = FColor::Silver;  break;
+		case EShipAIState::Chase:   StateTag = TEXT("CHASING"); StateColor = FColor::Orange;  break;
+		case EShipAIState::Attack:  StateTag = TEXT("ATTACK");  StateColor = FColor::Red;     break;
+		case EShipAIState::Retreat: StateTag = TEXT("FLEEING"); StateColor = FColor::Yellow;  break;
+		case EShipAIState::Sink:    StateTag = TEXT("SINKING"); StateColor = FColor::Silver;  break;
+		}
+
+		const FString Label = FString::Printf(TEXT("%s  %.0f%%  [%s]"),
+			*Enemy->GetName(), Pct * 100.f, *StateTag);
+		DrawText(Label, StateColor, BX, BY - 16.f, nullptr, 0.7f, false);
+	}
 }
 
 void ACrownsBaneHUD::DrawDocksPrompt()

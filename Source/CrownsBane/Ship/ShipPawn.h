@@ -15,6 +15,7 @@ class UInputAction;
 class UNiagaraComponent;
 class UNiagaraSystem;
 class USoundBase;
+class UCameraShakeBase;
 struct FInputActionValue;
 
 UENUM(BlueprintType)
@@ -88,6 +89,13 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FX")
 	USoundBase* DeathSound = nullptr;
+
+	// Camera shake played on receiving damage
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FX")
+	TSubclassOf<UCameraShakeBase> HitCameraShake;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FX", meta=(ClampMin="0.0"))
+	float HitCameraShakeScale = 1.5f;
 
 	// HP thresholds for visual damage states (0..1)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FX", meta=(ClampMin="0.0", ClampMax="1.0"))

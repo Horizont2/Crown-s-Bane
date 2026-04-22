@@ -21,6 +21,12 @@ ACrownsBanePlayerController::ACrownsBanePlayerController()
 void ACrownsBanePlayerController::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// Lock input to the game immediately. Without this, PIE keeps the cursor
+	// active and mouse clicks go to the viewport UI layer instead of the game,
+	// which makes firing cannons with LMB/RMB appear broken.
+	bShowMouseCursor = false;
+	SetInputMode(FInputModeGameOnly());
 }
 
 void ACrownsBanePlayerController::SetupInputComponent()

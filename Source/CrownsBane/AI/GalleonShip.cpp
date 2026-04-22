@@ -39,6 +39,23 @@ void AGalleonShip::BeginPlay()
 	UE_LOG(LogTemp, Log, TEXT("GalleonShip: Spawned - massive, 10 cannons per side, boss tactics."));
 }
 
+void AGalleonShip::HandleStateRetreat(float DeltaTime)
+{
+	// When enraged the Galleon ignores retreat instinct and attacks.
+	// When not yet enraged it checks one more time — if now below enrage threshold
+	// it will enrage and fight; otherwise defer to base retreat.
+	CheckEnrage();
+	if (bIsEnraged)
+	{
+		// Redirect the retreat slot into full attack
+		HandleStateAttack(DeltaTime);
+	}
+	else
+	{
+		Super::HandleStateRetreat(DeltaTime);
+	}
+}
+
 void AGalleonShip::CheckEnrage()
 {
 	if (bIsEnraged) return;
