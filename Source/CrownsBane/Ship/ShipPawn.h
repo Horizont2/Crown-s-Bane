@@ -133,6 +133,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	UInputAction* IA_FireRight;
 
+	// Camera-aim fire: automatically picks port/starboard based on camera yaw.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	UInputAction* IA_Fire;
+
 	// Show debug text on screen (HUD-like)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Debug")
 	bool bShowDebugOnScreen = true;
@@ -189,6 +193,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Movement")
 	void UpgradeTurnRate(float BonusTurnRate);
 
+	// 0..1 fraction of damage absorbed by hull armor (stacks via UpgradeHullArmor)
+	UPROPERTY(BlueprintReadOnly, Category = "Combat")
+	float ArmorReduction = 0.0f;
+
+	UFUNCTION(BlueprintCallable, Category = "Combat")
+	void UpgradeHullArmor(float AdditionalReductionPct);
+
 protected:
 	void Input_IncreaseSail(const FInputActionValue& Value);
 	void Input_DecreaseSail(const FInputActionValue& Value);
@@ -196,10 +207,15 @@ protected:
 	void Input_TurnCompleted(const FInputActionValue& Value);
 	void Input_FireLeft(const FInputActionValue& Value);
 	void Input_FireRight(const FInputActionValue& Value);
+	void Input_Fire(const FInputActionValue& Value);
 
 	// Registers IMC on the possessing PlayerController's Enhanced Input subsystem.
 	// Called from PawnClientRestart (canonical), NotifyControllerChanged, and BeginPlay (fallback).
 	void AddInputMappingContext();
+
+	// Creates default IMC and Input Actions at runtime if the BP fields are null.
+	// Guarantees input works even without any Blueprint configuration.
+	void EnsureInputAssetsExist();
 
 private:
 	void UpdateMovement(float DeltaTime);

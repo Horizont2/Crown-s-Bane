@@ -10,6 +10,7 @@ class AStormSystem;
 class AEnemySpawner;
 class AUpgradeManager;
 class ATreasureQuestManager;
+class ADayNightSystem;
 class AShipPawn;
 
 UCLASS(minimalapi)
@@ -43,6 +44,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Game Systems")
 	TSubclassOf<ATreasureQuestManager> TreasureQuestManagerClass;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Game Systems")
+	TSubclassOf<ADayNightSystem> DayNightSystemClass;
+
 	UPROPERTY(BlueprintReadOnly, Category = "Game Systems")
 	AWantedLevelManager* WantedLevelManager;
 
@@ -60,6 +64,9 @@ public:
 
 	UPROPERTY(BlueprintReadOnly, Category = "Game Systems")
 	ATreasureQuestManager* TreasureQuestManager;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Game Systems")
+	ADayNightSystem* DayNightSystem;
 
 	UFUNCTION(BlueprintCallable, Category = "Game Systems")
 	AWantedLevelManager* GetWantedLevelManager() const { return WantedLevelManager; }

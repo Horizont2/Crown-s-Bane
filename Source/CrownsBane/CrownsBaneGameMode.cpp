@@ -7,6 +7,7 @@
 #include "Systems/EnemySpawner.h"
 #include "Upgrades/UpgradeManager.h"
 #include "Loot/TreasureQuestManager.h"
+#include "Systems/DayNightSystem.h"
 #include "Player/CrownsBanePlayerController.h"
 #include "Ship/ShipPawn.h"
 #include "UI/CrownsBaneHUD.h"
@@ -100,6 +101,16 @@ void ACrownsBaneGameMode::BeginPlay()
 	else
 	{
 		TreasureQuestManager = World->SpawnActor<ATreasureQuestManager>(ATreasureQuestManager::StaticClass(), FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams);
+	}
+
+	// Spawn Day/Night System
+	if (DayNightSystemClass)
+	{
+		DayNightSystem = World->SpawnActor<ADayNightSystem>(DayNightSystemClass, FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams);
+	}
+	else
+	{
+		DayNightSystem = World->SpawnActor<ADayNightSystem>(ADayNightSystem::StaticClass(), FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams);
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("CrownsBaneGameMode: All game systems initialized."));

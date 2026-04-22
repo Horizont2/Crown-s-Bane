@@ -87,6 +87,16 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Loot|Galleon")
 	int32 GalleonMetalMax = 60;
 
+	// ---- Ammo drops (sum amount per ship type — dropped as a single pickup) ----
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Loot|Ammo")
+	int32 SloopAmmoDrop = 6;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Loot|Ammo")
+	int32 BrigAmmoDrop = 12;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Loot|Ammo")
+	int32 GalleonAmmoDrop = 24;
+
 private:
 	void SpawnSloopLoot(FVector Location);
 	void SpawnBrigLoot(FVector Location);

@@ -13,6 +13,7 @@
 #include "InputActionValue.h"
 #include "InputMappingContext.h"
 #include "InputAction.h"
+#include "InputModifiers.h"
 #include "NiagaraComponent.h"
 #include "NiagaraSystem.h"
 #include "NiagaraFunctionLibrary.h"
@@ -78,6 +79,10 @@ void AShipPawn::BeginPlay()
 {
 	Super::BeginPlay();
 
+	// Ensure IMC/IA assets exist, creating defaults if BP left them empty.
+	// This makes input work out-of-the-box with zero Blueprint configuration.
+	EnsureInputAssetsExist();
+
 	// Fallback: some possession orderings let BeginPlay run with a valid controller.
 	AddInputMappingContext();
 
@@ -106,6 +111,7 @@ void AShipPawn::BeginPlay()
 void AShipPawn::PawnClientRestart()
 {
 	Super::PawnClientRestart();
+	EnsureInputAssetsExist();
 	AddInputMappingContext();
 	UE_LOG(LogTemp, Log, TEXT("[ShipPawn] PawnClientRestart -> IMC registered."));
 }
@@ -114,8 +120,58 @@ void AShipPawn::PawnClientRestart()
 void AShipPawn::NotifyControllerChanged()
 {
 	Super::NotifyControllerChanged();
+	EnsureInputAssetsExist();
 	AddInputMappingContext();
 	UE_LOG(LogTemp, Log, TEXT("[ShipPawn] NotifyControllerChanged -> IMC registered."));
+}
+
+void AShipPawn::EnsureInputAssetsExist()
+{
+	// Create missing Input Actions. These are transient objects outlived by the pawn.
+	auto MakeIA = [this](UInputAction*& Target, EInputActionValueType ValueType, const TCHAR* Tag)
+	{
+		if (Target) return;
+		Target = NewObject<UInputAction>(this, UInputAction::StaticClass(), FName(Tag));
+		Target->ValueType = ValueType;
+		UE_LOG(LogTemp, Warning, TEXT("[ShipPawn] Auto-created fallback %s (BP field was NULL)."), Tag);
+	};
+
+	MakeIA(IA_IncreaseSail, EInputActionValueType::Boolean, TEXT("IA_IncreaseSail_Auto"));
+	MakeIA(IA_DecreaseSail, EInputActionValueType::Boolean, TEXT("IA_DecreaseSail_Auto"));
+	MakeIA(IA_Turn,         EInputActionValueType::Axis1D,  TEXT("IA_Turn_Auto"));
+	MakeIA(IA_FireLeft,     EInputActionValueType::Boolean, TEXT("IA_FireLeft_Auto"));
+	MakeIA(IA_FireRight,    EInputActionValueType::Boolean, TEXT("IA_FireRight_Auto"));
+	MakeIA(IA_Fire,         EInputActionValueType::Boolean, TEXT("IA_Fire_Auto"));
+
+	if (!ShipMappingContext)
+	{
+		ShipMappingContext = NewObject<UInputMappingContext>(this, UInputMappingContext::StaticClass(), TEXT("IMC_Ship_Auto"));
+
+		ShipMappingContext->MapKey(IA_IncreaseSail, EKeys::W);
+		ShipMappingContext->MapKey(IA_DecreaseSail, EKeys::S);
+
+		// Turn axis: D = positive, A = negative via Negate modifier
+		ShipMappingContext->MapKey(IA_Turn, EKeys::D);
+		FEnhancedActionKeyMapping& TurnLeftMap = ShipMappingContext->MapKey(IA_Turn, EKeys::A);
+		UInputModifierNegate* Neg = NewObject<UInputModifierNegate>(ShipMappingContext);
+		TurnLeftMap.Modifiers.Add(Neg);
+
+		// Arrow keys also work
+		ShipMappingContext->MapKey(IA_Turn, EKeys::Right);
+		FEnhancedActionKeyMapping& TurnLeftArrow = ShipMappingContext->MapKey(IA_Turn, EKeys::Left);
+		TurnLeftArrow.Modifiers.Add(NewObject<UInputModifierNegate>(ShipMappingContext));
+
+		// Legacy manual-side fire
+		ShipMappingContext->MapKey(IA_FireLeft,  EKeys::Q);
+		ShipMappingContext->MapKey(IA_FireRight, EKeys::E);
+
+		// Camera-aimed fire (preferred): LMB and SpaceBar
+		ShipMappingContext->MapKey(IA_Fire, EKeys::LeftMouseButton);
+		ShipMappingContext->MapKey(IA_Fire, EKeys::SpaceBar);
+
+		UE_LOG(LogTemp, Warning, TEXT("[ShipPawn] Auto-created fallback IMC_Ship with default keybinds "
+			"(W/S sails, A/D or arrows turn, Q/LMB port fire, E/RMB starboard fire)."));
+	}
 }
 
 void AShipPawn::AddInputMappingContext()
@@ -212,6 +268,9 @@ void AShipPawn::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 
+	// Make sure IA properties are non-null before binding.
+	EnsureInputAssetsExist();
+
 	UEnhancedInputComponent* EIC = Cast<UEnhancedInputComponent>(PlayerInputComponent);
 	if (!EIC)
 	{
@@ -259,21 +318,25 @@ void AShipPawn::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 	else
 		UE_LOG(LogTemp, Warning, TEXT("[ShipPawn] IA_FireRight unassigned."));
 
+	if (IA_Fire)
+		EIC->BindAction(IA_Fire, ETriggerEvent::Started, this, &AShipPawn::Input_Fire);
+
 	UE_LOG(LogTemp, Log, TEXT("[ShipPawn] SetupPlayerInputComponent complete."));
 }
 
 float AShipPawn::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent,
 	AController* EventInstigator, AActor* DamageCauser)
 {
-	float Actual = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+	// Apply hull armor reduction BEFORE Super::TakeDamage so HealthComponent receives the reduced value
+	const float MitigatedDamage = DamageAmount * (1.0f - ArmorReduction);
+	float Actual = Super::TakeDamage(MitigatedDamage, DamageEvent, EventInstigator, DamageCauser);
 
-	if (DamageAmount > 0.0f && HitCameraShake)
+	if (MitigatedDamage > 0.0f && HitCameraShake)
 	{
 		if (APlayerController* PC = Cast<APlayerController>(GetController()))
 		{
-			// Scale shake with damage fraction so big hits feel bigger
 			const float MaxHP = HealthComponent ? HealthComponent->GetMaxHealth() : 200.0f;
-			const float Scale = FMath::Clamp(HitCameraShakeScale * (DamageAmount / MaxHP) * 5.0f,
+			const float Scale = FMath::Clamp(HitCameraShakeScale * (MitigatedDamage / MaxHP) * 5.0f,
 				0.3f, HitCameraShakeScale * 2.0f);
 			PC->ClientStartCameraShake(HitCameraShake, Scale);
 		}
@@ -322,6 +385,30 @@ void AShipPawn::Input_FireLeft(const FInputActionValue& Value)
 void AShipPawn::Input_FireRight(const FInputActionValue& Value)
 {
 	if (CannonComponent) CannonComponent->FireBroadside(ECannonSide::Right);
+}
+
+void AShipPawn::Input_Fire(const FInputActionValue& Value)
+{
+	if (!CannonComponent || !Camera) return;
+
+	// Determine side from camera-forward dotted with ship-right
+	const FVector CamFwd = Camera->GetForwardVector();
+	const float DotRight = FVector::DotProduct(CamFwd, GetActorRightVector());
+
+	// Small dead-zone so front/back aims don't accidentally fire
+	if (DotRight > 0.35f)
+	{
+		CannonComponent->FireBroadside(ECannonSide::Right);
+	}
+	else if (DotRight < -0.35f)
+	{
+		CannonComponent->FireBroadside(ECannonSide::Left);
+	}
+	else if (GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 1.2f, FColor::Yellow,
+			TEXT("Turn camera left or right to aim broadside"));
+	}
 }
 
 float AShipPawn::GetTargetSpeed() const
@@ -386,6 +473,13 @@ void AShipPawn::UpgradeMaxSpeed(float BonusSpeed)
 void AShipPawn::UpgradeTurnRate(float BonusTurnRate)
 {
 	BaseTurnRate += BonusTurnRate;
+}
+
+void AShipPawn::UpgradeHullArmor(float AdditionalReductionPct)
+{
+	// AdditionalReductionPct is expressed as percent (e.g. 10 = 10%)
+	ArmorReduction = FMath::Clamp(ArmorReduction + AdditionalReductionPct * 0.01f, 0.0f, 0.75f);
+	UE_LOG(LogTemp, Log, TEXT("[ShipPawn] Hull armor now %.0f%% reduction"), ArmorReduction * 100.0f);
 }
 
 void AShipPawn::UpdateDamageFX()

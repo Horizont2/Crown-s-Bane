@@ -99,6 +99,43 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HUD|Colors")
 	FLinearColor EnemyHPBarBGColor = FLinearColor(0.12f, 0.05f, 0.05f, 0.85f);
 
+	// ---- Minimap ----
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HUD|Minimap")
+	float MinimapRadius = 110.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HUD|Minimap")
+	float MinimapWorldRadius = 10000.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HUD|Minimap")
+	float MinimapPadding = 20.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HUD|Minimap")
+	FLinearColor MinimapBGColor = FLinearColor(0.02f, 0.04f, 0.08f, 0.75f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HUD|Minimap")
+	FLinearColor MinimapBorderColor = FLinearColor(0.35f, 0.55f, 0.8f, 0.9f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HUD|Minimap")
+	FLinearColor MinimapViewConeColor = FLinearColor(1.0f, 1.0f, 1.0f, 0.18f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HUD|Minimap")
+	FLinearColor MinimapPlayerColor = FLinearColor(0.2f, 0.9f, 1.0f, 1.0f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HUD|Minimap")
+	FLinearColor MinimapEnemyColor = FLinearColor(0.95f, 0.2f, 0.15f, 1.0f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HUD|Minimap")
+	FLinearColor MinimapLootColor = FLinearColor(1.0f, 0.85f, 0.15f, 1.0f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HUD|Minimap")
+	FLinearColor MinimapTreasureColor = FLinearColor(1.0f, 0.55f, 0.0f, 1.0f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HUD|Minimap")
+	FLinearColor MinimapDockColor = FLinearColor(0.25f, 0.9f, 0.4f, 1.0f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HUD|Minimap")
+	float MinimapViewConeAngle = 70.0f;
+
 	// Maximum world distance to draw enemy health bars (cm)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HUD|Layout")
 	float EnemyHPDrawRange = 8000.0f;
@@ -122,7 +159,15 @@ private:
 	void DrawStormIndicator(AStormSystem* Storm);
 	void DrawTreasureCompass(ATreasureQuestManager* Manager, AShipPawn* Ship);
 	void DrawEnemyHealthBars(AShipPawn* PlayerShip);
+	void DrawMinimap(AShipPawn* PlayerShip, ATreasureQuestManager* TreasureMgr);
+	void DrawFiringArcs(AShipPawn* PlayerShip);
+	void DrawAmmoCounter(UPlayerInventory* Inventory);
 	void DrawDocksPrompt();
+
+	// Helpers for minimap
+	void DrawMinimapDot(float CX, float CY, float DotX, float DotY, float DotSize, FLinearColor Color);
+	void DrawMinimapTriangle(float CX, float CY, float AngleDeg, float Size, FLinearColor Color);
+	void DrawMinimapViewCone(float CX, float CY, float AngleDeg, float Radius, float FOVDeg, FLinearColor Color);
 
 	void DrawFilledRect(float X, float Y, float W, float H, FLinearColor Color);
 	void DrawBorderedRect(float X, float Y, float W, float H, FLinearColor FillColor, FLinearColor BorderColor, float BorderThickness = 2.0f);

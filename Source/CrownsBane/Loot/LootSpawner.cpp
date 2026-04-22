@@ -78,6 +78,11 @@ void ALootSpawner::SpawnSloopLoot(FVector Location)
 		SpawnPickup(Location + GetRandomLootOffset(), EResourceType::Wood, Wood);
 	}
 
+	if (SloopAmmoDrop > 0)
+	{
+		SpawnPickup(Location + GetRandomLootOffset(), EResourceType::Ammo, SloopAmmoDrop);
+	}
+
 	UE_LOG(LogTemp, Log, TEXT("LootSpawner: Sloop loot spawned - %d gold."), Gold);
 }
 
@@ -94,6 +99,11 @@ void ALootSpawner::SpawnBrigLoot(FVector Location)
 	{
 		int32 Metal = FMath::RandRange(BrigMetalMin, BrigMetalMax);
 		SpawnPickup(Location + GetRandomLootOffset(), EResourceType::Metal, Metal);
+	}
+
+	if (BrigAmmoDrop > 0)
+	{
+		SpawnPickup(Location + GetRandomLootOffset(), EResourceType::Ammo, BrigAmmoDrop);
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("LootSpawner: Brig loot spawned - %d gold, %d wood."), Gold, Wood);
@@ -113,6 +123,11 @@ void ALootSpawner::SpawnGalleonLoot(FVector Location)
 
 	int32 Metal = FMath::RandRange(GalleonMetalMin, GalleonMetalMax);
 	SpawnPickup(Location + GetRandomLootOffset(), EResourceType::Metal, Metal);
+
+	if (GalleonAmmoDrop > 0)
+	{
+		SpawnPickup(Location + GetRandomLootOffset(), EResourceType::Ammo, GalleonAmmoDrop);
+	}
 
 	UE_LOG(LogTemp, Log, TEXT("LootSpawner: Galleon loot spawned - %d gold, %d wood, %d metal."),
 		Gold + BonusGold, Wood, Metal);

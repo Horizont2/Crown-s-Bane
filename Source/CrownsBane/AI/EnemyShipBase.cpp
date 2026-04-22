@@ -5,6 +5,7 @@
 #include "Components/HealthComponent.h"
 #include "Loot/LootSpawner.h"
 #include "Systems/WantedLevelManager.h"
+#include "EngineUtils.h"
 #include "Components/StaticMeshComponent.h"
 #include "NiagaraComponent.h"
 #include "NiagaraSystem.h"
@@ -92,8 +93,22 @@ void AEnemyShipBase::Tick(float DeltaTime)
 	}
 	else
 	{
-		// Normal patrol / chase / attack transitions
-		if (IsPlayerInRange(DetectionRange))
+		// Is the player a legal target right now?
+		//   - bIgnoreWantedLevel: scripted aggressive encounters (bosses)
+		//   - bHasAggro: the player attacked us first (self-defense)
+		//   - WantedLevel > 0: the player is being hunted
+		bool bCanEngagePlayer = bIgnoreWantedLevel || bHasAggro;
+		if (!bCanEngagePlayer)
+		{
+			int32 WantedLevel = 0;
+			for (TActorIterator<AWantedLevelManager> It(GetWorld()); It; ++It)
+			{
+				if (*It) { WantedLevel = (*It)->GetWantedLevel(); break; }
+			}
+			bCanEngagePlayer = (WantedLevel > 0);
+		}
+
+		if (bCanEngagePlayer && IsPlayerInRange(DetectionRange))
 		{
 			if (IsPlayerInRange(AttackRange))
 			{
@@ -127,6 +142,12 @@ float AEnemyShipBase::TakeDamage(float DamageAmount, FDamageEvent const& DamageE
 	AController* EventInstigator, AActor* DamageCauser)
 {
 	float Actual = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+
+	if (DamageAmount > 0.0f)
+	{
+		// Remember the player attacked us — we return fire even with no wanted level.
+		bHasAggro = true;
+	}
 	return Actual;
 }
 
@@ -295,10 +316,43 @@ void AEnemyShipBase::HandleStateRetreat(float DeltaTime)
 void AEnemyShipBase::HandleStateSink(float DeltaTime)
 {
 	SinkTimer += DeltaTime;
-	AddActorWorldOffset(FVector(0.0f, 0.0f, -30.0f * DeltaTime));
-	AddActorLocalRotation(FRotator(1.5f * DeltaTime, 0.0f, 2.0f * DeltaTime));
 
-	if (SinkTimer >= 3.0f)
+	// Dramatic sink: three phases over ~6 seconds total.
+	//   Phase 1 (0..1.2s):  Stern rises — pitch up to +28°, slight roll, slow Z drop
+	//   Phase 2 (1.2..3.5s): Pitch continues to +55°, roll increases, Z drops faster
+	//   Phase 3 (3.5..6s):   Full plunge — stern goes straight up, ship falls quickly
+	const float Alpha = FMath::Clamp(SinkTimer / 6.0f, 0.0f, 1.0f);
+
+	// Pitch (stern-up rotation) — eased upward
+	const float TargetPitch = FMath::InterpEaseOut(0.0f, 75.0f, Alpha, 2.5f);
+	// Roll toward starboard (slight drunken lean)
+	const float TargetRoll = FMath::InterpEaseOut(0.0f, 20.0f, Alpha, 2.0f);
+	// Z descent — slow at first, then fast
+	const float ZDescent = -FMath::InterpEaseIn(0.0f, 450.0f, Alpha, 2.0f) * DeltaTime;
+
+	AddActorWorldOffset(FVector(0.0f, 0.0f, ZDescent));
+
+	// Smooth pitch/roll toward targets
+	const FRotator Current = GetActorRotation();
+	const FRotator Target(
+		FMath::FInterpTo(Current.Pitch, TargetPitch, DeltaTime, 1.2f),
+		Current.Yaw,
+		FMath::FInterpTo(Current.Roll, TargetRoll, DeltaTime, 1.0f)
+	);
+	SetActorRotation(Target);
+
+	// One-time splash at start of phase 3
+	static const float SplashTrigger = 3.5f;
+	if (SinkTimer >= SplashTrigger && SinkTimer - DeltaTime < SplashTrigger)
+	{
+		if (DeathExplosionAsset)
+		{
+			UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+				GetWorld(), DeathExplosionAsset, GetActorLocation(), FRotator::ZeroRotator);
+		}
+	}
+
+	if (SinkTimer >= 6.0f)
 	{
 		Destroy();
 	}

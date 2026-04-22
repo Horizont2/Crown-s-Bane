@@ -9,9 +9,14 @@
 #include "Systems/WindSystem.h"
 #include "Systems/StormSystem.h"
 #include "Loot/TreasureQuestManager.h"
+#include "Loot/TreasureChest.h"
+#include "Loot/LootPickup.h"
+#include "Loot/TreasureMapPickup.h"
+#include "Docks/DocksZone.h"
 #include "AI/EnemyShipBase.h"
 #include "Components/HealthComponent.h"
 #include "EngineUtils.h"
+#include "Camera/CameraComponent.h"
 #include "Engine/Canvas.h"
 #include "Engine/Font.h"
 #include "Kismet/GameplayStatics.h"
@@ -78,6 +83,17 @@ void ACrownsBaneHUD::DrawHUD()
 	if (Ship)
 	{
 		DrawEnemyHealthBars(Ship);
+		DrawFiringArcs(Ship);
+	}
+
+	if (Ship)
+	{
+		DrawMinimap(Ship, TreasureMgr);
+	}
+
+	if (Inventory)
+	{
+		DrawAmmoCounter(Inventory);
 	}
 
 	if (bShowDocksPrompt)
@@ -398,6 +414,239 @@ void ACrownsBaneHUD::DrawEnemyHealthBars(AShipPawn* PlayerShip)
 			*Enemy->GetName(), Pct * 100.f, *StateTag);
 		DrawText(Label, StateColor, BX, BY - 16.f, nullptr, 0.7f, false);
 	}
+}
+
+// -------- MINIMAP --------
+
+void ACrownsBaneHUD::DrawMinimap(AShipPawn* PlayerShip, ATreasureQuestManager* TreasureMgr)
+{
+	if (!PlayerShip || !Canvas) return;
+
+	const float CX = Canvas->ClipX - MinimapPadding - MinimapRadius;
+	const float CY = MinimapPadding + MinimapRadius;
+
+	// Background + border (approximated as a filled square for simplicity; visual is clamped by drawing)
+	DrawFilledRect(CX - MinimapRadius - 3.f, CY - MinimapRadius - 3.f,
+		(MinimapRadius + 3.f) * 2.f, (MinimapRadius + 3.f) * 2.f, MinimapBorderColor);
+	DrawFilledRect(CX - MinimapRadius, CY - MinimapRadius,
+		MinimapRadius * 2.f, MinimapRadius * 2.f, MinimapBGColor);
+
+	const float ShipYawDeg = PlayerShip->GetActorRotation().Yaw;
+	const float Scale = MinimapRadius / MinimapWorldRadius;
+	const FVector ShipLoc = PlayerShip->GetActorLocation();
+
+	// Cache sin/cos of -ShipYaw so "world forward = map up"
+	const float CosYaw = FMath::Cos(FMath::DegreesToRadians(-ShipYawDeg));
+	const float SinYaw = FMath::Sin(FMath::DegreesToRadians(-ShipYawDeg));
+
+	auto WorldToMap = [&](const FVector& WorldPos, float& OutMX, float& OutMY) -> bool
+	{
+		FVector Rel = WorldPos - ShipLoc;
+		Rel.Z = 0.f;
+		if (Rel.SizeSquared() > FMath::Square(MinimapWorldRadius)) return false;
+
+		// Rotate so ship forward points up on the minimap
+		const float RX = Rel.X * CosYaw - Rel.Y * SinYaw;
+		const float RY = Rel.X * SinYaw + Rel.Y * CosYaw;
+
+		// In UE, X = forward, Y = right.  On-screen: up = -Y, right = +X
+		OutMX = CX + RY * Scale;
+		OutMY = CY - RX * Scale;
+		return true;
+	};
+
+	// Camera view cone (camera yaw relative to ship yaw)
+	if (PlayerShip->Camera)
+	{
+		const float CamYawAbs = PlayerShip->Camera->GetComponentRotation().Yaw;
+		// Relative to ship forward; minimap "up" corresponds to ship forward
+		const float CamRelYaw = FRotator::NormalizeAxis(CamYawAbs - ShipYawDeg) - 90.0f;
+		DrawMinimapViewCone(CX, CY, CamRelYaw, MinimapRadius * 0.95f, MinimapViewConeAngle, MinimapViewConeColor);
+	}
+
+	// Entity dots
+	UWorld* World = GetWorld();
+	if (World)
+	{
+		for (TActorIterator<AEnemyShipBase> It(World); It; ++It)
+		{
+			AEnemyShipBase* E = *It;
+			if (!E || !IsValid(E) || !E->HealthComponent || !E->HealthComponent->IsAlive()) continue;
+			float MX, MY;
+			if (WorldToMap(E->GetActorLocation(), MX, MY))
+				DrawMinimapDot(CX, CY, MX, MY, 4.f, MinimapEnemyColor);
+		}
+		for (TActorIterator<ALootPickup> It(World); It; ++It)
+		{
+			if (!*It || !IsValid(*It)) continue;
+			float MX, MY;
+			if (WorldToMap((*It)->GetActorLocation(), MX, MY))
+				DrawMinimapDot(CX, CY, MX, MY, 3.f, MinimapLootColor);
+		}
+		for (TActorIterator<ATreasureChest> It(World); It; ++It)
+		{
+			if (!*It || !IsValid(*It)) continue;
+			float MX, MY;
+			if (WorldToMap((*It)->GetActorLocation(), MX, MY))
+				DrawMinimapDot(CX, CY, MX, MY, 5.f, MinimapTreasureColor);
+		}
+		for (TActorIterator<ATreasureMapPickup> It(World); It; ++It)
+		{
+			if (!*It || !IsValid(*It)) continue;
+			float MX, MY;
+			if (WorldToMap((*It)->GetActorLocation(), MX, MY))
+				DrawMinimapDot(CX, CY, MX, MY, 4.f, MinimapTreasureColor);
+		}
+		for (TActorIterator<ADocksZone> It(World); It; ++It)
+		{
+			if (!*It || !IsValid(*It)) continue;
+			float MX, MY;
+			if (WorldToMap((*It)->GetActorLocation(), MX, MY))
+				DrawMinimapDot(CX, CY, MX, MY, 6.f, MinimapDockColor);
+		}
+	}
+
+	// Player triangle at center pointing up (ship forward)
+	DrawMinimapTriangle(CX, CY, -90.0f, 10.0f, MinimapPlayerColor);
+
+	// Label
+	DrawText(TEXT("MINIMAP"), FColor::White, CX - 28.f, CY - MinimapRadius - 16.f, nullptr, 0.75f, false);
+	const FString ScaleLabel = FString::Printf(TEXT("%.0fm"), MinimapWorldRadius / 100.f);
+	DrawText(ScaleLabel, FColor::Silver, CX - 12.f, CY + MinimapRadius + 4.f, nullptr, 0.7f, false);
+}
+
+void ACrownsBaneHUD::DrawMinimapDot(float CX, float CY, float DotX, float DotY, float DotSize, FLinearColor Color)
+{
+	// Clip to minimap circle
+	const float DX = DotX - CX;
+	const float DY = DotY - CY;
+	if (DX * DX + DY * DY > MinimapRadius * MinimapRadius) return;
+
+	const float Half = DotSize * 0.5f;
+	DrawFilledRect(DotX - Half, DotY - Half, DotSize, DotSize, Color);
+}
+
+void ACrownsBaneHUD::DrawMinimapTriangle(float CX, float CY, float AngleDeg, float Size, FLinearColor Color)
+{
+	const float Rad = FMath::DegreesToRadians(AngleDeg);
+	const float TipX = CX + FMath::Cos(Rad) * Size;
+	const float TipY = CY + FMath::Sin(Rad) * Size;
+
+	const float BackRad = Rad + PI;
+	const float BackX = CX + FMath::Cos(BackRad) * (Size * 0.5f);
+	const float BackY = CY + FMath::Sin(BackRad) * (Size * 0.5f);
+
+	const float LeftRad = Rad + PI * 0.8f;
+	const float LeftX = CX + FMath::Cos(LeftRad) * (Size * 0.7f);
+	const float LeftY = CY + FMath::Sin(LeftRad) * (Size * 0.7f);
+
+	const float RightRad = Rad - PI * 0.8f;
+	const float RightX = CX + FMath::Cos(RightRad) * (Size * 0.7f);
+	const float RightY = CY + FMath::Sin(RightRad) * (Size * 0.7f);
+
+	// Three thick lines approximating a filled triangle
+	auto DrawThick = [this, Color](float X1, float Y1, float X2, float Y2)
+	{
+		FCanvasLineItem L(FVector2D(X1, Y1), FVector2D(X2, Y2));
+		L.SetColor(Color);
+		L.LineThickness = 2.5f;
+		Canvas->DrawItem(L);
+	};
+	DrawThick(TipX, TipY, LeftX, LeftY);
+	DrawThick(TipX, TipY, RightX, RightY);
+	DrawThick(LeftX, LeftY, RightX, RightY);
+	// Filled center dot for body
+	DrawFilledRect(CX - 2.f, CY - 2.f, 4.f, 4.f, Color);
+}
+
+void ACrownsBaneHUD::DrawMinimapViewCone(float CX, float CY, float AngleDeg, float Radius, float FOVDeg, FLinearColor Color)
+{
+	// Draw a fan of line segments approximating the FOV sector
+	const float HalfFOV = FOVDeg * 0.5f;
+	const int32 Segments = 12;
+	const float Start = AngleDeg - HalfFOV;
+	const float Step = FOVDeg / (float)Segments;
+
+	for (int32 i = 0; i < Segments; ++i)
+	{
+		const float A1 = FMath::DegreesToRadians(Start + Step * i);
+		const float A2 = FMath::DegreesToRadians(Start + Step * (i + 1));
+		const FVector2D P1(CX + FMath::Cos(A1) * Radius, CY + FMath::Sin(A1) * Radius);
+		const FVector2D P2(CX + FMath::Cos(A2) * Radius, CY + FMath::Sin(A2) * Radius);
+		// Triangle fan edge
+		FCanvasLineItem L(FVector2D(CX, CY), P1);
+		L.SetColor(Color);
+		L.LineThickness = 1.5f;
+		Canvas->DrawItem(L);
+		FCanvasLineItem LArc(P1, P2);
+		LArc.SetColor(Color);
+		LArc.LineThickness = 1.5f;
+		Canvas->DrawItem(LArc);
+	}
+	// Final edge to close the sector
+	const float FA = FMath::DegreesToRadians(AngleDeg + HalfFOV);
+	FCanvasLineItem L(FVector2D(CX, CY),
+		FVector2D(CX + FMath::Cos(FA) * Radius, CY + FMath::Sin(FA) * Radius));
+	L.SetColor(Color);
+	L.LineThickness = 1.5f;
+	Canvas->DrawItem(L);
+}
+
+// -------- FIRING ARCS (camera-aim indicator) --------
+
+void ACrownsBaneHUD::DrawFiringArcs(AShipPawn* PlayerShip)
+{
+	if (!PlayerShip || !PlayerShip->Camera || !PlayerShip->CannonComponent) return;
+
+	// Determine which side the camera is aimed toward
+	const FVector CamFwd = PlayerShip->Camera->GetForwardVector();
+	const FVector ShipRight = PlayerShip->GetActorRightVector();
+	const float DotR = FVector::DotProduct(CamFwd, ShipRight);
+
+	FString AimLabel;
+	FColor AimColor = FColor::Silver;
+	if (DotR > 0.35f)       { AimLabel = TEXT("AIM: STARBOARD"); AimColor = FColor::Green; }
+	else if (DotR < -0.35f) { AimLabel = TEXT("AIM: PORT");      AimColor = FColor::Green; }
+	else                    { AimLabel = TEXT("AIM: CENTER (turn camera)"); AimColor = FColor::Orange; }
+
+	const float ScreenW = Canvas->ClipX;
+	const float ScreenH = Canvas->ClipY;
+	DrawText(AimLabel, AimColor,
+		ScreenW * 0.5f - 80.0f,
+		ScreenH - HUDPaddingY - 80.0f,
+		nullptr, 0.95f, false);
+
+	// Reload-readiness pill per side
+	const bool bPortReady = PlayerShip->CannonComponent->CanFire(ECannonSide::Left);
+	const bool bStbdReady = PlayerShip->CannonComponent->CanFire(ECannonSide::Right);
+
+	FString HintsLine;
+	if (DotR > 0.35f)
+		HintsLine = FString::Printf(TEXT("SPACE / LMB to fire STARBOARD broadside [%s]"),
+			bStbdReady ? TEXT("READY") : TEXT("reloading..."));
+	else if (DotR < -0.35f)
+		HintsLine = FString::Printf(TEXT("SPACE / LMB to fire PORT broadside [%s]"),
+			bPortReady ? TEXT("READY") : TEXT("reloading..."));
+	else
+		HintsLine = TEXT("Turn camera left/right to aim broadside");
+
+	DrawText(HintsLine, FColor(220, 220, 220),
+		ScreenW * 0.5f - 160.0f,
+		ScreenH - HUDPaddingY - 62.0f,
+		nullptr, 0.8f, false);
+}
+
+void ACrownsBaneHUD::DrawAmmoCounter(UPlayerInventory* Inventory)
+{
+	if (!Inventory) return;
+	const int32 Cur = Inventory->GetAmmo();
+	const int32 Max = Inventory->GetMaxAmmo();
+
+	const float ScreenW = Canvas->ClipX;
+	const float RightX = ScreenW - HUDPaddingX - 200.0f;
+	const FString AmmoText = FString::Printf(TEXT("Ammo: %d / %d"), Cur, Max);
+	const FColor Color = (Cur <= 4) ? FColor::Red : (Cur <= 10 ? FColor::Orange : FColor(220, 220, 180));
+	DrawText(AmmoText, Color, RightX, HUDPaddingY + 72.0f, nullptr, 1.0f, false);
 }
 
 void ACrownsBaneHUD::DrawDocksPrompt()

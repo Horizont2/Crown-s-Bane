@@ -7,10 +7,13 @@
 UENUM(BlueprintType)
 enum class EUpgradeCategory : uint8
 {
-	Hull        UMETA(DisplayName = "Hull (Health)"),
-	Sails       UMETA(DisplayName = "Sails (Speed)"),
-	Weapons     UMETA(DisplayName = "Weapons (Damage)"),
-	CannonCount UMETA(DisplayName = "Cannon Count")
+	Hull         UMETA(DisplayName = "Hull (Health)"),
+	Sails        UMETA(DisplayName = "Sails (Speed)"),
+	Weapons      UMETA(DisplayName = "Weapons (Damage)"),
+	CannonCount  UMETA(DisplayName = "Cannon Count"),
+	CargoHold    UMETA(DisplayName = "Cargo Hold"),
+	AmmoCapacity UMETA(DisplayName = "Ammo Capacity"),
+	HullArmor    UMETA(DisplayName = "Hull Armor")
 };
 
 USTRUCT(BlueprintType)
