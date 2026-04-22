@@ -8,7 +8,8 @@ enum class EResourceType : uint8
 {
 	Gold    UMETA(DisplayName = "Gold"),
 	Wood    UMETA(DisplayName = "Wood"),
-	Metal   UMETA(DisplayName = "Metal")
+	Metal   UMETA(DisplayName = "Metal"),
+	Ammo    UMETA(DisplayName = "Cannon Ammo")
 };
 
 USTRUCT(BlueprintType)

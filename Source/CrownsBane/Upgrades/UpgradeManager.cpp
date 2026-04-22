@@ -5,6 +5,8 @@
 #include "Ship/ShipPawn.h"
 #include "Combat/CannonComponent.h"
 #include "Components/HealthComponent.h"
+#include "GameFramework/PlayerController.h"
+#include "Kismet/GameplayStatics.h"
 
 AUpgradeManager::AUpgradeManager()
 {
@@ -20,6 +22,9 @@ void AUpgradeManager::BeginPlay()
 	UpgradeTiers.Add(EUpgradeCategory::Sails, 0);
 	UpgradeTiers.Add(EUpgradeCategory::Weapons, 0);
 	UpgradeTiers.Add(EUpgradeCategory::CannonCount, 0);
+	UpgradeTiers.Add(EUpgradeCategory::CargoHold, 0);
+	UpgradeTiers.Add(EUpgradeCategory::AmmoCapacity, 0);
+	UpgradeTiers.Add(EUpgradeCategory::HullArmor, 0);
 
 	InitUpgradeTables();
 
@@ -64,6 +69,30 @@ void AUpgradeManager::InitUpgradeTables()
 	CannonLevels.Add(FUpgradeLevel(3, 800,  90,  70, 8.0f, TEXT("Full Broadside: 8 per side")));
 	CannonLevels.Add(FUpgradeLevel(4, 1400, 120, 100, 8.0f, TEXT("Master Gunner: 8 per side, -20% reload")));
 	UpgradeTables.Add(EUpgradeCategory::CannonCount, CannonLevels);
+
+	// CargoHold upgrades: +cap per-resource
+	TArray<FUpgradeLevel> CargoLevels;
+	CargoLevels.Add(FUpgradeLevel(1, 100,  20,  0,  250.0f, TEXT("Stacked Barrels: +250 cargo cap")));
+	CargoLevels.Add(FUpgradeLevel(2, 220,  45,  10, 500.0f, TEXT("Lower Deck: +500 cargo cap")));
+	CargoLevels.Add(FUpgradeLevel(3, 450,  75,  25, 750.0f, TEXT("Reinforced Hold: +750 cargo cap")));
+	CargoLevels.Add(FUpgradeLevel(4, 800,  110, 50, 1500.0f, TEXT("Treasure Vault: +1500 cargo cap")));
+	UpgradeTables.Add(EUpgradeCategory::CargoHold, CargoLevels);
+
+	// AmmoCapacity upgrades: increase MaxCannonAmmo
+	TArray<FUpgradeLevel> AmmoLevels;
+	AmmoLevels.Add(FUpgradeLevel(1, 120,  10,  5,  20.0f, TEXT("Powder Kegs: +20 ammo cap")));
+	AmmoLevels.Add(FUpgradeLevel(2, 260,  25,  15, 30.0f, TEXT("Magazine: +30 ammo cap")));
+	AmmoLevels.Add(FUpgradeLevel(3, 500,  40,  35, 50.0f, TEXT("Ammunition Bay: +50 ammo cap")));
+	AmmoLevels.Add(FUpgradeLevel(4, 900,  70,  80, 80.0f, TEXT("Crown's Arsenal: +80 ammo cap")));
+	UpgradeTables.Add(EUpgradeCategory::AmmoCapacity, AmmoLevels);
+
+	// HullArmor upgrades: percentage damage reduction (multiplicative)
+	TArray<FUpgradeLevel> ArmorLevels;
+	ArmorLevels.Add(FUpgradeLevel(1, 180,  15,  15,  5.0f, TEXT("Bronze Plating: -5% dmg taken")));
+	ArmorLevels.Add(FUpgradeLevel(2, 400,  35,  35, 10.0f, TEXT("Iron Bands: -10% dmg taken")));
+	ArmorLevels.Add(FUpgradeLevel(3, 750,  60,  65, 15.0f, TEXT("Steel Hull: -15% dmg taken")));
+	ArmorLevels.Add(FUpgradeLevel(4, 1300, 100, 120, 25.0f, TEXT("Dragon Scales: -25% dmg taken")));
+	UpgradeTables.Add(EUpgradeCategory::HullArmor, ArmorLevels);
 }
 
 int32 AUpgradeManager::GetCurrentTier(EUpgradeCategory Category) const
@@ -203,6 +232,33 @@ void AUpgradeManager::ApplyUpgradeEffect(EUpgradeCategory Category, int32 Tier, 
 					Ship->CannonComponent->ReloadTime);
 			}
 		}
+		break;
+
+	case EUpgradeCategory::CargoHold:
+	case EUpgradeCategory::AmmoCapacity:
+	{
+		APlayerController* PC = UGameplayStatics::GetPlayerController(Ship->GetWorld(), 0);
+		UPlayerInventory* Inventory = Ship->FindComponentByClass<UPlayerInventory>();
+		if (!Inventory && PC) Inventory = PC->FindComponentByClass<UPlayerInventory>();
+
+		if (Inventory)
+		{
+			if (Category == EUpgradeCategory::CargoHold)
+			{
+				Inventory->UpgradeCargoCap((int32)Level.StatBonus);
+				UE_LOG(LogTemp, Log, TEXT("UpgradeManager: CargoCap now %d"), Inventory->CargoCap);
+			}
+			else
+			{
+				Inventory->UpgradeMaxAmmo((int32)Level.StatBonus);
+				UE_LOG(LogTemp, Log, TEXT("UpgradeManager: MaxAmmo now %d"), Inventory->GetMaxAmmo());
+			}
+		}
+		break;
+	}
+
+	case EUpgradeCategory::HullArmor:
+		Ship->UpgradeHullArmor(Level.StatBonus);
 		break;
 	}
 }

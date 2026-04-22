@@ -37,7 +37,8 @@ void ALootPickup::BeginPlay()
 	UE_LOG(LogTemp, Log, TEXT("LootPickup: Spawned %d %s at %s"),
 		ResourceDrop.Amount,
 		ResourceDrop.ResourceType == EResourceType::Gold ? TEXT("Gold") :
-		ResourceDrop.ResourceType == EResourceType::Wood ? TEXT("Wood") : TEXT("Metal"),
+		ResourceDrop.ResourceType == EResourceType::Wood ? TEXT("Wood") :
+		ResourceDrop.ResourceType == EResourceType::Metal ? TEXT("Metal") : TEXT("Ammo"),
 		*GetActorLocation().ToString());
 }
 

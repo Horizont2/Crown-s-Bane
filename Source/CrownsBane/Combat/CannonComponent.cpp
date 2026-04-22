@@ -3,7 +3,9 @@
 #include "Combat/CannonComponent.h"
 #include "Combat/Cannonball.h"
 #include "Combat/ProjectileTypes.h"
+#include "Player/PlayerInventory.h"
 #include "Engine/World.h"
+#include "Engine/Engine.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/MeshComponent.h"
@@ -91,6 +93,31 @@ void UCannonComponent::FireBroadside(ECannonSide Side)
 	if (!Owner)
 	{
 		return;
+	}
+
+	// If owner is player-controlled, consume ammo. Enemies don't care.
+	if (APawn* OwnerPawn = Cast<APawn>(Owner))
+	{
+		if (AController* Ctrl = OwnerPawn->GetController())
+		{
+			if (Cast<APlayerController>(Ctrl))
+			{
+				UPlayerInventory* Inventory = OwnerPawn->FindComponentByClass<UPlayerInventory>();
+				if (!Inventory) Inventory = Ctrl->FindComponentByClass<UPlayerInventory>();
+
+				if (Inventory && !Inventory->ConsumeAmmo(CannonsPerSide))
+				{
+					UE_LOG(LogTemp, Warning, TEXT("CannonComponent: Out of ammo! (%d needed, %d have)"),
+						CannonsPerSide, Inventory->GetAmmo());
+					if (GEngine)
+					{
+						GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Red,
+							TEXT("Out of cannon ammo! Loot from enemies or buy at docks."));
+					}
+					return;
+				}
+			}
+		}
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("CannonComponent: Firing %s broadside (%d cannons)."),

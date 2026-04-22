@@ -111,6 +111,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI")
 	bool bCanRetreat = true;
 
+	// If true, this ship attacks on sight regardless of wanted level (e.g. scripted bosses).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI")
+	bool bIgnoreWantedLevel = false;
+
+	// Turns true when the player damages us: we return fire even without wanted level.
+	UPROPERTY(BlueprintReadOnly, Category = "AI")
+	bool bHasAggro = false;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI")
 	float FireCooldown = 5.0f;
 
