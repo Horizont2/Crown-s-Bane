@@ -9,7 +9,9 @@ public class CrownsBaneEditorTarget : TargetRules
 	{
 		Type = TargetType.Editor;
 		DefaultBuildSettings = BuildSettingsVersion.V6;
-		IncludeOrderVersion = EngineIncludeOrderVersion.Unreal5_7;
+		IncludeOrderVersion = EngineIncludeOrderVersion.Latest;
 		ExtraModuleNames.Add("CrownsBane");
-	}
+
+        bOverrideBuildEnvironment = true;
+    }
 }

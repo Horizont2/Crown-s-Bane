@@ -69,7 +69,7 @@ void ADayNightSystem::ApplySunState()
 
 	// Day/night state
 	const bool bIsNight = IsNight();
-	UDirectionalLightComponent* Comp = SunLight->GetComponent();
+	UDirectionalLightComponent* Comp = Cast<UDirectionalLightComponent>(SunLight->GetLightComponent());
 	if (!Comp) return;
 
 	// Smooth blend between noon and night. Use cosine-like curve.
