@@ -137,6 +137,22 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	UInputAction* IA_Fire;
 
+	// Free camera look (mouse XY).  Rotates the SpringArm around the ship.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	UInputAction* IA_Look;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
+	float LookYawSensitivity = 1.2f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
+	float LookPitchSensitivity = 0.8f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
+	float LookPitchMin = -70.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
+	float LookPitchMax = 10.0f;
+
 	// Show debug text on screen (HUD-like)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Debug")
 	bool bShowDebugOnScreen = true;
@@ -219,6 +235,7 @@ protected:
 	void Input_FireLeft(const FInputActionValue& Value);
 	void Input_FireRight(const FInputActionValue& Value);
 	void Input_Fire(const FInputActionValue& Value);
+	void Input_Look(const FInputActionValue& Value);
 
 	// Pathway-agnostic action implementations.  Enhanced Input callbacks and
 	// raw polling both route through these so behaviour is identical.
@@ -228,6 +245,11 @@ protected:
 	void DoFireRight();
 	void DoCameraAimFire();
 	void DoSetTurnAxis(float Value);
+	void DoLook(const FVector2D& Delta);
+
+	// Per-action debounce: returns true if action should fire, false if
+	// the same action fired too recently (from any input pathway).
+	bool ConsumeActionCooldown(FName ActionTag, float CooldownSec = 0.25f);
 
 	// Raw key-state polling used when Enhanced Input did not bind.
 	void PollRawInputFallback(float DeltaTime);
@@ -266,4 +288,11 @@ private:
 	bool bRawPrevQ = false;
 	bool bRawPrevE = false;
 	bool bRawPrevFire = false;
+
+	// Per-action debounce table.  Key = action tag, Value = last fire time (seconds).
+	TMap<FName, float> ActionFireTimes;
+
+	// Yaw/pitch offsets applied to the SpringArm from mouse-look.
+	float LookYawOffset   = 0.0f;
+	float LookPitchOffset = 0.0f;
 };

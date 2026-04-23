@@ -76,17 +76,34 @@ void ADayNightSystem::ApplySunState()
 {
 	if (!SunLight) return;
 
-	// Map time of day to sun pitch: 6h = sunrise (pitch=0), 12h = noon (pitch=-90),
-	// 18h = sunset (pitch=0), 0h = midnight (pitch=+90, below horizon).
-	const float Angle = (TimeOfDay / 24.0f) * 360.0f - 90.0f;
-	SunLight->SetActorRotation(FRotator(Angle, 40.0f, 0.0f));
+	// Correct sun arc: sinusoidal altitude.
+	//   T=0  (midnight) → altitude = -90  (sun below horizon, pitch=+90)
+	//   T=6  (sunrise)  → altitude =   0  (horizon,            pitch=  0)
+	//   T=12 (noon)     → altitude = +90  (overhead,           pitch=-90)
+	//   T=18 (sunset)   → altitude =   0
+	//
+	// Pitch = -altitude.  Using cos(T/24 · 2π)·90 gives the correct sign.
+	const float Pitch = FMath::Cos(TimeOfDay / 24.0f * 2.0f * PI) * 90.0f;
+	SunLight->SetActorRotation(FRotator(Pitch, 40.0f, 0.0f));
 
 	const bool bIsNight = IsNight();
 	UDirectionalLightComponent* Comp = Cast<UDirectionalLightComponent>(SunLight->GetLightComponent());
 	if (!Comp) return;
 
 	const float DayFactor = GetDayFactor();
-	const float Intensity = FMath::Lerp(NightMoonIntensity, DaySunIntensity, DayFactor);
+
+	// At night, rather than dimming to near-zero (which makes the scene pitch-black
+	// because the sun is below the horizon and contributes no direct light),
+	// FLIP the light to point downward with a dim blue intensity — simulating a moon.
+	float Intensity = FMath::Lerp(NightMoonIntensity, DaySunIntensity, DayFactor);
+
+	if (bIsNight && Pitch > 0.0f) // sun is below horizon
+	{
+		// Override rotation so the "moon" shines from above at a fixed high angle.
+		SunLight->SetActorRotation(FRotator(-55.0f, 40.0f, 0.0f));
+		Intensity = NightMoonIntensity;
+	}
+
 	Comp->SetIntensity(Intensity);
 
 	// Color blending across dawn/day/dusk/night

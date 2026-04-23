@@ -142,6 +142,7 @@ void AShipPawn::EnsureInputAssetsExist()
 	MakeIA(IA_FireLeft,     EInputActionValueType::Boolean, TEXT("IA_FireLeft_Auto"));
 	MakeIA(IA_FireRight,    EInputActionValueType::Boolean, TEXT("IA_FireRight_Auto"));
 	MakeIA(IA_Fire,         EInputActionValueType::Boolean, TEXT("IA_Fire_Auto"));
+	MakeIA(IA_Look,         EInputActionValueType::Axis2D,  TEXT("IA_Look_Auto"));
 
 	if (!ShipMappingContext)
 	{
@@ -169,8 +170,11 @@ void AShipPawn::EnsureInputAssetsExist()
 		ShipMappingContext->MapKey(IA_Fire, EKeys::LeftMouseButton);
 		ShipMappingContext->MapKey(IA_Fire, EKeys::SpaceBar);
 
+		// Mouse look (camera rotation).  Mouse2D gives (X, Y) delta.
+		ShipMappingContext->MapKey(IA_Look, EKeys::Mouse2D);
+
 		UE_LOG(LogTemp, Warning, TEXT("[ShipPawn] Auto-created fallback IMC_Ship with default keybinds "
-			"(W/S sails, A/D or arrows turn, Q/LMB port fire, E/RMB starboard fire)."));
+			"(W/S sails, A/D or arrows turn, Q/LMB port fire, E/RMB starboard fire, mouse look)."));
 	}
 }
 
@@ -219,12 +223,39 @@ void AShipPawn::AddInputMappingContext()
 	}
 
 	Subsystem->ClearAllMappings();
-	Subsystem->AddMappingContext(ShipMappingContext, 0);
+
+	// Build a canonical "overlay" IMC built with guaranteed-correct keybinds
+	// (Negate modifier on A/Left, all required actions mapped).  This is the
+	// SOLE IMC we register, to avoid axis-sum conflicts with a possibly
+	// misconfigured user IMC (e.g. missing Negate on A).  Users who want custom
+	// keybinds should edit the source here or set ShipMappingContext in BP and
+	// remove this call.
+	UInputMappingContext* Overlay = NewObject<UInputMappingContext>(this, UInputMappingContext::StaticClass(), TEXT("IMC_Ship_Canonical"));
+	if (IA_IncreaseSail) Overlay->MapKey(IA_IncreaseSail, EKeys::W);
+	if (IA_DecreaseSail) Overlay->MapKey(IA_DecreaseSail, EKeys::S);
+	if (IA_Turn)
+	{
+		Overlay->MapKey(IA_Turn, EKeys::D);
+		FEnhancedActionKeyMapping& MA = Overlay->MapKey(IA_Turn, EKeys::A);
+		MA.Modifiers.Add(NewObject<UInputModifierNegate>(Overlay));
+		Overlay->MapKey(IA_Turn, EKeys::Right);
+		FEnhancedActionKeyMapping& ML = Overlay->MapKey(IA_Turn, EKeys::Left);
+		ML.Modifiers.Add(NewObject<UInputModifierNegate>(Overlay));
+	}
+	if (IA_FireLeft)  Overlay->MapKey(IA_FireLeft,  EKeys::Q);
+	if (IA_FireRight) Overlay->MapKey(IA_FireRight, EKeys::E);
+	if (IA_Fire)
+	{
+		Overlay->MapKey(IA_Fire, EKeys::LeftMouseButton);
+		Overlay->MapKey(IA_Fire, EKeys::SpaceBar);
+	}
+	if (IA_Look) Overlay->MapKey(IA_Look, EKeys::Mouse2D);
+	Subsystem->AddMappingContext(Overlay, 0);
 
 	if (GEngine && bShowDebugOnScreen)
 	{
 		GEngine->AddOnScreenDebugMessage(-1, 3.f, FColor::Green,
-			FString::Printf(TEXT("IMC registered: %s"), *ShipMappingContext->GetName()));
+			TEXT("Canonical IMC registered (W/S/A/D/Q/E/LMB/Space/mouse-look)"));
 	}
 }
 
@@ -296,6 +327,7 @@ void AShipPawn::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 		if (IA_FireLeft)  EIC->BindAction(IA_FireLeft,  ETriggerEvent::Started, this, &AShipPawn::Input_FireLeft);
 		if (IA_FireRight) EIC->BindAction(IA_FireRight, ETriggerEvent::Started, this, &AShipPawn::Input_FireRight);
 		if (IA_Fire)      EIC->BindAction(IA_Fire,      ETriggerEvent::Started, this, &AShipPawn::Input_Fire);
+		if (IA_Look)      EIC->BindAction(IA_Look,      ETriggerEvent::Triggered, this, &AShipPawn::Input_Look);
 
 		bEnhancedInputReady = true;
 		UE_LOG(LogTemp, Log, TEXT("[ShipPawn] Enhanced Input bound successfully."));
@@ -337,12 +369,14 @@ float AShipPawn::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent,
 
 void AShipPawn::Input_IncreaseSail(const FInputActionValue& /*Value*/)
 {
+	if (!ConsumeActionCooldown(TEXT("IncSail"), 0.25f)) return;
 	LastInputSource = TEXT("EnhancedInput");
 	DoIncreaseSail();
 }
 
 void AShipPawn::Input_DecreaseSail(const FInputActionValue& /*Value*/)
 {
+	if (!ConsumeActionCooldown(TEXT("DecSail"), 0.25f)) return;
 	LastInputSource = TEXT("EnhancedInput");
 	DoDecreaseSail();
 }
@@ -360,20 +394,42 @@ void AShipPawn::Input_TurnCompleted(const FInputActionValue& /*Value*/)
 
 void AShipPawn::Input_FireLeft(const FInputActionValue& /*Value*/)
 {
+	if (!ConsumeActionCooldown(TEXT("FireL"), 0.15f)) return;
 	LastInputSource = TEXT("EnhancedInput");
 	DoFireLeft();
 }
 
 void AShipPawn::Input_FireRight(const FInputActionValue& /*Value*/)
 {
+	if (!ConsumeActionCooldown(TEXT("FireR"), 0.15f)) return;
 	LastInputSource = TEXT("EnhancedInput");
 	DoFireRight();
 }
 
 void AShipPawn::Input_Fire(const FInputActionValue& /*Value*/)
 {
+	if (!ConsumeActionCooldown(TEXT("FireCam"), 0.15f)) return;
 	LastInputSource = TEXT("EnhancedInput");
 	DoCameraAimFire();
+}
+
+void AShipPawn::Input_Look(const FInputActionValue& Value)
+{
+	LastInputSource = TEXT("EnhancedInput");
+	DoLook(Value.Get<FVector2D>());
+}
+
+bool AShipPawn::ConsumeActionCooldown(FName ActionTag, float CooldownSec)
+{
+	UWorld* W = GetWorld();
+	if (!W) return true;
+	const float Now = W->GetTimeSeconds();
+	if (const float* Last = ActionFireTimes.Find(ActionTag))
+	{
+		if (Now - *Last < CooldownSec) return false;
+	}
+	ActionFireTimes.Add(ActionTag, Now);
+	return true;
 }
 
 // ---- Shared action implementations ---------------------------------------
@@ -415,6 +471,24 @@ void AShipPawn::DoFireRight()
 	if (CannonComponent) CannonComponent->FireBroadside(ECannonSide::Right);
 }
 
+void AShipPawn::DoLook(const FVector2D& Delta)
+{
+	// Mouse delta is typically already normalized (pixels × sensitivity from input config)
+	LookYawOffset   = FRotator::NormalizeAxis(LookYawOffset + Delta.X * LookYawSensitivity);
+	LookPitchOffset = FMath::Clamp(LookPitchOffset - Delta.Y * LookPitchSensitivity, LookPitchMin, LookPitchMax);
+
+	// Apply to SpringArm.  Yaw inherits ship yaw (SpringArm.bInheritYaw=true), so
+	// we only add the RELATIVE yaw offset; pitch we set directly since the arm
+	// already has base pitch of ~-25.
+	if (SpringArm)
+	{
+		FRotator Rel = SpringArm->GetRelativeRotation();
+		Rel.Yaw   = LookYawOffset;
+		Rel.Pitch = LookPitchOffset - 25.0f; // base down tilt
+		SpringArm->SetRelativeRotation(Rel);
+	}
+}
+
 void AShipPawn::DoCameraAimFire()
 {
 	if (!CannonComponent || !Camera) return;
@@ -437,46 +511,76 @@ void AShipPawn::DoCameraAimFire()
 	}
 }
 
-void AShipPawn::PollRawInputFallback(float /*DeltaTime*/)
+void AShipPawn::PollRawInputFallback(float DeltaTime)
 {
+	// Always run, regardless of whether Enhanced Input bound.  Per-action
+	// debounce (ConsumeActionCooldown) prevents double-fires when EI also works.
 	APlayerController* PC = Cast<APlayerController>(GetController());
 	if (!PC) return;
 
-	// --- Edge-triggered actions: only fire on raw poll if Enhanced Input is
-	// not driving bindings (avoids double-trigger).
-	if (!bEnhancedInputReady)
+	// --- Edge-triggered actions: debounced via ConsumeActionCooldown so if
+	// Enhanced Input already fired the action, the raw poll is swallowed.
+	const bool bW = PC->IsInputKeyDown(EKeys::W) || PC->IsInputKeyDown(EKeys::Up);
+	if (bW && !bRawPrevW && ConsumeActionCooldown(TEXT("IncSail"), 0.25f))
 	{
-		const bool bW = PC->IsInputKeyDown(EKeys::W) || PC->IsInputKeyDown(EKeys::Up);
-		if (bW && !bRawPrevW) { LastInputSource = TEXT("RawPoll"); DoIncreaseSail(); }
-		bRawPrevW = bW;
-
-		const bool bS = PC->IsInputKeyDown(EKeys::S) || PC->IsInputKeyDown(EKeys::Down);
-		if (bS && !bRawPrevS) { LastInputSource = TEXT("RawPoll"); DoDecreaseSail(); }
-		bRawPrevS = bS;
-
-		const bool bQ = PC->IsInputKeyDown(EKeys::Q);
-		if (bQ && !bRawPrevQ) { LastInputSource = TEXT("RawPoll"); DoFireLeft(); }
-		bRawPrevQ = bQ;
-
-		const bool bE = PC->IsInputKeyDown(EKeys::E);
-		if (bE && !bRawPrevE) { LastInputSource = TEXT("RawPoll"); DoFireRight(); }
-		bRawPrevE = bE;
-
-		const bool bFire = PC->IsInputKeyDown(EKeys::LeftMouseButton) || PC->IsInputKeyDown(EKeys::SpaceBar);
-		if (bFire && !bRawPrevFire) { LastInputSource = TEXT("RawPoll"); DoCameraAimFire(); }
-		bRawPrevFire = bFire;
+		LastInputSource = TEXT("RawPoll");
+		DoIncreaseSail();
 	}
+	bRawPrevW = bW;
 
-	// --- Continuous turn axis: always safe to re-derive since it's idempotent.
-	// We only apply if Enhanced Input hasn't bound OR the EI turn axis is zero
-	// (keeps both pathways compatible).
-	if (!bEnhancedInputReady)
+	const bool bS = PC->IsInputKeyDown(EKeys::S) || PC->IsInputKeyDown(EKeys::Down);
+	if (bS && !bRawPrevS && ConsumeActionCooldown(TEXT("DecSail"), 0.25f))
 	{
-		float Raw = 0.0f;
-		if (PC->IsInputKeyDown(EKeys::D) || PC->IsInputKeyDown(EKeys::Right)) Raw += 1.0f;
-		if (PC->IsInputKeyDown(EKeys::A) || PC->IsInputKeyDown(EKeys::Left))  Raw -= 1.0f;
+		LastInputSource = TEXT("RawPoll");
+		DoDecreaseSail();
+	}
+	bRawPrevS = bS;
+
+	const bool bQ = PC->IsInputKeyDown(EKeys::Q);
+	if (bQ && !bRawPrevQ && ConsumeActionCooldown(TEXT("FireL"), 0.15f))
+	{
+		LastInputSource = TEXT("RawPoll");
+		DoFireLeft();
+	}
+	bRawPrevQ = bQ;
+
+	const bool bE = PC->IsInputKeyDown(EKeys::E);
+	if (bE && !bRawPrevE && ConsumeActionCooldown(TEXT("FireR"), 0.15f))
+	{
+		LastInputSource = TEXT("RawPoll");
+		DoFireRight();
+	}
+	bRawPrevE = bE;
+
+	const bool bFire = PC->IsInputKeyDown(EKeys::LeftMouseButton) || PC->IsInputKeyDown(EKeys::SpaceBar);
+	if (bFire && !bRawPrevFire && ConsumeActionCooldown(TEXT("FireCam"), 0.15f))
+	{
+		LastInputSource = TEXT("RawPoll");
+		DoCameraAimFire();
+	}
+	bRawPrevFire = bFire;
+
+	// --- Continuous turn axis.  Only apply if Enhanced Input hasn't set it
+	// this frame (detect via: TurnInputValue untouched or EI off).
+	float Raw = 0.0f;
+	if (PC->IsInputKeyDown(EKeys::D) || PC->IsInputKeyDown(EKeys::Right)) Raw += 1.0f;
+	if (PC->IsInputKeyDown(EKeys::A) || PC->IsInputKeyDown(EKeys::Left))  Raw -= 1.0f;
+	if (!bEnhancedInputReady || FMath::IsNearlyZero(TurnInputValue))
+	{
 		DoSetTurnAxis(Raw);
 		if (!FMath::IsNearlyZero(Raw)) LastInputSource = TEXT("RawPoll");
+	}
+
+	// --- Mouse look: apply delta continuously if it isn't already driven by EI.
+	float MX = 0.f, MY = 0.f;
+	PC->GetInputMouseDelta(MX, MY);
+	if (!FMath::IsNearlyZero(MX) || !FMath::IsNearlyZero(MY))
+	{
+		if (!bEnhancedInputReady)
+		{
+			LastInputSource = TEXT("RawPoll");
+			DoLook(FVector2D(MX, MY));
+		}
 	}
 }
 

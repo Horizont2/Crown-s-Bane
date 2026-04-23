@@ -23,7 +23,9 @@ void ACrownsBanePlayerController::BeginPlay()
 	Super::BeginPlay();
 
 	bShowMouseCursor = false;
-	SetInputMode(FInputModeGameOnly());
+	FInputModeGameOnly Mode;
+	Mode.SetConsumeCaptureMouseDown(true);
+	SetInputMode(Mode);
 }
 
 void ACrownsBanePlayerController::OnPossess(APawn* InPawn)
@@ -33,7 +35,13 @@ void ACrownsBanePlayerController::OnPossess(APawn* InPawn)
 	// Re-apply game-only input every time we take control of a pawn so the
 	// viewport never stays in UI mode after a re-possession.
 	bShowMouseCursor = false;
-	SetInputMode(FInputModeGameOnly());
+	FInputModeGameOnly Mode;
+	Mode.SetConsumeCaptureMouseDown(true);
+	SetInputMode(Mode);
+
+	// Ensure the viewport actually receives key events — without this, PIE
+	// sometimes leaves focus on the editor UI.
+	FlushPressedKeys();
 
 	UE_LOG(LogTemp, Log, TEXT("[PlayerController] Possessed %s — input mode locked to Game."),
 		InPawn ? *InPawn->GetName() : TEXT("NULL"));

@@ -35,17 +35,18 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DayNight", meta=(ClampMin="10"))
 	float DayLengthSeconds = 600.0f;
 
-	// Start time (hours).  9.0 = mid-morning — player always begins their session
-	// in clear daylight before the night cycle rolls in.
+	// Start time (hours).  12.0 = noon — game always begins in clear daylight so
+	// players see everything immediately before the day-night cycle rolls around.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DayNight", meta=(ClampMin="0", ClampMax="24"))
-	float TimeOfDay = 9.0f;
+	float TimeOfDay = 12.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DayNight")
 	float DaySunIntensity = 10.0f;
 
-	// Realistic moonlight intensity — still dim but unmistakably visible.
+	// Moonlight intensity (lux).  3.5 keeps silhouettes and water legible
+	// without making the world look like daytime.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DayNight")
-	float NightMoonIntensity = 2.2f;
+	float NightMoonIntensity = 3.5f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DayNight")
 	FLinearColor NoonColor = FLinearColor(1.0f, 0.96f, 0.85f);
@@ -61,8 +62,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DayNight|Sky")
 	float DaySkyIntensity = 1.2f;
 
+	// SkyLight at night (1.2 ≈ half-moon ambient fill).  Keeps the ocean visible
+	// so the player can still navigate without the scene going pitch black.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DayNight|Sky")
-	float NightSkyIntensity = 0.55f;
+	float NightSkyIntensity = 1.2f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DayNight|Sky")
 	FLinearColor NightSkyColor = FLinearColor(0.15f, 0.22f, 0.45f);
