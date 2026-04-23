@@ -6,6 +6,8 @@
 #include "GameFramework/ProjectileMovementComponent.h"
 #include "Components/HealthComponent.h"
 #include "Ship/ShipPawn.h"
+#include "UI/CrownsBaneHUD.h"
+#include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "NiagaraFunctionLibrary.h"
 #include "UObject/ConstructorHelpers.h"
@@ -93,6 +95,27 @@ void ACannonball::OnHit(UPrimitiveComponent* HitComponent, AActor* OtherActor,
 		ApplySlowEffect(OtherActor);
 	}
 
+	// Queue a floating damage number on the HUD — only for player-originated shots
+	// (instigator is player-controlled) so enemy hits on the player don't spam.
+	const bool bHitShip = OtherActor->IsA(AShipPawn::StaticClass());
+	if (UWorld* W = GetWorld())
+	{
+		if (APlayerController* PC = UGameplayStatics::GetPlayerController(W, 0))
+		{
+			const AActor* Inst = OwnerInstigator;
+			const APawn*  InstPawn = Cast<APawn>(Inst);
+			const bool bPlayerShot = InstPawn && Cast<APlayerController>(InstPawn->GetController());
+			if (bPlayerShot)
+			{
+				if (ACrownsBaneHUD* HUD = Cast<ACrownsBaneHUD>(PC->GetHUD()))
+				{
+					HUD->AddFloatingDamage(Hit.ImpactPoint.IsZero() ? GetActorLocation() : Hit.ImpactPoint,
+						CannonballData.BaseDamage, bHitShip);
+				}
+			}
+		}
+	}
+
 	// Impact FX
 	UWorld* World = GetWorld();
 	if (World)
@@ -102,7 +125,6 @@ void ACannonball::OnHit(UPrimitiveComponent* HitComponent, AActor* OtherActor,
 			? FRotator::ZeroRotator
 			: Hit.ImpactNormal.Rotation();
 
-		const bool bHitShip = OtherActor->IsA(AShipPawn::StaticClass());
 		UNiagaraSystem* FX = bHitShip ? ImpactHullFX : ImpactWaterFX;
 		USoundBase* SFX = bHitShip ? ImpactSound : WaterSplashSound;
 

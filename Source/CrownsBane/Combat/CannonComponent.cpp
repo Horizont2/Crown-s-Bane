@@ -274,3 +274,104 @@ void UCannonComponent::UpgradeCannonCount(int32 NewCountPerSide)
 	CannonsPerSide = FMath::Clamp(NewCountPerSide, 2, 8);
 	UE_LOG(LogTemp, Log, TEXT("CannonComponent: Upgraded to %d cannons per side."), CannonsPerSide);
 }
+
+void UCannonComponent::PredictBallisticArc(FVector SpawnLocation, FVector Direction,
+	float SeaLevelZ, int32 MaxSteps, float StepSeconds,
+	TArray<FVector>& OutPoints, FVector& OutImpactPoint) const
+{
+	OutPoints.Reset();
+	OutPoints.Add(SpawnLocation);
+
+	FCannonballData Data = (ActiveCannonballType == ECannonballType::Chain)
+		? FCannonballData::MakeChain()
+		: FCannonballData::MakeStandard();
+
+	FVector Pos = SpawnLocation;
+	FVector Vel = Direction.GetSafeNormal() * Data.InitialSpeed;
+	const float Gravity = 980.0f * Data.GravityScale;
+
+	OutImpactPoint = Pos;
+
+	for (int32 i = 0; i < MaxSteps; ++i)
+	{
+		Vel.Z -= Gravity * StepSeconds;
+		Pos   += Vel * StepSeconds;
+		OutPoints.Add(Pos);
+
+		if (Pos.Z <= SeaLevelZ)
+		{
+			OutImpactPoint = Pos;
+			OutImpactPoint.Z = SeaLevelZ;
+			break;
+		}
+		OutImpactPoint = Pos;
+	}
+}
+
+void UCannonComponent::GetAimPrediction(ECannonSide Side, float SeaLevelZ,
+	TArray<FVector>& OutImpactPoints,
+	TArray<FVector>& OutTrajectoryStart,
+	TArray<FVector>& OutTrajectoryEnd) const
+{
+	OutImpactPoints.Reset();
+	OutTrajectoryStart.Reset();
+	OutTrajectoryEnd.Reset();
+
+	AActor* Owner = GetOwner();
+	if (!Owner) return;
+
+	// Base lateral direction + elevation (same math as FireBroadside).
+	const FVector OwnerRight = Owner->GetActorRightVector();
+	FVector FireDirection = (Side == ECannonSide::Left) ? -OwnerRight : OwnerRight;
+
+	const float ElevRad = FMath::DegreesToRadians(ElevationAngle);
+	FVector ElevatedDir = FireDirection * FMath::Cos(ElevRad) + FVector::UpVector * FMath::Sin(ElevRad);
+	ElevatedDir.Normalize();
+
+	const FName SocketPrefix = (Side == ECannonSide::Left) ? LeftSocketPrefix : RightSocketPrefix;
+	UMeshComponent* MeshComp = Owner->FindComponentByClass<UStaticMeshComponent>();
+	if (!MeshComp) MeshComp = Owner->FindComponentByClass<USkeletalMeshComponent>();
+
+	TArray<FVector> SpawnLocations;
+	if (MeshComp)
+	{
+		for (int32 i = 0; i < CannonsPerSide; ++i)
+		{
+			const FName SocketName = FName(*FString::Printf(TEXT("%s%d"), *SocketPrefix.ToString(), i));
+			if (MeshComp->DoesSocketExist(SocketName))
+			{
+				SpawnLocations.Add(MeshComp->GetSocketLocation(SocketName));
+			}
+		}
+	}
+
+	// Fallback: fabricate socket positions along ship length as FireBroadside does.
+	if (SpawnLocations.Num() == 0)
+	{
+		const float ShipHalfWidth = 300.0f;
+		const float CannonSpacing = 250.0f;
+		const FVector BaseOffset = FireDirection * ShipHalfWidth;
+		const FVector LengthDir  = Owner->GetActorForwardVector();
+		for (int32 i = 0; i < CannonsPerSide; ++i)
+		{
+			const float LengthOffset = (i - (CannonsPerSide - 1) * 0.5f) * CannonSpacing;
+			SpawnLocations.Add(Owner->GetActorLocation() + BaseOffset + LengthDir * LengthOffset + FVector(0.f, 0.f, 50.f));
+		}
+	}
+
+	// Simulate each cannon.  40 steps × 0.1 s = 4 s max flight.
+	for (const FVector& Spawn : SpawnLocations)
+	{
+		TArray<FVector> Pts;
+		FVector Impact;
+		PredictBallisticArc(Spawn, ElevatedDir, SeaLevelZ, 40, 0.1f, Pts, Impact);
+		OutImpactPoints.Add(Impact);
+
+		// Build consecutive (start, end) pairs for every segment.
+		for (int32 j = 0; j + 1 < Pts.Num(); ++j)
+		{
+			OutTrajectoryStart.Add(Pts[j]);
+			OutTrajectoryEnd.Add(Pts[j + 1]);
+		}
+	}
+}

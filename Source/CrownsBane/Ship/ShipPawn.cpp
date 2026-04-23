@@ -242,6 +242,12 @@ void AShipPawn::Tick(float DeltaTime)
 		}
 	}
 
+	// Final-fallback raw polling — runs unconditionally, but edge-triggered
+	// state means it never double-fires when Enhanced Input is also active.
+	// For TurnAxis, if EnhancedInput just updated it, raw polling will match
+	// the same key state (idempotent).
+	PollRawInputFallback(DeltaTime);
+
 	UpdateMovement(DeltaTime);
 
 	if (!FMath::IsNearlyZero(TurnInputValue))
@@ -258,8 +264,10 @@ void AShipPawn::Tick(float DeltaTime)
 	{
 		static const TCHAR* SailNames[] = { TEXT("Stop"), TEXT("Half"), TEXT("Full") };
 		GEngine->AddOnScreenDebugMessage(1001, 0.0f, FColor::Yellow,
-			FString::Printf(TEXT("[Ship] Sail=%s  Speed=%.0f  Turn=%.2f  Controller=%s"),
+			FString::Printf(TEXT("[Ship] Sail=%s Speed=%.0f Turn=%.2f EI=%s LastInput=%s Ctrl=%s"),
 				SailNames[(int32)CurrentSailLevel], CurrentSpeed, TurnInputValue,
+				bEnhancedInputReady ? TEXT("OK") : TEXT("FALLBACK"),
+				*LastInputSource,
 				GetController() ? *GetController()->GetName() : TEXT("NONE")));
 	}
 }
@@ -271,57 +279,39 @@ void AShipPawn::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 	// Make sure IA properties are non-null before binding.
 	EnsureInputAssetsExist();
 
+	// Attempt Enhanced Input binding (preferred).
 	UEnhancedInputComponent* EIC = Cast<UEnhancedInputComponent>(PlayerInputComponent);
-	if (!EIC)
+	if (EIC)
 	{
-		UE_LOG(LogTemp, Error,
-			TEXT("[ShipPawn] Enhanced Input Component missing. "
-			     "Project Settings > Input > Default Input Component Class = EnhancedInputComponent"));
+		if (IA_IncreaseSail)
+			EIC->BindAction(IA_IncreaseSail, ETriggerEvent::Started,   this, &AShipPawn::Input_IncreaseSail);
+		if (IA_DecreaseSail)
+			EIC->BindAction(IA_DecreaseSail, ETriggerEvent::Started,   this, &AShipPawn::Input_DecreaseSail);
+		if (IA_Turn)
+		{
+			EIC->BindAction(IA_Turn, ETriggerEvent::Triggered, this, &AShipPawn::Input_Turn);
+			EIC->BindAction(IA_Turn, ETriggerEvent::Completed, this, &AShipPawn::Input_TurnCompleted);
+			EIC->BindAction(IA_Turn, ETriggerEvent::Canceled,  this, &AShipPawn::Input_TurnCompleted);
+		}
+		if (IA_FireLeft)  EIC->BindAction(IA_FireLeft,  ETriggerEvent::Started, this, &AShipPawn::Input_FireLeft);
+		if (IA_FireRight) EIC->BindAction(IA_FireRight, ETriggerEvent::Started, this, &AShipPawn::Input_FireRight);
+		if (IA_Fire)      EIC->BindAction(IA_Fire,      ETriggerEvent::Started, this, &AShipPawn::Input_Fire);
+
+		bEnhancedInputReady = true;
+		UE_LOG(LogTemp, Log, TEXT("[ShipPawn] Enhanced Input bound successfully."));
+	}
+	else
+	{
+		bEnhancedInputReady = false;
+		UE_LOG(LogTemp, Warning,
+			TEXT("[ShipPawn] EnhancedInputComponent cast failed; raw polling fallback will drive input. "
+			     "Check Project Settings > Input > Default Input Component Class."));
 		if (GEngine && bShowDebugOnScreen)
 		{
-			GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Red,
-				TEXT("EnhancedInputComponent not set in Project Settings!"));
+			GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Yellow,
+				TEXT("EnhancedInputComponent not found — using raw key polling fallback."));
 		}
-		return;
 	}
-
-	// Sails: Started = one fire per key press (no spam)
-	if (IA_IncreaseSail)
-		EIC->BindAction(IA_IncreaseSail, ETriggerEvent::Started,   this, &AShipPawn::Input_IncreaseSail);
-	else
-		UE_LOG(LogTemp, Error, TEXT("[ShipPawn] IA_IncreaseSail unassigned!"));
-
-	if (IA_DecreaseSail)
-		EIC->BindAction(IA_DecreaseSail, ETriggerEvent::Started,   this, &AShipPawn::Input_DecreaseSail);
-	else
-		UE_LOG(LogTemp, Error, TEXT("[ShipPawn] IA_DecreaseSail unassigned!"));
-
-	// Turn: Triggered = continuous while held, Completed = reset to 0 on release
-	if (IA_Turn)
-	{
-		EIC->BindAction(IA_Turn, ETriggerEvent::Triggered, this, &AShipPawn::Input_Turn);
-		EIC->BindAction(IA_Turn, ETriggerEvent::Completed, this, &AShipPawn::Input_TurnCompleted);
-		EIC->BindAction(IA_Turn, ETriggerEvent::Canceled,  this, &AShipPawn::Input_TurnCompleted);
-	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("[ShipPawn] IA_Turn unassigned!"));
-	}
-
-	if (IA_FireLeft)
-		EIC->BindAction(IA_FireLeft,  ETriggerEvent::Started, this, &AShipPawn::Input_FireLeft);
-	else
-		UE_LOG(LogTemp, Warning, TEXT("[ShipPawn] IA_FireLeft unassigned."));
-
-	if (IA_FireRight)
-		EIC->BindAction(IA_FireRight, ETriggerEvent::Started, this, &AShipPawn::Input_FireRight);
-	else
-		UE_LOG(LogTemp, Warning, TEXT("[ShipPawn] IA_FireRight unassigned."));
-
-	if (IA_Fire)
-		EIC->BindAction(IA_Fire, ETriggerEvent::Started, this, &AShipPawn::Input_Fire);
-
-	UE_LOG(LogTemp, Log, TEXT("[ShipPawn] SetupPlayerInputComponent complete."));
 }
 
 float AShipPawn::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent,
@@ -345,7 +335,50 @@ float AShipPawn::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent,
 	return Actual;
 }
 
-void AShipPawn::Input_IncreaseSail(const FInputActionValue& Value)
+void AShipPawn::Input_IncreaseSail(const FInputActionValue& /*Value*/)
+{
+	LastInputSource = TEXT("EnhancedInput");
+	DoIncreaseSail();
+}
+
+void AShipPawn::Input_DecreaseSail(const FInputActionValue& /*Value*/)
+{
+	LastInputSource = TEXT("EnhancedInput");
+	DoDecreaseSail();
+}
+
+void AShipPawn::Input_Turn(const FInputActionValue& Value)
+{
+	LastInputSource = TEXT("EnhancedInput");
+	DoSetTurnAxis(Value.Get<float>());
+}
+
+void AShipPawn::Input_TurnCompleted(const FInputActionValue& /*Value*/)
+{
+	DoSetTurnAxis(0.0f);
+}
+
+void AShipPawn::Input_FireLeft(const FInputActionValue& /*Value*/)
+{
+	LastInputSource = TEXT("EnhancedInput");
+	DoFireLeft();
+}
+
+void AShipPawn::Input_FireRight(const FInputActionValue& /*Value*/)
+{
+	LastInputSource = TEXT("EnhancedInput");
+	DoFireRight();
+}
+
+void AShipPawn::Input_Fire(const FInputActionValue& /*Value*/)
+{
+	LastInputSource = TEXT("EnhancedInput");
+	DoCameraAimFire();
+}
+
+// ---- Shared action implementations ---------------------------------------
+
+void AShipPawn::DoIncreaseSail()
 {
 	switch (CurrentSailLevel)
 	{
@@ -353,10 +386,10 @@ void AShipPawn::Input_IncreaseSail(const FInputActionValue& Value)
 	case ESailLevel::HalfSail: CurrentSailLevel = ESailLevel::FullSail; break;
 	default: break;
 	}
-	UE_LOG(LogTemp, Log, TEXT("[ShipPawn] Sail -> %d"), (int)CurrentSailLevel);
+	UE_LOG(LogTemp, Log, TEXT("[ShipPawn] Sail -> %d (%s)"), (int)CurrentSailLevel, *LastInputSource);
 }
 
-void AShipPawn::Input_DecreaseSail(const FInputActionValue& Value)
+void AShipPawn::DoDecreaseSail()
 {
 	switch (CurrentSailLevel)
 	{
@@ -364,38 +397,31 @@ void AShipPawn::Input_DecreaseSail(const FInputActionValue& Value)
 	case ESailLevel::HalfSail: CurrentSailLevel = ESailLevel::Stop;     break;
 	default: break;
 	}
-	UE_LOG(LogTemp, Log, TEXT("[ShipPawn] Sail -> %d"), (int)CurrentSailLevel);
+	UE_LOG(LogTemp, Log, TEXT("[ShipPawn] Sail -> %d (%s)"), (int)CurrentSailLevel, *LastInputSource);
 }
 
-void AShipPawn::Input_Turn(const FInputActionValue& Value)
+void AShipPawn::DoSetTurnAxis(float Value)
 {
-	TurnInputValue = FMath::Clamp(Value.Get<float>(), -1.0f, 1.0f);
+	TurnInputValue = FMath::Clamp(Value, -1.0f, 1.0f);
 }
 
-void AShipPawn::Input_TurnCompleted(const FInputActionValue& Value)
-{
-	TurnInputValue = 0.0f;
-}
-
-void AShipPawn::Input_FireLeft(const FInputActionValue& Value)
+void AShipPawn::DoFireLeft()
 {
 	if (CannonComponent) CannonComponent->FireBroadside(ECannonSide::Left);
 }
 
-void AShipPawn::Input_FireRight(const FInputActionValue& Value)
+void AShipPawn::DoFireRight()
 {
 	if (CannonComponent) CannonComponent->FireBroadside(ECannonSide::Right);
 }
 
-void AShipPawn::Input_Fire(const FInputActionValue& Value)
+void AShipPawn::DoCameraAimFire()
 {
 	if (!CannonComponent || !Camera) return;
 
-	// Determine side from camera-forward dotted with ship-right
 	const FVector CamFwd = Camera->GetForwardVector();
 	const float DotRight = FVector::DotProduct(CamFwd, GetActorRightVector());
 
-	// Small dead-zone so front/back aims don't accidentally fire
 	if (DotRight > 0.35f)
 	{
 		CannonComponent->FireBroadside(ECannonSide::Right);
@@ -408,6 +434,49 @@ void AShipPawn::Input_Fire(const FInputActionValue& Value)
 	{
 		GEngine->AddOnScreenDebugMessage(-1, 1.2f, FColor::Yellow,
 			TEXT("Turn camera left or right to aim broadside"));
+	}
+}
+
+void AShipPawn::PollRawInputFallback(float /*DeltaTime*/)
+{
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	if (!PC) return;
+
+	// --- Edge-triggered actions: only fire on raw poll if Enhanced Input is
+	// not driving bindings (avoids double-trigger).
+	if (!bEnhancedInputReady)
+	{
+		const bool bW = PC->IsInputKeyDown(EKeys::W) || PC->IsInputKeyDown(EKeys::Up);
+		if (bW && !bRawPrevW) { LastInputSource = TEXT("RawPoll"); DoIncreaseSail(); }
+		bRawPrevW = bW;
+
+		const bool bS = PC->IsInputKeyDown(EKeys::S) || PC->IsInputKeyDown(EKeys::Down);
+		if (bS && !bRawPrevS) { LastInputSource = TEXT("RawPoll"); DoDecreaseSail(); }
+		bRawPrevS = bS;
+
+		const bool bQ = PC->IsInputKeyDown(EKeys::Q);
+		if (bQ && !bRawPrevQ) { LastInputSource = TEXT("RawPoll"); DoFireLeft(); }
+		bRawPrevQ = bQ;
+
+		const bool bE = PC->IsInputKeyDown(EKeys::E);
+		if (bE && !bRawPrevE) { LastInputSource = TEXT("RawPoll"); DoFireRight(); }
+		bRawPrevE = bE;
+
+		const bool bFire = PC->IsInputKeyDown(EKeys::LeftMouseButton) || PC->IsInputKeyDown(EKeys::SpaceBar);
+		if (bFire && !bRawPrevFire) { LastInputSource = TEXT("RawPoll"); DoCameraAimFire(); }
+		bRawPrevFire = bFire;
+	}
+
+	// --- Continuous turn axis: always safe to re-derive since it's idempotent.
+	// We only apply if Enhanced Input hasn't bound OR the EI turn axis is zero
+	// (keeps both pathways compatible).
+	if (!bEnhancedInputReady)
+	{
+		float Raw = 0.0f;
+		if (PC->IsInputKeyDown(EKeys::D) || PC->IsInputKeyDown(EKeys::Right)) Raw += 1.0f;
+		if (PC->IsInputKeyDown(EKeys::A) || PC->IsInputKeyDown(EKeys::Left))  Raw -= 1.0f;
+		DoSetTurnAxis(Raw);
+		if (!FMath::IsNearlyZero(Raw)) LastInputSource = TEXT("RawPoll");
 	}
 }
 

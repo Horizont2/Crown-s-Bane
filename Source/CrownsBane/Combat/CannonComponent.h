@@ -48,6 +48,25 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Cannon")
 	int32 GetCannonsPerSide() const { return CannonsPerSide; }
 
+	// Predict the trajectory of a single cannonball fired from SpawnLocation
+	// along Direction using the current projectile physics.  Populates
+	// OutPoints with world-space positions sampled at fixed time steps,
+	// stopping when the ball passes Z = SeaLevelZ (ocean surface) or after
+	// MaxSteps.  Used by the HUD to draw AC4-style aim-prediction arcs.
+	UFUNCTION(BlueprintCallable, Category = "Cannon|Aim")
+	void PredictBallisticArc(FVector SpawnLocation, FVector Direction,
+		float SeaLevelZ, int32 MaxSteps, float StepSeconds,
+		TArray<FVector>& OutPoints, FVector& OutImpactPoint) const;
+
+	// Gather predicted impact points for every cannon on the given side, taking
+	// socket positions (if available) and elevation into account.  Returns all
+	// sampled trajectories in OutArcs (one entry per cannon).
+	UFUNCTION(BlueprintCallable, Category = "Cannon|Aim")
+	void GetAimPrediction(ECannonSide Side, float SeaLevelZ,
+		TArray<FVector>& OutImpactPoints,
+		TArray<FVector>& OutTrajectoryStart,
+		TArray<FVector>& OutTrajectoryEnd) const;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cannon")
 	int32 CannonsPerSide = 2;
 
