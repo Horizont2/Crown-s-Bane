@@ -90,7 +90,6 @@ void ACrownsBanePlayerController::ForceFocusGameViewport()
 		{
 			Viewport->CaptureMouse(true);
 			Viewport->LockMouseToViewport(true);
-			Viewport->CaptureJoystickInput(true);
 		}
 	}
 }
