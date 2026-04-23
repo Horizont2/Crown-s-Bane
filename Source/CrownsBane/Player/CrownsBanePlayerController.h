@@ -22,6 +22,16 @@ protected:
 	virtual void BeginPlay() override;
 	virtual void SetupInputComponent() override;
 	virtual void OnPossess(APawn* InPawn) override;
+	virtual void Tick(float DeltaSeconds) override;
+
+	// In PIE the Slate-focus sometimes stays on the editor UI instead of
+	// the game viewport, leaving the player unable to type W/A/S/D or move
+	// the mouse. We re-claim focus aggressively for the first few seconds
+	// and any time we detect we've lost it.
+	void ForceFocusGameViewport();
+
+	float FocusTimer = 0.0f;
+	bool bForcedFocusOnce = false;
 
 public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory")

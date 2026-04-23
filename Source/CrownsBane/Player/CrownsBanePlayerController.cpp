@@ -8,11 +8,15 @@
 #include "UI/CrownsBaneHUD.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/World.h"
+#include "Engine/Engine.h"
+#include "Engine/GameViewportClient.h"
+#include "UnrealClient.h"
+#include "Framework/Application/SlateApplication.h"
 #include "Upgrades/UpgradeTypes.h"
 
 ACrownsBanePlayerController::ACrownsBanePlayerController()
 {
-	PrimaryActorTick.bCanEverTick = false;
+	PrimaryActorTick.bCanEverTick = true;
 	PlayerInventory = CreateDefaultSubobject<UPlayerInventory>(TEXT("PlayerInventory"));
 	bIsInDocks = false;
 	bUpgradeUIOpen = false;
@@ -26,25 +30,69 @@ void ACrownsBanePlayerController::BeginPlay()
 	FInputModeGameOnly Mode;
 	Mode.SetConsumeCaptureMouseDown(true);
 	SetInputMode(Mode);
+
+	ForceFocusGameViewport();
 }
 
 void ACrownsBanePlayerController::OnPossess(APawn* InPawn)
 {
 	Super::OnPossess(InPawn);
 
-	// Re-apply game-only input every time we take control of a pawn so the
-	// viewport never stays in UI mode after a re-possession.
 	bShowMouseCursor = false;
 	FInputModeGameOnly Mode;
 	Mode.SetConsumeCaptureMouseDown(true);
 	SetInputMode(Mode);
 
-	// Ensure the viewport actually receives key events — without this, PIE
-	// sometimes leaves focus on the editor UI.
 	FlushPressedKeys();
+	ForceFocusGameViewport();
+
+	FocusTimer = 0.0f;
+	bForcedFocusOnce = false;
 
 	UE_LOG(LogTemp, Log, TEXT("[PlayerController] Possessed %s — input mode locked to Game."),
 		InPawn ? *InPawn->GetName() : TEXT("NULL"));
+}
+
+void ACrownsBanePlayerController::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
+	// Re-claim Slate focus for the first 5 seconds after BeginPlay/possess.
+	// PIE frequently leaves focus on the editor toolbar so the game viewport
+	// never sees a single key press — this is the fix.
+	FocusTimer += DeltaSeconds;
+	if (FocusTimer < 5.0f)
+	{
+		ForceFocusGameViewport();
+	}
+	else if (!bForcedFocusOnce)
+	{
+		bForcedFocusOnce = true;
+		ForceFocusGameViewport();
+	}
+}
+
+void ACrownsBanePlayerController::ForceFocusGameViewport()
+{
+	// Step 1: tell Slate that the game viewport owns focus.  Without this,
+	// PIE often leaves focus on the editor toolbar, so key events go to
+	// the editor and never reach the pawn.
+	if (FSlateApplication::IsInitialized())
+	{
+		FSlateApplication::Get().SetAllUserFocusToGameViewport();
+	}
+
+	// Step 2: physically capture the mouse into the viewport, lock the cursor,
+	// and grab joystick events.  All three are necessary in combination.
+	if (GEngine && GEngine->GameViewport)
+	{
+		if (FViewport* Viewport = GEngine->GameViewport->Viewport)
+		{
+			Viewport->CaptureMouse(true);
+			Viewport->LockMouseToViewport(true);
+			Viewport->CaptureJoystickInput(true);
+		}
+	}
 }
 
 void ACrownsBanePlayerController::SetupInputComponent()

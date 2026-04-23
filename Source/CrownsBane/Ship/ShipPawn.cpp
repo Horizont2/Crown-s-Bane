@@ -8,6 +8,8 @@
 #include "Kismet/GameplayStatics.h"
 #include "Engine/World.h"
 #include "Engine/Engine.h"
+#include "Engine/GameViewportClient.h"
+#include "UnrealClient.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
@@ -294,12 +296,33 @@ void AShipPawn::Tick(float DeltaTime)
 	if (GEngine && bShowDebugOnScreen)
 	{
 		static const TCHAR* SailNames[] = { TEXT("Stop"), TEXT("Half"), TEXT("Full") };
+
+		// Extra diagnostic: is the Slate viewport actually focused and has mouse capture?
+		bool bViewportFocused = false;
+		bool bMouseCaptured = false;
+		if (GEngine->GameViewport)
+		{
+			if (FViewport* VP = GEngine->GameViewport->Viewport)
+			{
+				bMouseCaptured = VP->HasMouseCapture();
+				bViewportFocused = VP->HasFocus();
+			}
+		}
+
 		GEngine->AddOnScreenDebugMessage(1001, 0.0f, FColor::Yellow,
-			FString::Printf(TEXT("[Ship] Sail=%s Speed=%.0f Turn=%.2f EI=%s LastInput=%s Ctrl=%s"),
+			FString::Printf(TEXT("[Ship] Sail=%s Speed=%.0f Turn=%.2f EI=%s LastInput=%s VPFocus=%s MouseCap=%s Ctrl=%s"),
 				SailNames[(int32)CurrentSailLevel], CurrentSpeed, TurnInputValue,
 				bEnhancedInputReady ? TEXT("OK") : TEXT("FALLBACK"),
 				*LastInputSource,
+				bViewportFocused ? TEXT("YES") : TEXT("NO"),
+				bMouseCaptured   ? TEXT("YES") : TEXT("NO"),
 				GetController() ? *GetController()->GetName() : TEXT("NONE")));
+
+		if (!bViewportFocused)
+		{
+			GEngine->AddOnScreenDebugMessage(1002, 0.0f, FColor::Red,
+				TEXT("!!! CLICK ON GAME VIEWPORT TO GIVE IT FOCUS !!!"));
+		}
 	}
 }
 
