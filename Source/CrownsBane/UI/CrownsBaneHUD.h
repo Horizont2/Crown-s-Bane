@@ -4,6 +4,18 @@
 #include "GameFramework/HUD.h"
 #include "CrownsBaneHUD.generated.h"
 
+USTRUCT()
+struct FFloatingDamageEntry
+{
+	GENERATED_BODY()
+
+	FVector WorldLocation = FVector::ZeroVector;
+	float   Damage        = 0.0f;
+	float   TimeRemaining = 1.2f;
+	float   VerticalSpeed = 120.0f; // cm/s
+	FColor  Tint          = FColor::White;
+};
+
 class UHealthComponent;
 class UCannonComponent;
 class UPlayerInventory;
@@ -13,6 +25,7 @@ class AStormSystem;
 class ATreasureQuestManager;
 class AEnemyShipBase;
 class AShipPawn;
+class ADayNightSystem;
 
 UCLASS()
 class CROWNSBANE_API ACrownsBaneHUD : public AHUD
@@ -99,6 +112,29 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HUD|Colors")
 	FLinearColor EnemyHPBarBGColor = FLinearColor(0.12f, 0.05f, 0.05f, 0.85f);
 
+	// ---- Aim predictor (AC4-style) ----
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HUD|Aim")
+	FLinearColor AimArcColorReady = FLinearColor(1.0f, 0.85f, 0.1f, 0.95f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HUD|Aim")
+	FLinearColor AimArcColorReload = FLinearColor(0.55f, 0.55f, 0.55f, 0.6f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HUD|Aim")
+	FLinearColor AimImpactRingColor = FLinearColor(1.0f, 0.25f, 0.15f, 0.85f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HUD|Aim")
+	float AimImpactRingRadius = 180.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HUD|Aim")
+	float SeaLevelZ = 0.0f;
+
+	// ---- Crosshair ----
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HUD|Reticle")
+	FLinearColor CrosshairColor = FLinearColor(1.0f, 1.0f, 1.0f, 0.45f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HUD|Reticle")
+	float CrosshairSize = 14.0f;
+
 	// ---- Minimap ----
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HUD|Minimap")
 	float MinimapRadius = 110.0f;
@@ -150,6 +186,10 @@ public:
 	UPROPERTY(BlueprintReadWrite, Category = "HUD")
 	bool bShowDocksPrompt = false;
 
+	// Called by Cannonball::OnHit to queue up a floating damage number.
+	UFUNCTION(BlueprintCallable, Category = "HUD|Damage")
+	void AddFloatingDamage(FVector WorldLocation, float Damage, bool bHitShip);
+
 private:
 	void DrawHealthBar(AShipPawn* Ship);
 	void DrawReloadTimers(UCannonComponent* Cannons);
@@ -163,6 +203,14 @@ private:
 	void DrawFiringArcs(AShipPawn* PlayerShip);
 	void DrawAmmoCounter(UPlayerInventory* Inventory);
 	void DrawDocksPrompt();
+	void DrawAimPredictor(AShipPawn* PlayerShip);
+	void DrawCrosshair();
+	void DrawTimeOfDay();
+	void DrawFloatingDamageNumbers(float DeltaTime);
+
+	// Floating damage queue
+	TArray<FFloatingDamageEntry> FloatingDamageEntries;
+	double LastDrawTime = 0.0;
 
 	// Helpers for minimap
 	void DrawMinimapDot(float CX, float CY, float DotX, float DotY, float DotSize, FLinearColor Color);

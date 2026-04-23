@@ -200,6 +200,17 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Combat")
 	void UpgradeHullArmor(float AdditionalReductionPct);
 
+	// True once Enhanced Input successfully bound the action callbacks.  If
+	// this stays false we fall back to raw key polling inside Tick so the
+	// game is still playable even with a broken EnhancedInput configuration.
+	UPROPERTY(BlueprintReadOnly, Category = "Input")
+	bool bEnhancedInputReady = false;
+
+	// Report which input pathway drove the last sail/turn/fire event
+	// (displayed in on-screen debug to diagnose input problems).
+	UPROPERTY(BlueprintReadOnly, Category = "Input")
+	FString LastInputSource = TEXT("none");
+
 protected:
 	void Input_IncreaseSail(const FInputActionValue& Value);
 	void Input_DecreaseSail(const FInputActionValue& Value);
@@ -208,6 +219,18 @@ protected:
 	void Input_FireLeft(const FInputActionValue& Value);
 	void Input_FireRight(const FInputActionValue& Value);
 	void Input_Fire(const FInputActionValue& Value);
+
+	// Pathway-agnostic action implementations.  Enhanced Input callbacks and
+	// raw polling both route through these so behaviour is identical.
+	void DoIncreaseSail();
+	void DoDecreaseSail();
+	void DoFireLeft();
+	void DoFireRight();
+	void DoCameraAimFire();
+	void DoSetTurnAxis(float Value);
+
+	// Raw key-state polling used when Enhanced Input did not bind.
+	void PollRawInputFallback(float DeltaTime);
 
 	// Registers IMC on the possessing PlayerController's Enhanced Input subsystem.
 	// Called from PawnClientRestart (canonical), NotifyControllerChanged, and BeginPlay (fallback).
@@ -236,4 +259,11 @@ private:
 	float SpeedPenaltyFraction = 0.0f;
 	float SpeedPenaltyTimeRemaining = 0.0f;
 	float CurrentVisualRoll = 0.0f;
+
+	// Raw-poll edge-trigger trackers
+	bool bRawPrevW = false;
+	bool bRawPrevS = false;
+	bool bRawPrevQ = false;
+	bool bRawPrevE = false;
+	bool bRawPrevFire = false;
 };

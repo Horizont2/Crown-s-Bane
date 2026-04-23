@@ -2,7 +2,9 @@
 
 #include "Systems/DayNightSystem.h"
 #include "Engine/DirectionalLight.h"
+#include "Engine/SkyLight.h"
 #include "Components/DirectionalLightComponent.h"
+#include "Components/SkyLightComponent.h"
 #include "EngineUtils.h"
 #include "Engine/World.h"
 
@@ -52,10 +54,22 @@ void ADayNightSystem::CacheSun()
 		if (SunLight) break;
 	}
 
+	for (TActorIterator<ASkyLight> It(World); It; ++It)
+	{
+		SkyLight = *It;
+		if (SkyLight) break;
+	}
+
 	if (!SunLight)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[DayNightSystem] No DirectionalLight found in level — day/night disabled."));
 	}
+}
+
+float ADayNightSystem::GetDayFactor() const
+{
+	const float HoursFromNoon = FMath::Abs(FMath::Fmod(TimeOfDay + 12.0f, 24.0f) - 12.0f);
+	return FMath::Clamp(1.0f - HoursFromNoon / 8.0f, 0.0f, 1.0f);
 }
 
 void ADayNightSystem::ApplySunState()
@@ -67,31 +81,24 @@ void ADayNightSystem::ApplySunState()
 	const float Angle = (TimeOfDay / 24.0f) * 360.0f - 90.0f;
 	SunLight->SetActorRotation(FRotator(Angle, 40.0f, 0.0f));
 
-	// Day/night state
 	const bool bIsNight = IsNight();
 	UDirectionalLightComponent* Comp = Cast<UDirectionalLightComponent>(SunLight->GetLightComponent());
 	if (!Comp) return;
 
-	// Smooth blend between noon and night. Use cosine-like curve.
-	// t = 0 at midnight, 1 at noon, via smoothstep
-	const float HoursFromNoon = FMath::Abs(FMath::Fmod(TimeOfDay + 12.0f, 24.0f) - 12.0f);
-	const float DayFactor = FMath::Clamp(1.0f - HoursFromNoon / 8.0f, 0.0f, 1.0f);
-
+	const float DayFactor = GetDayFactor();
 	const float Intensity = FMath::Lerp(NightMoonIntensity, DaySunIntensity, DayFactor);
 	Comp->SetIntensity(Intensity);
 
-	// Color: dawn/dusk transition around 6h and 18h
+	// Color blending across dawn/day/dusk/night
 	FLinearColor TargetColor;
 	if (TimeOfDay >= 5.0f && TimeOfDay <= 8.0f)
 	{
-		// Dawn
 		const float A = (TimeOfDay - 5.0f) / 3.0f;
 		TargetColor = FMath::Lerp(NightColor, DawnColor, FMath::Clamp(A * 0.7f, 0.f, 0.7f));
 		TargetColor = FMath::Lerp(TargetColor, NoonColor, FMath::Clamp((A - 0.5f) * 2.0f, 0.f, 1.f));
 	}
 	else if (TimeOfDay >= 17.0f && TimeOfDay <= 20.0f)
 	{
-		// Dusk
 		const float A = (TimeOfDay - 17.0f) / 3.0f;
 		TargetColor = FMath::Lerp(NoonColor, DawnColor, FMath::Clamp(A, 0.f, 1.f));
 		TargetColor = FMath::Lerp(TargetColor, NightColor, FMath::Clamp((A - 0.7f) * 3.3f, 0.f, 1.f));
@@ -105,4 +112,15 @@ void ADayNightSystem::ApplySunState()
 		TargetColor = NoonColor;
 	}
 	Comp->SetLightColor(TargetColor);
+
+	// Sky light: dim at night but keep ambient fill so the ocean/ships stay readable.
+	if (SkyLight)
+	{
+		if (USkyLightComponent* Sky = SkyLight->GetLightComponent())
+		{
+			const float SkyIntensity = FMath::Lerp(NightSkyIntensity, DaySkyIntensity, DayFactor);
+			Sky->SetIntensity(SkyIntensity);
+			Sky->SetLightColor(bIsNight ? NightSkyColor : FLinearColor::White);
+		}
+	}
 }

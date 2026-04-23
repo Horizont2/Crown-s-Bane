@@ -22,11 +22,21 @@ void ACrownsBanePlayerController::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// Lock input to the game immediately. Without this, PIE keeps the cursor
-	// active and mouse clicks go to the viewport UI layer instead of the game,
-	// which makes firing cannons with LMB/RMB appear broken.
 	bShowMouseCursor = false;
 	SetInputMode(FInputModeGameOnly());
+}
+
+void ACrownsBanePlayerController::OnPossess(APawn* InPawn)
+{
+	Super::OnPossess(InPawn);
+
+	// Re-apply game-only input every time we take control of a pawn so the
+	// viewport never stays in UI mode after a re-possession.
+	bShowMouseCursor = false;
+	SetInputMode(FInputModeGameOnly());
+
+	UE_LOG(LogTemp, Log, TEXT("[PlayerController] Possessed %s — input mode locked to Game."),
+		InPawn ? *InPawn->GetName() : TEXT("NULL"));
 }
 
 void ACrownsBanePlayerController::SetupInputComponent()

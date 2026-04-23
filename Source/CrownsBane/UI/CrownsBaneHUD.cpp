@@ -8,6 +8,7 @@
 #include "Systems/WantedLevelManager.h"
 #include "Systems/WindSystem.h"
 #include "Systems/StormSystem.h"
+#include "Systems/DayNightSystem.h"
 #include "Loot/TreasureQuestManager.h"
 #include "Loot/TreasureChest.h"
 #include "Loot/LootPickup.h"
@@ -21,6 +22,7 @@
 #include "Engine/Font.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/PlayerController.h"
+#include "CanvasItem.h"
 
 ACrownsBaneHUD::ACrownsBaneHUD()
 {
@@ -84,6 +86,7 @@ void ACrownsBaneHUD::DrawHUD()
 	{
 		DrawEnemyHealthBars(Ship);
 		DrawFiringArcs(Ship);
+		DrawAimPredictor(Ship);
 	}
 
 	if (Ship)
@@ -95,6 +98,15 @@ void ACrownsBaneHUD::DrawHUD()
 	{
 		DrawAmmoCounter(Inventory);
 	}
+
+	DrawCrosshair();
+	DrawTimeOfDay();
+
+	// Compute dt for floating damage numbers
+	const double Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
+	const float Dt = (LastDrawTime > 0.0) ? (float)(Now - LastDrawTime) : 0.016f;
+	LastDrawTime = Now;
+	DrawFloatingDamageNumbers(Dt);
 
 	if (bShowDocksPrompt)
 	{
@@ -795,4 +807,168 @@ UPlayerInventory* ACrownsBaneHUD::GetPlayerInventory() const
 	}
 
 	return PC->FindComponentByClass<UPlayerInventory>();
+}
+
+// -------- AIM PREDICTOR (AC4-style) --------
+
+void ACrownsBaneHUD::DrawAimPredictor(AShipPawn* PlayerShip)
+{
+	if (!PlayerShip || !PlayerShip->Camera || !PlayerShip->CannonComponent || !Canvas) return;
+
+	// Decide which side we're aiming toward.
+	const FVector CamFwd   = PlayerShip->Camera->GetForwardVector();
+	const FVector ShipRight = PlayerShip->GetActorRightVector();
+	const float DotR = FVector::DotProduct(CamFwd, ShipRight);
+	if (FMath::Abs(DotR) < 0.35f) return; // centered — no prediction
+
+	const ECannonSide Side = (DotR > 0.f) ? ECannonSide::Right : ECannonSide::Left;
+	const bool bReady = PlayerShip->CannonComponent->CanFire(Side);
+	const FLinearColor ArcColor = bReady ? AimArcColorReady : AimArcColorReload;
+
+	// Generate trajectories
+	TArray<FVector> ImpactPoints, Starts, Ends;
+	PlayerShip->CannonComponent->GetAimPrediction(Side, SeaLevelZ, ImpactPoints, Starts, Ends);
+
+	// Draw each trajectory segment in screen space.
+	const int32 N = FMath::Min(Starts.Num(), Ends.Num());
+	for (int32 i = 0; i < N; ++i)
+	{
+		const FVector S3 = Canvas->Project(Starts[i]);
+		const FVector E3 = Canvas->Project(Ends[i]);
+		// Skip segments behind the camera
+		if (S3.Z <= 0.f || E3.Z <= 0.f) continue;
+
+		FCanvasLineItem L(FVector2D(S3.X, S3.Y), FVector2D(E3.X, E3.Y));
+		L.SetColor(ArcColor);
+		L.LineThickness = 2.0f;
+		Canvas->DrawItem(L);
+	}
+
+	// Draw impact rings (rough ellipses) at landing points.
+	for (const FVector& Impact : ImpactPoints)
+	{
+		const FVector P0 = Canvas->Project(Impact);
+		if (P0.Z <= 0.f) continue;
+
+		// Approximate ellipse by projecting a ring in world space.
+		const int32 Segs = 20;
+		const float R = AimImpactRingRadius;
+		FVector2D PrevScreen;
+		for (int32 s = 0; s <= Segs; ++s)
+		{
+			const float A = (float)s / (float)Segs * 2.0f * PI;
+			const FVector Ring = Impact + FVector(FMath::Cos(A) * R, FMath::Sin(A) * R, 0.0f);
+			const FVector RS = Canvas->Project(Ring);
+			if (RS.Z <= 0.f) { PrevScreen = FVector2D(-1, -1); continue; }
+
+			if (s > 0 && PrevScreen.X >= 0.0f)
+			{
+				FCanvasLineItem Ln(PrevScreen, FVector2D(RS.X, RS.Y));
+				Ln.SetColor(AimImpactRingColor);
+				Ln.LineThickness = 2.0f;
+				Canvas->DrawItem(Ln);
+			}
+			PrevScreen = FVector2D(RS.X, RS.Y);
+		}
+
+		// Small dot at the center
+		DrawFilledRect(P0.X - 3.f, P0.Y - 3.f, 6.f, 6.f, AimImpactRingColor);
+	}
+}
+
+// -------- CROSSHAIR --------
+
+void ACrownsBaneHUD::DrawCrosshair()
+{
+	if (!Canvas) return;
+	const float CX = Canvas->ClipX * 0.5f;
+	const float CY = Canvas->ClipY * 0.5f;
+
+	// Four tick marks
+	DrawFilledRect(CX - CrosshairSize, CY - 1.f, CrosshairSize * 0.55f, 2.f, CrosshairColor);
+	DrawFilledRect(CX + CrosshairSize * 0.45f, CY - 1.f, CrosshairSize * 0.55f, 2.f, CrosshairColor);
+	DrawFilledRect(CX - 1.f, CY - CrosshairSize, 2.f, CrosshairSize * 0.55f, CrosshairColor);
+	DrawFilledRect(CX - 1.f, CY + CrosshairSize * 0.45f, 2.f, CrosshairSize * 0.55f, CrosshairColor);
+	// Centre dot
+	DrawFilledRect(CX - 1.5f, CY - 1.5f, 3.f, 3.f, CrosshairColor);
+}
+
+// -------- FLOATING DAMAGE NUMBERS --------
+
+void ACrownsBaneHUD::AddFloatingDamage(FVector WorldLocation, float Damage, bool bHitShip)
+{
+	if (Damage <= 0.0f) return;
+
+	FFloatingDamageEntry Entry;
+	Entry.WorldLocation = WorldLocation;
+	Entry.Damage        = Damage;
+	Entry.TimeRemaining = 1.4f;
+	Entry.VerticalSpeed = 140.0f;
+	Entry.Tint          = bHitShip ? FColor(255, 200, 80) : FColor(180, 220, 255);
+	FloatingDamageEntries.Add(Entry);
+
+	// Cap list size to avoid runaway growth
+	if (FloatingDamageEntries.Num() > 32)
+	{
+		FloatingDamageEntries.RemoveAt(0, FloatingDamageEntries.Num() - 32);
+	}
+}
+
+void ACrownsBaneHUD::DrawFloatingDamageNumbers(float DeltaTime)
+{
+	if (!Canvas) return;
+
+	for (int32 i = FloatingDamageEntries.Num() - 1; i >= 0; --i)
+	{
+		FFloatingDamageEntry& E = FloatingDamageEntries[i];
+		E.TimeRemaining -= DeltaTime;
+		if (E.TimeRemaining <= 0.f)
+		{
+			FloatingDamageEntries.RemoveAtSwap(i);
+			continue;
+		}
+
+		// Rise in world space
+		E.WorldLocation.Z += E.VerticalSpeed * DeltaTime;
+
+		const FVector Screen = Canvas->Project(E.WorldLocation);
+		if (Screen.Z <= 0.f) continue;
+
+		const float Alpha = FMath::Clamp(E.TimeRemaining / 1.4f, 0.f, 1.f);
+		FColor Tint = E.Tint;
+		Tint.A = (uint8)(Alpha * 255.f);
+
+		const FString Text = FString::Printf(TEXT("-%.0f"), E.Damage);
+		const float Scale = 1.1f + (1.0f - Alpha) * 0.4f;
+		DrawText(Text, Tint, Screen.X - 14.f, Screen.Y, nullptr, Scale, false);
+	}
+}
+
+// -------- TIME-OF-DAY CLOCK --------
+
+void ACrownsBaneHUD::DrawTimeOfDay()
+{
+	if (!Canvas) return;
+	TArray<AActor*> Actors;
+	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ADayNightSystem::StaticClass(), Actors);
+	if (Actors.Num() == 0) return;
+
+	ADayNightSystem* Sys = Cast<ADayNightSystem>(Actors[0]);
+	if (!Sys) return;
+
+	const float T = Sys->TimeOfDay;
+	const int32 Hours = FMath::FloorToInt(T);
+	const int32 Mins  = FMath::FloorToInt((T - Hours) * 60.f);
+
+	const bool bNight = Sys->IsNight();
+	const FColor Tint = bNight ? FColor(140, 170, 255) : FColor(255, 220, 120);
+	const TCHAR* Icon = bNight ? TEXT("☽") : TEXT("☀"); // moon / sun
+
+	const FString Clock = FString::Printf(TEXT("%s  %02d:%02d"), Icon, Hours, Mins);
+
+	// Position: top center, slightly below wanted stars
+	const float X = Canvas->ClipX * 0.5f - 55.f;
+	const float Y = HUDPaddingY + StarSize + 56.f;
+	DrawFilledRect(X - 6.f, Y - 4.f, 120.f, 22.f, FLinearColor(0.f, 0.f, 0.f, 0.55f));
+	DrawText(Clock, Tint, X, Y, nullptr, 1.0f, false);
 }
