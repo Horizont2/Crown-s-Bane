@@ -195,27 +195,57 @@ void ACrownsBaneHUD::DrawHealthBar(AShipPawn* Ship)
 {
 	if (!Ship || !Ship->HealthComponent) return;
 
-	float TargetHealthPct = Ship->HealthComponent->GetHealthPercent();
-	float DeltaTime = GetWorld()->GetDeltaSeconds();
+	const float TargetPct = Ship->HealthComponent->GetHealthPercent();
+	const float DeltaTime = GetWorld()->GetDeltaSeconds();
+	if (DisplayedHealthPct < 0.0f) DisplayedHealthPct = TargetPct;
+	DisplayedHealthPct = FMath::FInterpTo(DisplayedHealthPct, TargetPct, DeltaTime, 5.0f);
 
-	// Ініціалізація або плавна інтерполяція
-	if (DisplayedHealthPct < 0.0f) DisplayedHealthPct = TargetHealthPct;
-	DisplayedHealthPct = FMath::FInterpTo(DisplayedHealthPct, TargetHealthPct, DeltaTime, 5.0f);
+	const float ScreenH = Canvas->ClipY;
+	const float BarX = HUDPaddingX + 10.f;
+	const float BarY = ScreenH - HUDPaddingY - HealthBarHeight - 50.f;
 
-	float ScreenH = Canvas->ClipY;
-	float BarX = HUDPaddingX + 10.0f;
-	float BarY = ScreenH - HUDPaddingY - HealthBarHeight - 40.0f;
+	// Outer panel
+	DrawPanel(BarX - 6.f, BarY - 26.f, HealthBarWidth + 12.f, HealthBarHeight + 56.f,
+		(uint8)CrownStyle::EPanelStyle::Subtle);
 
-	FLinearColor FillColor = FLinearColor::LerpUsingHSV(FLinearColor(0.8f, 0.1f, 0.1f, 1.0f), HealthBarColor, DisplayedHealthPct);
+	// Header
+	DrawText(FString::Printf(TEXT("HULL  %.0f / %.0f"),
+			Ship->HealthComponent->GetCurrentHealth(), Ship->HealthComponent->GetMaxHealth()),
+		CrownStyle::TextPrimary, BarX, BarY - 22.f, nullptr, 0.95f, false);
 
-	DrawMinimalistBar(BarX, BarY, HealthBarWidth, HealthBarHeight, DisplayedHealthPct, FillColor);
+	// Segmented bar — 20 chunks separated by 1-px gutters.  Empty chunks dim,
+	// full chunks tinted by overall pct (green->red).
+	const int32 Segments = 20;
+	const float SegW = (HealthBarWidth - (Segments - 1)) / (float)Segments;
+	const FLinearColor FillColor = FLinearColor::LerpUsingHSV(
+		FLinearColor(0.85f, 0.1f, 0.1f, 1.0f), HealthBarColor, DisplayedHealthPct);
 
-	FString HealthText = FString::Printf(TEXT("H U L L   INTEGRITY   %.0f%%"), DisplayedHealthPct * 100.0f);
-	DrawTextWithShadow(HealthText, FColor(240, 240, 230), BarX, BarY - 20.0f, nullptr, 0.9f);
+	for (int32 i = 0; i < Segments; ++i)
+	{
+		const float SegX = BarX + i * (SegW + 1.f);
+		const float ThisFrac = FMath::Clamp(DisplayedHealthPct * Segments - i, 0.f, 1.f);
+		// Background segment
+		DrawFilledRect(SegX, BarY, SegW, HealthBarHeight, FLinearColor(0.08f, 0.06f, 0.04f, 0.85f));
+		if (ThisFrac > 0.0f)
+		{
+			DrawFilledRect(SegX, BarY, SegW * ThisFrac, HealthBarHeight, FillColor);
+			// Highlight top edge
+			DrawFilledRect(SegX, BarY, SegW * ThisFrac, 1.f, FLinearColor(1.0f, 1.0f, 1.0f, 0.35f));
+		}
+	}
 
-	FString SpeedText = FString::Printf(TEXT("KNOTS: %.0f   |   SAIL: %s"), Ship->GetCurrentSpeed() / 50.0f,
-		Ship->GetSailLevel() == ESailLevel::Stop ? TEXT("ANCHORED") : Ship->GetSailLevel() == ESailLevel::HalfSail ? TEXT("HALF") : TEXT("FULL"));
-	DrawTextWithShadow(SpeedText, FColor(180, 200, 220), BarX, BarY + HealthBarHeight + 6.0f, nullptr, 0.85f);
+	// Armor indicator: if ArmorReduction > 0, draw a thin gold strip on top of the bar
+	// indicating mitigation coverage.
+	if (Ship->ArmorReduction > 0.0f)
+	{
+		DrawFilledRect(BarX, BarY - 4.f, HealthBarWidth * Ship->ArmorReduction, 3.f, CrownStyle::AccentGold);
+	}
+
+	// Speed line below.
+	const TCHAR* SailLabel = Ship->GetSailLevel() == ESailLevel::Stop ? TEXT("ANCHORED")
+		: Ship->GetSailLevel() == ESailLevel::HalfSail ? TEXT("HALF SAIL") : TEXT("FULL SAIL");
+	DrawText(FString::Printf(TEXT("%.0f knots   |   %s"), Ship->GetCurrentSpeed() / 50.f, SailLabel),
+		FColor(180, 200, 220), BarX, BarY + HealthBarHeight + 6.f, nullptr, 0.85f, false);
 }
 
 void ACrownsBaneHUD::DrawReloadTimers(UCannonComponent* Cannons)
@@ -274,19 +304,35 @@ void ACrownsBaneHUD::DrawWantedStars(AWantedLevelManager* WLM)
 
 void ACrownsBaneHUD::DrawResourceCounts(UPlayerInventory* Inventory)
 {
-	if (!Inventory) return;
+	if (!Inventory || !Canvas) return;
 
-	float ScreenW = Canvas->ClipX;
-	float RightX = ScreenW - HUDPaddingX - 200.0f;
-	float TopY = HUDPaddingY;
+	const float ScreenW = Canvas->ClipX;
+	const float PW = 200.f;
+	const float PH = 84.f;
+	const float PX = ScreenW - HUDPaddingX - PW;
+	const float PY = HUDPaddingY + 40.f; // below minimap header
 
-	FString GoldText  = FString::Printf(TEXT("Gold:  %d"), Inventory->GetGold());
-	FString WoodText  = FString::Printf(TEXT("Wood:  %d"), Inventory->GetWood());
-	FString MetalText = FString::Printf(TEXT("Metal: %d"), Inventory->GetMetal());
+	DrawPanel(PX, PY, PW, PH, (uint8)CrownStyle::EPanelStyle::Subtle);
 
-	DrawText(GoldText,  FColor(255, 215, 0),   RightX, TopY,         nullptr, 1.0f, false);
-	DrawText(WoodText,  FColor(160, 120, 60),   RightX, TopY + 24.0f, nullptr, 1.0f, false);
-	DrawText(MetalText, FColor(180, 180, 200),  RightX, TopY + 48.0f, nullptr, 1.0f, false);
+	struct FRow { FLinearColor Tint; const TCHAR* Label; int32 Val; };
+	const FRow Rows[3] = {
+		{ CrownStyle::AccentGold,                                   TEXT("GOLD"),  Inventory->GetGold()  },
+		{ FLinearColor(0.65f, 0.45f, 0.25f, 1.f),                   TEXT("WOOD"),  Inventory->GetWood()  },
+		{ FLinearColor(0.75f, 0.78f, 0.85f, 1.f),                   TEXT("METAL"), Inventory->GetMetal() },
+	};
+
+	for (int32 i = 0; i < 3; ++i)
+	{
+		const float RY = PY + 10.f + i * 24.f;
+		// Colored badge
+		DrawFilledRect(PX + 10.f, RY + 2.f, 14.f, 14.f, Rows[i].Tint);
+		// Label + value
+		DrawText(Rows[i].Label, CrownStyle::TextSecondary,
+			PX + 32.f, RY, nullptr, 0.95f, false);
+		DrawText(FString::Printf(TEXT("%d"), Rows[i].Val),
+			Rows[i].Tint.ToFColor(true),
+			PX + PW - 80.f, RY, nullptr, 1.0f, false);
+	}
 }
 
 void ACrownsBaneHUD::DrawWindArrow(AWindSystem* Wind, AShipPawn* Ship)
@@ -709,15 +755,58 @@ void ACrownsBaneHUD::DrawFiringArcs(AShipPawn* PlayerShip)
 
 void ACrownsBaneHUD::DrawAmmoCounter(UPlayerInventory* Inventory)
 {
-	if (!Inventory) return;
+	if (!Inventory || !Canvas) return;
 	const int32 Cur = Inventory->GetAmmo();
 	const int32 Max = Inventory->GetMaxAmmo();
 
 	const float ScreenW = Canvas->ClipX;
-	const float RightX = ScreenW - HUDPaddingX - 200.0f;
-	const FString AmmoText = FString::Printf(TEXT("Ammo: %d / %d"), Cur, Max);
-	const FColor Color = (Cur <= 4) ? FColor::Red : (Cur <= 10 ? FColor::Orange : FColor(220, 220, 180));
-	DrawText(AmmoText, Color, RightX, HUDPaddingY + 72.0f, nullptr, 1.0f, false);
+	const float ScreenH = Canvas->ClipY;
+	const float PW = 220.f;
+	const float PH = 64.f;
+	const float PX = ScreenW - HUDPaddingX - PW;
+	const float PY = ScreenH - HUDPaddingY - PH - 110.f;
+
+	DrawPanel(PX, PY, PW, PH, (uint8)CrownStyle::EPanelStyle::Subtle);
+
+	// Active ammo type from the player's CannonComponent.
+	const TCHAR* TypeNames[5]  = { TEXT("Round"), TEXT("Chain"), TEXT("Grape"), TEXT("Heavy"), TEXT("Explosive") };
+	const FLinearColor TypeCol[5] = {
+		FLinearColor(0.85f, 0.85f, 0.85f, 1.f),     // Round - silver
+		FLinearColor(0.85f, 0.65f, 0.30f, 1.f),     // Chain - copper
+		FLinearColor(0.7f,  1.0f,  0.4f,  1.f),     // Grape - green
+		FLinearColor(0.6f,  0.6f,  0.85f, 1.f),     // Heavy - blue
+		FLinearColor(1.0f,  0.45f, 0.15f, 1.f),     // Explosive - orange
+	};
+	int32 TypeIdx = 0;
+	if (AShipPawn* Ship = GetPlayerShip())
+	{
+		if (Ship->CannonComponent)
+		{
+			switch (Ship->CannonComponent->ActiveCannonballType)
+			{
+			case ECannonballType::Standard:  TypeIdx = 0; break;
+			case ECannonballType::Chain:     TypeIdx = 1; break;
+			case ECannonballType::Grape:     TypeIdx = 2; break;
+			case ECannonballType::Heavy:     TypeIdx = 3; break;
+			case ECannonballType::Explosive: TypeIdx = 4; break;
+			default:                         TypeIdx = 0; break;
+			}
+		}
+	}
+
+	// Colored badge for ammo type + name
+	DrawFilledRect(PX + 10.f, PY + 10.f, 14.f, 18.f, TypeCol[TypeIdx]);
+	DrawText(TypeNames[TypeIdx], TypeCol[TypeIdx].ToFColor(true),
+		PX + 32.f, PY + 10.f, nullptr, 1.05f, false);
+
+	// Ammo count
+	const FColor CountCol = (Cur <= 4) ? FColor::Red : (Cur <= 10 ? FColor::Orange : FColor(255, 230, 140));
+	DrawText(FString::Printf(TEXT("%d / %d"), Cur, Max), CountCol,
+		PX + PW - 90.f, PY + 10.f, nullptr, 1.05f, false);
+
+	// 1-5 hint
+	DrawText(TEXT("[1-5] switch ammo"), CrownStyle::TextDim,
+		PX + 10.f, PY + 36.f, nullptr, 0.85f, false);
 }
 
 void ACrownsBaneHUD::DrawDocksPrompt()
@@ -758,32 +847,47 @@ void ACrownsBaneHUD::DrawBorderedRect(float X, float Y, float W, float H,
 
 void ACrownsBaneHUD::DrawStar(float CX, float CY, float Radius, FLinearColor Color)
 {
-	// Approximate star using two overlapping triangles (5-pointed star approximation via diamond)
-	// Draw a filled diamond/rhombus as a rough star shape using canvas lines
-	// Since we don't have a star primitive, draw as a filled square rotated 45 degrees
-	// using 4 triangles. For simplicity, we draw a slightly smaller filled quad + outline.
+	if (!Canvas) return;
 
-	float Half = Radius * 0.7f;
-	DrawFilledRect(CX - Half, CY - Half, Half * 2.0f, Half * 2.0f, Color);
+	// 10-vertex polygon (5 outer points + 5 inner) — proper five-pointed star
+	// drawn as 5 filled triangles emanating from center.  Plus a centre core for solidity.
+	const float Inner = Radius * 0.4f;
+	FVector2D Pts[10];
+	for (int32 i = 0; i < 10; ++i)
+	{
+		const float A = FMath::DegreesToRadians(-90.f + i * 36.f);
+		const float R = (i % 2 == 0) ? Radius : Inner;
+		Pts[i] = FVector2D(CX + FMath::Cos(A) * R, CY + FMath::Sin(A) * R);
+	}
 
-	// Overlay rotated square
-	float SmallHalf = Radius * 0.5f;
-	// Draw as filled lines to approximate star points
-	FCanvasLineItem TopLine(FVector2D(CX, CY - Radius), FVector2D(CX - SmallHalf, CY));
-	TopLine.SetColor(Color);
-	Canvas->DrawItem(TopLine);
+	// Solid centre to fill the polygon
+	const float Core = Radius * 0.55f;
+	DrawFilledRect(CX - Core * 0.5f, CY - Core * 0.5f, Core, Core, Color);
 
-	FCanvasLineItem RightLine(FVector2D(CX, CY - Radius), FVector2D(CX + SmallHalf, CY));
-	RightLine.SetColor(Color);
-	Canvas->DrawItem(RightLine);
+	// Outline edges — gives star its silhouette.
+	for (int32 i = 0; i < 10; ++i)
+	{
+		FCanvasLineItem L(Pts[i], Pts[(i + 1) % 10]);
+		L.SetColor(Color);
+		L.LineThickness = 2.0f;
+		Canvas->DrawItem(L);
+		// Spoke from center to outer point (adds the "rays")
+		if (i % 2 == 0)
+		{
+			FCanvasLineItem S(FVector2D(CX, CY), Pts[i]);
+			S.SetColor(Color);
+			S.LineThickness = 2.0f;
+			Canvas->DrawItem(S);
+		}
+	}
 
-	FCanvasLineItem BottomLine(FVector2D(CX, CY + Radius * 0.5f), FVector2D(CX - SmallHalf, CY));
-	BottomLine.SetColor(Color);
-	Canvas->DrawItem(BottomLine);
-
-	FCanvasLineItem BottomRight(FVector2D(CX, CY + Radius * 0.5f), FVector2D(CX + SmallHalf, CY));
-	BottomRight.SetColor(Color);
-	Canvas->DrawItem(BottomRight);
+	// Inner glow halo when bright (alpha>0.6 = filled star)
+	if (Color.A > 0.5f)
+	{
+		const FLinearColor Halo(Color.R, Color.G, Color.B, 0.15f);
+		DrawFilledRect(CX - Radius * 0.95f, CY - Radius * 0.95f,
+			Radius * 1.9f, Radius * 1.9f, Halo);
+	}
 }
 
 void ACrownsBaneHUD::DrawArrow(float CX, float CY, float Radius, float AngleDegrees, FLinearColor Color)
@@ -922,13 +1026,28 @@ void ACrownsBaneHUD::DrawCrosshair()
 	const float CX = Canvas->ClipX * 0.5f;
 	const float CY = Canvas->ClipY * 0.5f;
 
-	// Four tick marks
-	DrawFilledRect(CX - CrosshairSize, CY - 1.f, CrosshairSize * 0.55f, 2.f, CrosshairColor);
-	DrawFilledRect(CX + CrosshairSize * 0.45f, CY - 1.f, CrosshairSize * 0.55f, 2.f, CrosshairColor);
-	DrawFilledRect(CX - 1.f, CY - CrosshairSize, 2.f, CrosshairSize * 0.55f, CrosshairColor);
-	DrawFilledRect(CX - 1.f, CY + CrosshairSize * 0.45f, 2.f, CrosshairSize * 0.55f, CrosshairColor);
-	// Centre dot
-	DrawFilledRect(CX - 1.5f, CY - 1.5f, 3.f, 3.f, CrosshairColor);
+	// Dynamic crosshair: ticks spread wider when sailing, tighten when aiming.
+	AShipPawn* Ship = GetPlayerShip();
+	const bool bAiming = Ship && Ship->bIsAiming;
+
+	const float OuterOffset = bAiming ? 6.f  : CrosshairSize;        // tighter when aiming
+	const float TickLength  = bAiming ? 10.f : CrosshairSize * 0.55f;
+	const float Thickness   = bAiming ? 2.f  : 2.f;
+
+	FLinearColor Col = CrosshairColor;
+	if (bAiming) { Col.R = 1.f; Col.G = 0.95f; Col.B = 0.3f; Col.A = 1.f; } // gold reticle in aim mode
+
+	// 4 tick marks
+	DrawFilledRect(CX - OuterOffset - TickLength, CY - Thickness * 0.5f, TickLength, Thickness, Col);
+	DrawFilledRect(CX + OuterOffset,              CY - Thickness * 0.5f, TickLength, Thickness, Col);
+	DrawFilledRect(CX - Thickness * 0.5f, CY - OuterOffset - TickLength, Thickness, TickLength, Col);
+	DrawFilledRect(CX - Thickness * 0.5f, CY + OuterOffset,              Thickness, TickLength, Col);
+
+	// Centre dot only in aim mode
+	if (bAiming)
+	{
+		DrawFilledRect(CX - 2.f, CY - 2.f, 4.f, 4.f, Col);
+	}
 }
 
 // -------- DAMAGE FLASH (player took hit) --------
