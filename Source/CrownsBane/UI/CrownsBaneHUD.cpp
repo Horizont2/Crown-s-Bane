@@ -114,6 +114,8 @@ void ACrownsBaneHUD::DrawHUD()
 	DrawFloatingDamageNumbers(Dt);
 	DrawDamageFlash(Dt);
 	DrawHitMarker(Dt);
+	DrawResourceToasts(Dt);
+	if (Ship) DrawLowHealthFlash(Ship);
 
 	if (TreasureMgr && Ship)
 	{
@@ -1566,4 +1568,70 @@ void ACrownsBaneHUD::DrawSmoothBar(float X, float Y, float W, float H, float Fra
 
 	// Highlight strip (top 1px)
 	DrawFilledRect(X, Y, W * Frac, 1.f, FLinearColor(1.0f, 1.0f, 1.0f, 0.4f));
+}
+
+// ============== UI-B: RESOURCE TOASTS + LOW-HP WARNING ==============
+
+void ACrownsBaneHUD::PushResourceToast(const FString& Text, FLinearColor Tint)
+{
+	FResourceToast T;
+	T.Text = Text;
+	T.Tint = Tint;
+	T.TimeRemaining = 1.8f;
+	ResourceToasts.Insert(T, 0);
+	if (ResourceToasts.Num() > 6) ResourceToasts.SetNum(6);
+}
+
+void ACrownsBaneHUD::DrawResourceToasts(float DeltaTime)
+{
+	if (!Canvas) return;
+
+	// Auto-detect inventory deltas and push a toast for each.
+	if (UPlayerInventory* Inv = GetPlayerInventory())
+	{
+		const int32 G = Inv->GetGold();
+		const int32 W = Inv->GetWood();
+		const int32 M = Inv->GetMetal();
+		if (LastGold  >= 0 && G  != LastGold)  PushResourceToast(FString::Printf(TEXT("%s%d  GOLD"),  G  > LastGold  ? TEXT("+") : TEXT(""), G  - LastGold),  CrownStyle::AccentGold);
+		if (LastWood  >= 0 && W  != LastWood)  PushResourceToast(FString::Printf(TEXT("%s%d  WOOD"),  W  > LastWood  ? TEXT("+") : TEXT(""), W  - LastWood),  FLinearColor(0.75f, 0.55f, 0.30f, 1.0f));
+		if (LastMetal >= 0 && M  != LastMetal) PushResourceToast(FString::Printf(TEXT("%s%d  METAL"), M  > LastMetal ? TEXT("+") : TEXT(""), M  - LastMetal), CrownStyle::AccentSilver);
+		LastGold = G; LastWood = W; LastMetal = M;
+	}
+
+	// Render stack, bottom-right, oldest fading first.
+	const float BaseX = Canvas->ClipX - 220.f;
+	const float BaseY = Canvas->ClipY - 220.f;
+	for (int32 i = ResourceToasts.Num() - 1; i >= 0; --i)
+	{
+		FResourceToast& T = ResourceToasts[i];
+		T.TimeRemaining -= DeltaTime;
+		if (T.TimeRemaining <= 0.0f) { ResourceToasts.RemoveAt(i); continue; }
+
+		const float Alpha = FMath::Clamp(T.TimeRemaining / 1.8f, 0.0f, 1.0f);
+		FLinearColor Tint = T.Tint; Tint.A = Alpha;
+		const float Y = BaseY + i * 26.f;
+		DrawFilledRect(BaseX, Y, 200.f, 22.f, FLinearColor(0.04f, 0.04f, 0.06f, 0.55f * Alpha));
+		DrawText(T.Text, Tint.ToFColor(true), BaseX + 12.f, Y + 4.f, nullptr, 0.95f, false);
+	}
+}
+
+void ACrownsBaneHUD::DrawLowHealthFlash(AShipPawn* Ship)
+{
+	if (!Ship || !Ship->HealthComponent || !Canvas) return;
+	const float Pct = Ship->HealthComponent->GetHealthPercent();
+	if (Pct >= 0.30f) return;
+
+	// Pulse intensity ramps as HP approaches 0.
+	const float Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
+	const float UrgencyHz = FMath::Lerp(1.0f, 3.5f, FMath::Clamp(1.0f - Pct / 0.30f, 0.f, 1.f));
+	const float A = CrownStyle::Pulse(Now, UrgencyHz) * 0.45f * (1.0f - Pct / 0.30f);
+
+	const float SW = Canvas->ClipX;
+	const float SH = Canvas->ClipY;
+	const float T = SH * 0.18f;
+	const FLinearColor Edge(0.85f, 0.08f, 0.08f, A);
+	DrawFilledRect(0, 0, SW, T * 0.7f, Edge);
+	DrawFilledRect(0, SH - T * 0.7f, SW, T * 0.7f, Edge);
+	DrawFilledRect(0, 0, T * 0.9f, SH, FLinearColor(Edge.R, Edge.G, Edge.B, A * 1.1f));
+	DrawFilledRect(SW - T * 0.9f, 0, T * 0.9f, SH, FLinearColor(Edge.R, Edge.G, Edge.B, A * 1.1f));
 }

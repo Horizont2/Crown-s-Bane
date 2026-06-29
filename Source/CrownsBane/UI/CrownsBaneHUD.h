@@ -252,6 +252,20 @@ private:
 	bool  bHitMarkerCritical = false;
 	static constexpr float HitMarkerDuration = 0.32f;
 
+	// ---- UI-B polish: resource toasts ----
+	int32 LastGold = -1, LastWood = -1, LastMetal = -1;
+
+	struct FResourceToast { FString Text; FLinearColor Tint; float TimeRemaining = 0.0f; };
+	TArray<FResourceToast> ResourceToasts;
+
+public:
+	UFUNCTION(BlueprintCallable, Category = "HUD")
+	void PushResourceToast(const FString& Text, FLinearColor Tint);
+
+private:
+	void DrawResourceToasts(float DeltaTime);
+	void DrawLowHealthFlash(AShipPawn* Ship);
+
 	// Helpers for minimap
 	void DrawMinimapDot(float CX, float CY, float DotX, float DotY, float DotSize, FLinearColor Color);
 	void DrawMinimapTriangle(float CX, float CY, float AngleDeg, float Size, FLinearColor Color);
