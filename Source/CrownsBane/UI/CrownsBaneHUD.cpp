@@ -110,6 +110,12 @@ void ACrownsBaneHUD::DrawHUD()
 	DrawDamageFlash(Dt);
 	DrawHitMarker(Dt);
 
+	if (TreasureMgr && Ship)
+	{
+		DrawActiveQuestTracker(TreasureMgr, Ship);
+		if (bShowQuestLog) DrawQuestLog(TreasureMgr, Ship);
+	}
+
 	if (bShowDocksPrompt)
 	{
 		DrawDocksPrompt();
@@ -1056,4 +1062,124 @@ void ACrownsBaneHUD::DrawTimeOfDay()
 	const float Y = HUDPaddingY + StarSize + 56.f;
 	DrawFilledRect(X - 6.f, Y - 4.f, 120.f, 22.f, FLinearColor(0.f, 0.f, 0.f, 0.55f));
 	DrawText(Clock, Tint, X, Y, nullptr, 1.0f, false);
+}
+
+// -------- QUEST LOG OVERLAY (J key) --------
+
+void ACrownsBaneHUD::DrawActiveQuestTracker(ATreasureQuestManager* Mgr, AShipPawn* Ship)
+{
+	if (!Mgr || !Ship || !Canvas) return;
+
+	const TArray<FTreasureQuest>& Quests = Mgr->GetActiveQuests();
+	if (Quests.Num() == 0) return;
+
+	FVector Closest; float Dist;
+	if (!Mgr->GetNearestActiveQuestLocation(Ship->GetActorLocation(), Closest, Dist)) return;
+
+	// Find the matching quest name for the closest chest.
+	FString QuestName = TEXT("Treasure Hunt");
+	float Best = TNumericLimits<float>::Max();
+	for (const FTreasureQuest& Q : Quests)
+	{
+		const float D = FVector::Dist(Q.ChestLocation, Ship->GetActorLocation());
+		if (D < Best) { Best = D; QuestName = Q.QuestName.IsEmpty() ? TEXT("Treasure Hunt") : Q.QuestName.ToString(); }
+	}
+
+	const float W = 280.f;
+	const float H = 56.f;
+	const float X = HUDPaddingX;
+	const float Y = Canvas->ClipY - H - 200.f; // sits above the wind/storm panels
+
+	DrawFilledRect(X, Y, W, H, FLinearColor(0.05f, 0.05f, 0.08f, 0.72f));
+	DrawBorderedRect(X, Y, W, H, FLinearColor::Transparent, FLinearColor(1.0f, 0.85f, 0.3f, 0.9f), 1.5f);
+
+	const FColor Title(255, 220, 110);
+	const FColor Body(220, 220, 220);
+	const FString DistStr = FString::Printf(TEXT("%.0f m"), Dist * 0.01f); // cm -> m
+
+	DrawText(TEXT("ACTIVE QUEST"), Title, X + 10.f, Y + 5.f, nullptr, 0.85f, false);
+	DrawText(QuestName,            Body,  X + 10.f, Y + 22.f, nullptr, 1.0f,  false);
+	DrawText(DistStr,              Body,  X + W - 80.f, Y + 22.f, nullptr, 1.0f, false);
+
+	if (Quests.Num() > 1)
+	{
+		const FString More = FString::Printf(TEXT("+%d more — press J for log"), Quests.Num() - 1);
+		DrawText(More, FColor(180, 180, 180), X + 10.f, Y + 38.f, nullptr, 0.85f, false);
+	}
+	else
+	{
+		DrawText(TEXT("Press J for full quest log"), FColor(160, 160, 160), X + 10.f, Y + 38.f, nullptr, 0.85f, false);
+	}
+}
+
+void ACrownsBaneHUD::DrawQuestLog(ATreasureQuestManager* Mgr, AShipPawn* Ship)
+{
+	if (!Mgr || !Ship || !Canvas) return;
+
+	const float SW = Canvas->ClipX;
+	const float SH = Canvas->ClipY;
+
+	const float PanelW = FMath::Min(640.f, SW * 0.55f);
+	const float PanelH = FMath::Min(420.f, SH * 0.6f);
+	const float PanelX = (SW - PanelW) * 0.5f;
+	const float PanelY = (SH - PanelH) * 0.5f;
+
+	// Background dimmer for the full screen behind the panel
+	DrawFilledRect(0, 0, SW, SH, FLinearColor(0.0f, 0.0f, 0.0f, 0.45f));
+	DrawFilledRect(PanelX, PanelY, PanelW, PanelH, FLinearColor(0.06f, 0.05f, 0.04f, 0.92f));
+	DrawBorderedRect(PanelX, PanelY, PanelW, PanelH, FLinearColor::Transparent,
+		FLinearColor(0.9f, 0.75f, 0.35f, 1.0f), 2.0f);
+
+	DrawText(TEXT("✦  QUEST LOG  ✦"), FColor(255, 230, 140), PanelX + 16.f, PanelY + 12.f, nullptr, 1.4f, false);
+	DrawText(TEXT("Press J to close"), FColor(170, 170, 170), PanelX + PanelW - 150.f, PanelY + 18.f, nullptr, 0.9f, false);
+
+	// Horizontal separator
+	DrawFilledRect(PanelX + 16.f, PanelY + 44.f, PanelW - 32.f, 1.f, FLinearColor(0.6f, 0.5f, 0.25f, 0.7f));
+
+	const TArray<FTreasureQuest>& Quests = Mgr->GetActiveQuests();
+	if (Quests.Num() == 0)
+	{
+		DrawText(TEXT("No active quests."), FColor(200, 200, 200), PanelX + 24.f, PanelY + 70.f, nullptr, 1.1f, false);
+		DrawText(TEXT("Loot Treasure Maps from sunken enemies to start a hunt."),
+			FColor(160, 160, 160), PanelX + 24.f, PanelY + 96.f, nullptr, 0.95f, false);
+		return;
+	}
+
+	const FVector PlayerLoc = Ship->GetActorLocation();
+	float Y = PanelY + 60.f;
+	const float RowH = 64.f;
+
+	for (int32 i = 0; i < Quests.Num(); ++i)
+	{
+		const FTreasureQuest& Q = Quests[i];
+		const float Dist = FVector::Dist(Q.ChestLocation, PlayerLoc);
+		const FString Name = Q.QuestName.IsEmpty() ? TEXT("Treasure Hunt") : Q.QuestName.ToString();
+		const FString DistStr = FString::Printf(TEXT("%.0f m"), Dist * 0.01f);
+
+		// Bearing for cardinal hint
+		const FVector Dir2D = (Q.ChestLocation - PlayerLoc).GetSafeNormal2D();
+		const float Bearing = FMath::RadiansToDegrees(FMath::Atan2(Dir2D.Y, Dir2D.X));
+		FString CardinalStr;
+		const float B = FMath::Fmod(Bearing + 360.f, 360.f);
+		if      (B < 22.5f  || B >= 337.5f) CardinalStr = TEXT("E");
+		else if (B < 67.5f)                 CardinalStr = TEXT("SE");
+		else if (B < 112.5f)                CardinalStr = TEXT("S");
+		else if (B < 157.5f)                CardinalStr = TEXT("SW");
+		else if (B < 202.5f)                CardinalStr = TEXT("W");
+		else if (B < 247.5f)                CardinalStr = TEXT("NW");
+		else if (B < 292.5f)                CardinalStr = TEXT("N");
+		else                                CardinalStr = TEXT("NE");
+
+		DrawFilledRect(PanelX + 16.f, Y, PanelW - 32.f, RowH - 6.f, FLinearColor(0.10f, 0.08f, 0.04f, 0.55f));
+		DrawText(FString::Printf(TEXT("%d. %s"), i + 1, *Name),
+			FColor(255, 235, 150), PanelX + 26.f, Y + 6.f,  nullptr, 1.1f, false);
+		DrawText(FString::Printf(TEXT("Heading %s — %s"), *CardinalStr, *DistStr),
+			FColor(210, 210, 210), PanelX + 26.f, Y + 28.f, nullptr, 0.95f, false);
+
+		Y += RowH;
+		if (Y > PanelY + PanelH - 30.f) break;
+	}
+
+	DrawText(FString::Printf(TEXT("%d / %d active"), Quests.Num(), Mgr->MaxActiveQuests),
+		FColor(180, 180, 180), PanelX + 16.f, PanelY + PanelH - 24.f, nullptr, 0.9f, false);
 }

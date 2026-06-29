@@ -149,6 +149,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	UInputAction* IA_Aim;
 
+	// Open/close quest log (J key)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	UInputAction* IA_QuestLog;
+
 	// ---- Aim mode tuning ----
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Aim")
 	float DefaultFOV = 90.0f;
@@ -320,6 +324,7 @@ protected:
 	void Input_ToggleDocks(const FInputActionValue& Value);
 	void Input_AimPressed(const FInputActionValue& Value);
 	void Input_AimReleased(const FInputActionValue& Value);
+	void Input_ToggleQuestLog(const FInputActionValue& Value);
 
 	// Pathway-agnostic action implementations.  Enhanced Input callbacks and
 	// raw polling both route through these so behaviour is identical.

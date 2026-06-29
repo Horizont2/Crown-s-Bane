@@ -186,6 +186,10 @@ public:
 	UPROPERTY(BlueprintReadWrite, Category = "HUD")
 	bool bShowDocksPrompt = false;
 
+	// Toggled by PlayerController via J key — full-panel quest log overlay.
+	UPROPERTY(BlueprintReadWrite, Category = "HUD")
+	bool bShowQuestLog = false;
+
 	// Called by Cannonball::OnHit to queue up a floating damage number.
 	UFUNCTION(BlueprintCallable, Category = "HUD|Damage")
 	void AddFloatingDamage(FVector WorldLocation, float Damage, bool bHitShip);
@@ -218,6 +222,8 @@ private:
 	void DrawFloatingDamageNumbers(float DeltaTime);
 	void DrawDamageFlash(float DeltaTime);
 	void DrawHitMarker(float DeltaTime);
+	void DrawQuestLog(ATreasureQuestManager* Mgr, AShipPawn* Ship);
+	void DrawActiveQuestTracker(ATreasureQuestManager* Mgr, AShipPawn* Ship);
 
 	// Floating damage queue
 	TArray<FFloatingDamageEntry> FloatingDamageEntries;

@@ -140,6 +140,15 @@ void ACrownsBanePlayerController::ToggleUpgradeUI()
 	bUpgradeUIOpen ? CloseUpgradeUI() : OpenUpgradeUI();
 }
 
+void ACrownsBanePlayerController::ToggleQuestLog()
+{
+	bQuestLogOpen = !bQuestLogOpen;
+	if (ACrownsBaneHUD* HUD = Cast<ACrownsBaneHUD>(GetHUD()))
+	{
+		HUD->bShowQuestLog = bQuestLogOpen;
+	}
+}
+
 bool ACrownsBanePlayerController::BuyUpgrade(uint8 CategoryByte)
 {
 	if (!bIsInDocks) return false;

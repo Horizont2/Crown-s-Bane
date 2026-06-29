@@ -45,8 +45,22 @@ FGuid ATreasureQuestManager::IssueQuest(const FVector& Origin)
 		return FGuid();
 	}
 
+	// Random flavor name from a small pool so each quest reads distinct in the log.
+	static const TCHAR* NamePool[] = {
+		TEXT("Buried Treasure"),
+		TEXT("Captain's Stash"),
+		TEXT("Sunken Cargo"),
+		TEXT("Lost Doubloons"),
+		TEXT("Pirate's Hoard"),
+		TEXT("Hidden Cache"),
+		TEXT("Smuggler's Loot"),
+		TEXT("Wreck Salvage")
+	};
+	const int32 PoolSize = sizeof(NamePool) / sizeof(NamePool[0]);
+	const FString PickedName = NamePool[FMath::RandRange(0, PoolSize - 1)];
+
 	FTreasureQuest NewQuest;
-	NewQuest.QuestName = FText::FromString(FString::Printf(TEXT("Buried Treasure #%d"), ActiveQuests.Num() + 1));
+	NewQuest.QuestName = FText::FromString(FString::Printf(TEXT("Hunt: %s"), *PickedName));
 	NewQuest.ChestLocation = ChestLoc;
 	NewQuest.ChestActor = Chest;
 

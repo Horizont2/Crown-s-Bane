@@ -61,12 +61,19 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "UI")
 	void ToggleUpgradeUI();
 
+	UFUNCTION(BlueprintCallable, Category = "UI")
+	void ToggleQuestLog();
+
+	UFUNCTION(BlueprintPure, Category = "UI")
+	bool IsQuestLogOpen() const { return bQuestLogOpen; }
+
 	UFUNCTION(BlueprintCallable, Category = "Upgrades")
 	bool BuyUpgrade(uint8 CategoryByte);
 
 private:
 
 	bool bUpgradeUIOpen = false;
+	bool bQuestLogOpen = false;
 
 	AUpgradeManager* GetUpgradeManager() const;
 	AShipPawn* GetShipPawn() const;

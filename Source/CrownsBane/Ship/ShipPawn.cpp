@@ -168,6 +168,7 @@ void AShipPawn::EnsureInputAssetsExist()
 	MakeIA(IA_Look,         EInputActionValueType::Axis2D,  TEXT("IA_Look_Auto"));
 	MakeIA(IA_ToggleDocks,  EInputActionValueType::Boolean, TEXT("IA_ToggleDocks_Auto"));
 	MakeIA(IA_Aim,          EInputActionValueType::Boolean, TEXT("IA_Aim_Auto"));
+	MakeIA(IA_QuestLog,     EInputActionValueType::Boolean, TEXT("IA_QuestLog_Auto"));
 
 	if (!ShipMappingContext)
 	{
@@ -201,6 +202,7 @@ void AShipPawn::EnsureInputAssetsExist()
 		// Docks / upgrade UI
 		ShipMappingContext->MapKey(IA_ToggleDocks, EKeys::U);
 		ShipMappingContext->MapKey(IA_Aim, EKeys::RightMouseButton);
+		ShipMappingContext->MapKey(IA_QuestLog, EKeys::J);
 
 		UE_LOG(LogTemp, Warning, TEXT("[ShipPawn] Auto-created fallback IMC_Ship with default keybinds "
 			"(W/S sails, A/D or arrows turn, Q/LMB port fire, E/RMB starboard fire, mouse look)."));
@@ -281,6 +283,7 @@ void AShipPawn::AddInputMappingContext()
 	if (IA_Look) Overlay->MapKey(IA_Look, EKeys::Mouse2D);
 	if (IA_ToggleDocks) Overlay->MapKey(IA_ToggleDocks, EKeys::U);
 	if (IA_Aim) Overlay->MapKey(IA_Aim, EKeys::RightMouseButton);
+	if (IA_QuestLog) Overlay->MapKey(IA_QuestLog, EKeys::J);
 	Subsystem->AddMappingContext(Overlay, 0);
 
 	if (GEngine && bShowDebugOnScreen)
@@ -410,6 +413,7 @@ void AShipPawn::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 			EIC->BindAction(IA_Aim, ETriggerEvent::Completed, this, &AShipPawn::Input_AimReleased);
 			EIC->BindAction(IA_Aim, ETriggerEvent::Canceled,  this, &AShipPawn::Input_AimReleased);
 		}
+		if (IA_QuestLog) EIC->BindAction(IA_QuestLog, ETriggerEvent::Started, this, &AShipPawn::Input_ToggleQuestLog);
 
 		bEnhancedInputReady = true;
 		UE_LOG(LogTemp, Log, TEXT("[ShipPawn] Enhanced Input bound successfully."));
@@ -519,6 +523,14 @@ void AShipPawn::Input_AimReleased(const FInputActionValue& /*Value*/)
 {
 	bAimMode = false;
 	LastInputSource = TEXT("Aim-");
+}
+
+void AShipPawn::Input_ToggleQuestLog(const FInputActionValue& /*Value*/)
+{
+	if (ACrownsBanePlayerController* PC = Cast<ACrownsBanePlayerController>(GetController()))
+	{
+		PC->ToggleQuestLog();
+	}
 }
 
 bool AShipPawn::ConsumeActionCooldown(FName ActionTag, float CooldownSec)
