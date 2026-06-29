@@ -8,6 +8,14 @@ class UBoxComponent;
 class UStaticMeshComponent;
 class AUpgradeManager;
 
+UENUM(BlueprintType)
+enum class EDockType : uint8
+{
+	Merchant     UMETA(DisplayName = "Merchant Port"),       // best trade, neutral
+	Naval        UMETA(DisplayName = "Naval Port"),          // heals + repairs, NO amnesty
+	PirateHaven  UMETA(DisplayName = "Pirate Haven")         // cheap ammo, amnesty, expensive upgrades
+};
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnPlayerEnterDocks);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnPlayerExitDocks);
 
@@ -31,6 +39,12 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Docks")
 	AUpgradeManager* UpgradeManager;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Docks")
+	EDockType DockType = EDockType::Merchant;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Docks")
+	FString DockName = TEXT("Port");
 
 	// Fraction of health to restore on docking (1.0 = full heal)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Docks")

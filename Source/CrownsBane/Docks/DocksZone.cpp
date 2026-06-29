@@ -54,7 +54,12 @@ void ADocksZone::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor
 	UE_LOG(LogTemp, Log, TEXT("DocksZone: Player entered docks."));
 
 	HealPlayer(OtherActor);
-	ResetWantedLevel();
+	// Amnesty: only PirateHaven and Merchant clear wanted level.
+	// Naval ports do NOT clear it — captains there report you to the fleet.
+	if (DockType != EDockType::Naval)
+	{
+		ResetWantedLevel();
+	}
 	NotifyPlayerController(true);
 
 	// Repair sails on dock entry.
@@ -71,6 +76,20 @@ void ADocksZone::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor
 		if (ACrownsBaneHUD* HUD = Cast<ACrownsBaneHUD>(CBPC->GetHUD()))
 		{
 			HUD->PushResourceToast(TEXT("✓ Game saved"), FLinearColor(0.4f, 1.0f, 0.5f, 1.0f));
+
+			// Welcome banner with dock type + name.
+			const TCHAR* TypeStr = TEXT("Port");
+			FLinearColor Tint(1.0f, 0.85f, 0.30f, 1.0f);
+			switch (DockType)
+			{
+			case EDockType::Merchant:    TypeStr = TEXT("MERCHANT PORT");  Tint = FLinearColor(1.0f, 0.85f, 0.30f, 1.0f); break;
+			case EDockType::Naval:       TypeStr = TEXT("NAVAL PORT");     Tint = FLinearColor(0.5f, 0.7f, 1.0f, 1.0f); break;
+			case EDockType::PirateHaven: TypeStr = TEXT("PIRATE HAVEN");   Tint = FLinearColor(1.0f, 0.5f, 0.3f, 1.0f); break;
+			}
+			const FString Subtitle = (DockType == EDockType::Naval)
+				? TEXT("Watch yer back — no amnesty here.")
+				: TEXT("Wanted level cleared.");
+			HUD->ShowBanner(FString::Printf(TEXT("%s — %s"), TypeStr, *DockName), Subtitle, Tint, 3.5f);
 		}
 	}
 

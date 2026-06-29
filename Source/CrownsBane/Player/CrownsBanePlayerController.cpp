@@ -182,10 +182,44 @@ void ACrownsBanePlayerController::ToggleTraderMenu()
 	}
 }
 
+static float DockPriceMul_Buy(EDockType T)
+{
+	switch (T)
+	{
+	case EDockType::PirateHaven: return 0.70f; // -30%
+	case EDockType::Naval:       return 1.20f; // +20% (limited stock implication)
+	case EDockType::Merchant:
+	default:                     return 1.00f;
+	}
+}
+static float DockPriceMul_Sell(EDockType T)
+{
+	// Merchants pay best; pirates pay middling; navy pays poorly for plunder.
+	switch (T)
+	{
+	case EDockType::Merchant:    return 1.25f;
+	case EDockType::PirateHaven: return 1.00f;
+	case EDockType::Naval:       return 0.70f;
+	default:                     return 1.00f;
+	}
+}
+static float DockPriceMul_Upgrade(EDockType T)
+{
+	switch (T)
+	{
+	case EDockType::PirateHaven: return 1.20f; // pirate shipwrights extort more
+	case EDockType::Naval:       return 1.00f;
+	case EDockType::Merchant:
+	default:                     return 0.90f; // merchant ports cut a deal
+	}
+}
+
 bool ACrownsBanePlayerController::BuyAmmo(int32 Amount)
 {
 	if (!bIsInDocks || !PlayerInventory) return false;
-	if (!PlayerInventory->SpendResource(EResourceType::Gold, BuyAmmoPrice)) return false;
+	const EDockType T = CurrentDocksZone ? CurrentDocksZone->DockType : EDockType::Merchant;
+	const int32 Price = FMath::Max(1, FMath::RoundToInt(BuyAmmoPrice * DockPriceMul_Buy(T)));
+	if (!PlayerInventory->SpendResource(EResourceType::Gold, Price)) return false;
 	PlayerInventory->AddAmmo(Amount);
 	return true;
 }
@@ -193,7 +227,9 @@ bool ACrownsBanePlayerController::BuyAmmo(int32 Amount)
 bool ACrownsBanePlayerController::BuyWood(int32 Amount)
 {
 	if (!bIsInDocks || !PlayerInventory) return false;
-	if (!PlayerInventory->SpendResource(EResourceType::Gold, BuyWoodPrice)) return false;
+	const EDockType T = CurrentDocksZone ? CurrentDocksZone->DockType : EDockType::Merchant;
+	const int32 Price = FMath::Max(1, FMath::RoundToInt(BuyWoodPrice * DockPriceMul_Buy(T)));
+	if (!PlayerInventory->SpendResource(EResourceType::Gold, Price)) return false;
 	PlayerInventory->AddResource(EResourceType::Wood, Amount);
 	return true;
 }
@@ -201,7 +237,9 @@ bool ACrownsBanePlayerController::BuyWood(int32 Amount)
 bool ACrownsBanePlayerController::BuyMetal(int32 Amount)
 {
 	if (!bIsInDocks || !PlayerInventory) return false;
-	if (!PlayerInventory->SpendResource(EResourceType::Gold, BuyMetalPrice)) return false;
+	const EDockType T = CurrentDocksZone ? CurrentDocksZone->DockType : EDockType::Merchant;
+	const int32 Price = FMath::Max(1, FMath::RoundToInt(BuyMetalPrice * DockPriceMul_Buy(T)));
+	if (!PlayerInventory->SpendResource(EResourceType::Gold, Price)) return false;
 	PlayerInventory->AddResource(EResourceType::Metal, Amount);
 	return true;
 }
@@ -210,7 +248,9 @@ bool ACrownsBanePlayerController::SellWood(int32 Amount)
 {
 	if (!bIsInDocks || !PlayerInventory) return false;
 	if (!PlayerInventory->SpendResource(EResourceType::Wood, Amount)) return false;
-	PlayerInventory->AddResource(EResourceType::Gold, SellWoodPrice);
+	const EDockType T = CurrentDocksZone ? CurrentDocksZone->DockType : EDockType::Merchant;
+	const int32 Payout = FMath::Max(1, FMath::RoundToInt(SellWoodPrice * DockPriceMul_Sell(T)));
+	PlayerInventory->AddResource(EResourceType::Gold, Payout);
 	return true;
 }
 
@@ -218,7 +258,9 @@ bool ACrownsBanePlayerController::SellMetal(int32 Amount)
 {
 	if (!bIsInDocks || !PlayerInventory) return false;
 	if (!PlayerInventory->SpendResource(EResourceType::Metal, Amount)) return false;
-	PlayerInventory->AddResource(EResourceType::Gold, SellMetalPrice);
+	const EDockType T = CurrentDocksZone ? CurrentDocksZone->DockType : EDockType::Merchant;
+	const int32 Payout = FMath::Max(1, FMath::RoundToInt(SellMetalPrice * DockPriceMul_Sell(T)));
+	PlayerInventory->AddResource(EResourceType::Gold, Payout);
 	return true;
 }
 
@@ -228,7 +270,9 @@ bool ACrownsBanePlayerController::PayForHeal()
 	AShipPawn* Ship = GetShipPawn();
 	if (!Ship || !Ship->HealthComponent) return false;
 	if (Ship->HealthComponent->GetHealthPercent() >= 0.999f) return false; // already full
-	if (!PlayerInventory->SpendResource(EResourceType::Gold, HealCost)) return false;
+	const EDockType T = CurrentDocksZone ? CurrentDocksZone->DockType : EDockType::Merchant;
+	const int32 Cost = FMath::Max(1, FMath::RoundToInt(HealCost * DockPriceMul_Buy(T)));
+	if (!PlayerInventory->SpendResource(EResourceType::Gold, Cost)) return false;
 	Ship->HealthComponent->Heal(Ship->HealthComponent->GetMaxHealth());
 	return true;
 }
