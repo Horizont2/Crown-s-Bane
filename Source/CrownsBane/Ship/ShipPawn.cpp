@@ -26,6 +26,7 @@
 #include "UI/CrownsBaneHUD.h"
 #include "AI/EnemyShipBase.h"
 #include "EngineUtils.h"
+#include "Engine/DamageEvents.h"
 
 AShipPawn::AShipPawn()
 {
