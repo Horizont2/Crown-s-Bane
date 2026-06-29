@@ -642,11 +642,47 @@ void AShipPawn::PollRawInputFallback(float DeltaTime)
 	}
 }
 
+void AShipPawn::TriggerHitStop()
+{
+	HitStopTimeRemaining = HitStopDuration;
+	if (UWorld* W = GetWorld())
+	{
+		UGameplayStatics::SetGlobalTimeDilation(W, HitStopTimeDilation);
+	}
+}
+
 void AShipPawn::UpdateAiming(float DeltaTime)
 {
 	if (!CannonComponent || !Camera || !SpringArm) return;
 
 	CannonComponent->SetIsAiming(bIsAiming);
+
+	// Hit-stop overrides aim dilation: while ticking down, the world stays slow.
+	// Otherwise we let the aim path decide the dilation as before.
+	if (HitStopTimeRemaining > 0.0f)
+	{
+		HitStopTimeRemaining -= DeltaTime;
+		if (HitStopTimeRemaining <= 0.0f && !bIsAiming)
+		{
+			if (UWorld* W = GetWorld())
+				UGameplayStatics::SetGlobalTimeDilation(W, 1.0f);
+		}
+	}
+
+	// Battle camera: pull SpringArm out a bit when there are enemies in close range.
+	const float BattleR2 = BattleCameraTriggerRange * BattleCameraTriggerRange;
+	bool bInBattle = false;
+	for (TActorIterator<AEnemyShipBase> It(GetWorld()); It; ++It)
+	{
+		AEnemyShipBase* E = *It;
+		if (!E || !E->HealthComponent || !E->HealthComponent->IsAlive()) continue;
+		if (FVector::DistSquared(GetActorLocation(), E->GetActorLocation()) <= BattleR2)
+		{
+			bInBattle = true; break;
+		}
+	}
+	// Battle boost is consumed by the non-aim else-branch below.
+	const float BattleBoost = (bInBattle && !bIsAiming) ? BattleSpringArmBoost : 0.0f;
 
 	// FOV zoom — interp current camera FOV toward target (snappy and cinematic).
 	const float TargetFOV = bIsAiming ? AimFOV : DefaultFOV;
@@ -689,7 +725,8 @@ void AShipPawn::UpdateAiming(float DeltaTime)
 	}
 	else
 	{
-		SpringArm->TargetArmLength = FMath::FInterpTo(SpringArm->TargetArmLength, DefaultSpringArmLength, DeltaTime, AimZoomSpeed);
+		SpringArm->TargetArmLength = FMath::FInterpTo(SpringArm->TargetArmLength,
+			DefaultSpringArmLength + BattleBoost, DeltaTime, AimZoomSpeed);
 	}
 }
 

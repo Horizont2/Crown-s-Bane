@@ -237,6 +237,25 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Aim", meta=(ClampMin="0.1", ClampMax="1.0"))
 	float AimLookSensitivityScale = 0.5f;
 
+	// Battle camera kicks in when enemies are within this range (cm) — pulls back slightly.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Battle")
+	float BattleCameraTriggerRange = 2500.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Battle")
+	float BattleSpringArmBoost = 350.0f;
+
+	// Brief time-stop on landing a player hit (seconds).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Feel", meta=(ClampMin="0.0", ClampMax="0.2"))
+	float HitStopDuration = 0.05f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Feel", meta=(ClampMin="0.05", ClampMax="1.0"))
+	float HitStopTimeDilation = 0.1f;
+
+	UFUNCTION(BlueprintCallable, Category = "Camera|Feel")
+	void TriggerHitStop();
+
+	float HitStopTimeRemaining = 0.0f;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
 	float LookYawSensitivity = 1.2f;
 
