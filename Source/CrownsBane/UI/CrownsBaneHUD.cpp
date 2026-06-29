@@ -158,6 +158,8 @@ void ACrownsBaneHUD::DrawHUD()
 	DrawDamageDirection(Dt);
 	DrawComboCounter(Dt);
 	DrawKillFeed(Dt);
+	DrawBanner(Dt);
+	DrawMissionComplete(Dt);
 }
 
 void ACrownsBaneHUD::DrawTextWithShadow(const FString& Text, FColor TextColor, float X, float Y, UFont* Font, float Scale)
@@ -1787,4 +1789,95 @@ void ACrownsBaneHUD::DrawKillFeed(float DeltaTime)
 		DrawFilledRect(X, Y0 + i * 28.f, 340.f, 24.f, FLinearColor(0.04f, 0.04f, 0.06f, A * 0.6f));
 		DrawText(E.Text, Col, X + CrownStyle::Sp2, Y0 + i * 28.f + 4.f, nullptr, 1.0f, false);
 	}
+}
+
+// ============== UI-G: CINEMATIC BANNERS ==============
+
+void ACrownsBaneHUD::ShowBanner(const FString& Title, const FString& Subtitle, FLinearColor Tint, float Duration)
+{
+	BannerTitle = Title;
+	BannerSubtitle = Subtitle;
+	BannerTint = Tint;
+	BannerTimeRemaining = Duration;
+	BannerInitialDuration = Duration;
+}
+
+void ACrownsBaneHUD::ShowMissionComplete(const FString& QuestName, int32 Gold, int32 Wood, int32 Metal)
+{
+	MissionTitle = QuestName;
+	MissionGold = Gold; MissionWood = Wood; MissionMetal = Metal;
+	MissionTimeRemaining = 5.0f;
+}
+
+void ACrownsBaneHUD::DrawBanner(float DeltaTime)
+{
+	if (BannerTimeRemaining <= 0.0f || !Canvas) return;
+	BannerTimeRemaining -= DeltaTime;
+
+	const float D = FMath::Max(0.1f, BannerInitialDuration);
+	const float T = 1.0f - FMath::Clamp(BannerTimeRemaining / D, 0.f, 1.f);
+
+	// Letterbox in for the first 0.2s, hold, then out for last 0.5s.
+	const float HoldT = FMath::Clamp(T * 5.0f, 0.f, 1.f);
+	const float OutT  = FMath::Clamp((BannerTimeRemaining / D) * 2.0f, 0.f, 1.f);
+	const float A     = FMath::Min(HoldT, OutT);
+
+	const float SW = Canvas->ClipX;
+	const float SH = Canvas->ClipY;
+	const float Bar = SH * 0.12f * A;
+
+	// Letterbox bars
+	DrawFilledRect(0, 0, SW, Bar, FLinearColor(0,0,0, 0.85f * A));
+	DrawFilledRect(0, SH - Bar, SW, Bar, FLinearColor(0,0,0, 0.85f * A));
+
+	// Title (display scale 2.0) centered.
+	const float CY = SH * 0.5f - 30.f;
+	const float CX = SW * 0.5f - 200.f;
+
+	FColor TitleCol = BannerTint.ToFColor(true);
+	TitleCol.A = (uint8)(A * 255);
+	DrawText(BannerTitle, TitleCol, CX, CY, nullptr, 2.0f, false);
+	if (!BannerSubtitle.IsEmpty())
+	{
+		FColor SubCol(220, 220, 220, (uint8)(A * 220));
+		DrawText(BannerSubtitle, SubCol, CX, CY + 36.f, nullptr, 1.0f, false);
+	}
+}
+
+void ACrownsBaneHUD::DrawMissionComplete(float DeltaTime)
+{
+	if (MissionTimeRemaining <= 0.0f || !Canvas) return;
+	MissionTimeRemaining -= DeltaTime;
+
+	const float D = 5.0f;
+	const float T = MissionTimeRemaining / D;
+	const float A = FMath::Clamp(T * 1.5f, 0.f, 1.f);
+
+	const float SW = Canvas->ClipX;
+	const float SH = Canvas->ClipY;
+	const float W = 480.f;
+	const float H = 240.f;
+	const float X = (SW - W) * 0.5f;
+	const float Y = SH * 0.30f;
+
+	DrawFilledRect(X, Y, W, H, FLinearColor(0.04f, 0.06f, 0.05f, 0.92f * A));
+	DrawBorderedRect(X, Y, W, H, CrownStyle::BgTransparent, FLinearColor(CrownStyle::AccentGold.R, CrownStyle::AccentGold.G, CrownStyle::AccentGold.B, A), 2.5f);
+
+	FColor Gold = CrownStyle::AccentGold.ToFColor(true);  Gold.A  = (uint8)(A * 255);
+	FColor Body = CrownStyle::TextPrimary;                Body.A = (uint8)(A * 255);
+	FColor Dim  = CrownStyle::TextDim;                    Dim.A   = (uint8)(A * 255);
+
+	DrawText(TEXT("QUEST COMPLETE"), Gold, X + 24.f, Y + 18.f, nullptr, 1.6f, false);
+	DrawText(MissionTitle,           Body, X + 24.f, Y + 60.f, nullptr, 1.2f, false);
+
+	// Animated counters: reveal each reward over the first half of duration.
+	const float Reveal = FMath::Clamp((1.0f - T) * 2.0f, 0.f, 1.f);
+	const int32 GShow = FMath::FloorToInt(MissionGold * Reveal);
+	const int32 WShow = FMath::FloorToInt(MissionWood * Reveal);
+	const int32 MShow = FMath::FloorToInt(MissionMetal * Reveal);
+	DrawText(FString::Printf(TEXT("Gold     +%d"),  GShow), Gold, X + 24.f, Y + 120.f, nullptr, 1.1f, false);
+	DrawText(FString::Printf(TEXT("Wood     +%d"),  WShow), Body, X + 24.f, Y + 148.f, nullptr, 1.1f, false);
+	DrawText(FString::Printf(TEXT("Metal    +%d"),  MShow), Body, X + 24.f, Y + 176.f, nullptr, 1.1f, false);
+
+	DrawText(TEXT("Press SPACE to dismiss"), Dim, X + 24.f, Y + H - 30.f, nullptr, 0.9f, false);
 }

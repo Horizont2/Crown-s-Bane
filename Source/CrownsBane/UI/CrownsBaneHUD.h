@@ -294,7 +294,25 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "HUD|Combat")
 	void PushKillFeed(const FString& Text);
 
+	// ---- UI-G Cinematic banners ----
+	UFUNCTION(BlueprintCallable, Category = "HUD|Cinematic")
+	void ShowBanner(const FString& Title, const FString& Subtitle, FLinearColor Tint, float Duration = 3.5f);
+
+	UFUNCTION(BlueprintCallable, Category = "HUD|Cinematic")
+	void ShowMissionComplete(const FString& QuestName, int32 Gold, int32 Wood, int32 Metal);
+
 private:
+	FString BannerTitle, BannerSubtitle;
+	FLinearColor BannerTint = FLinearColor::White;
+	float BannerTimeRemaining = 0.0f;
+	float BannerInitialDuration = 1.0f;
+
+	FString MissionTitle;
+	int32 MissionGold = 0, MissionWood = 0, MissionMetal = 0;
+	float  MissionTimeRemaining = 0.0f;
+
+	void DrawBanner(float DeltaTime);
+	void DrawMissionComplete(float DeltaTime);
 
 	// Helpers for minimap
 	void DrawMinimapDot(float CX, float CY, float DotX, float DotY, float DotSize, FLinearColor Color);

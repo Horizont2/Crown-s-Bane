@@ -3,6 +3,7 @@
 #include "Quests/BountyManager.h"
 #include "Player/PlayerInventory.h"
 #include "Loot/ResourceTypes.h"
+#include "UI/CrownsBaneHUD.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/World.h"
 #include "Engine/Engine.h"
@@ -62,10 +63,16 @@ void ABountyManager::NotifyEnemyKilled()
 			{
 				Inv->AddResource(EResourceType::Gold, Q.RewardGold);
 			}
-			if (GEngine)
+			// Cinematic mission-complete card on the player's HUD.
+			if (UWorld* W = GetWorld())
 			{
-				GEngine->AddOnScreenDebugMessage(-1, 4.f, FColor::Yellow,
-					FString::Printf(TEXT("BOUNTY COMPLETE: %s — +%d gold"), *Q.Title, Q.RewardGold));
+				if (APlayerController* PC = UGameplayStatics::GetPlayerController(W, 0))
+				{
+					if (ACrownsBaneHUD* HUD = Cast<ACrownsBaneHUD>(PC->GetHUD()))
+					{
+						HUD->ShowMissionComplete(Q.Title, Q.RewardGold, 0, 0);
+					}
+				}
 			}
 			const FGuid Id = Q.QuestId;
 			ActiveBounties.RemoveAt(i);
