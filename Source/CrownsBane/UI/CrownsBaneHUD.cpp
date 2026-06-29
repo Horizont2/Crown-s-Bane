@@ -20,6 +20,7 @@
 #include "Upgrades/UpgradeManager.h"
 #include "Upgrades/UpgradeTypes.h"
 #include "Player/CrownsBanePlayerController.h"
+#include "Player/ShipProgressionComponent.h"
 #include "Components/HealthComponent.h"
 #include "EngineUtils.h"
 #include "Camera/CameraComponent.h"
@@ -170,6 +171,14 @@ void ACrownsBaneHUD::DrawHUD()
 	}
 
 	if (bShowHelpOverlay) DrawHelpOverlay();
+
+	if (APlayerController* RawPC3 = GetOwningPlayerController())
+	{
+		if (ACrownsBanePlayerController* CBPC3 = Cast<ACrownsBanePlayerController>(RawPC3))
+		{
+			DrawXPBar(CBPC3);
+		}
+	}
 }
 
 void ACrownsBaneHUD::DrawTextWithShadow(const FString& Text, FColor TextColor, float X, float Y, UFont* Font, float Scale)
@@ -2165,4 +2174,35 @@ void ACrownsBaneHUD::DrawHelpOverlay()
 		DrawText(R.Desc, CrownStyle::TextPrimary, PX + 160.f,           Y + 4.f, nullptr, 0.95f, false);
 		Y += 28.f;
 	}
+}
+
+// ============== XP / LEVEL BAR ==============
+
+void ACrownsBaneHUD::DrawXPBar(ACrownsBanePlayerController* PC)
+{
+	if (!PC || !PC->Progression || !Canvas) return;
+	UShipProgressionComponent* P = PC->Progression;
+
+	const float SW = Canvas->ClipX;
+	const float W = 220.f;
+	const float H = 12.f;
+	const float X = (SW - W) * 0.5f;
+	const float Y = HUDPaddingY + 88.f;
+
+	// Label
+	DrawText(FString::Printf(TEXT("LVL %d"), P->Level), CrownStyle::AccentGold.ToFColor(true),
+		X, Y - 18.f, nullptr, 0.95f, false);
+	if (P->bPerkChoicePending)
+	{
+		DrawText(TEXT("⚑ NEW PERK AVAILABLE"), FColor(255, 220, 100),
+			X + 60.f, Y - 18.f, nullptr, 0.9f, false);
+	}
+
+	// XP bar
+	const float Frac = P->GetXPForNextLevel() > 0
+		? FMath::Clamp((float)P->XP / (float)P->GetXPForNextLevel(), 0.f, 1.f)
+		: 0.f;
+	DrawSmoothBar(X, Y, W, H, Frac, CrownStyle::AccentGold, false);
+	DrawText(FString::Printf(TEXT("%d / %d XP"), P->XP, P->GetXPForNextLevel()),
+		CrownStyle::TextSecondary, X + W * 0.5f - 30.f, Y - 1.f, nullptr, 0.7f, false);
 }

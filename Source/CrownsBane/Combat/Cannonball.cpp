@@ -9,6 +9,8 @@
 #include "AI/EnemyShipBase.h"
 #include "UI/CrownsBaneHUD.h"
 #include "Systems/WindSystem.h"
+#include "Player/CrownsBanePlayerController.h"
+#include "Player/ShipProgressionComponent.h"
 #include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
@@ -184,6 +186,14 @@ void ACannonball::OnHit(UPrimitiveComponent* HitComponent, AActor* OtherActor,
 					HUD->AddFloatingDamage(ImpactLoc, FinalDamage, bHitShip);
 					HUD->TriggerHitMarker(bHitShip && bCrit ? true : bHitShip);
 					if (bHitShip) HUD->RegisterPlayerHit();
+				}
+				// XP: 5 per hit, +5 bonus for crits.
+				if (bHitShip)
+				{
+					if (ACrownsBanePlayerController* CBPC = Cast<ACrownsBanePlayerController>(PC))
+					{
+						if (CBPC->Progression) CBPC->Progression->AwardXP(bCrit ? 10 : 5);
+					}
 				}
 				// Hit-stop on confirmed ship hits only (skip water hits).
 				if (bHitShip)

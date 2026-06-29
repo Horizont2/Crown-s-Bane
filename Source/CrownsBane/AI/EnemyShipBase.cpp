@@ -9,6 +9,7 @@
 #include "Quests/BountyManager.h"
 #include "UI/CrownsBaneHUD.h"
 #include "Player/CrownsBanePlayerController.h"
+#include "Player/ShipProgressionComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "EngineUtils.h"
 #include "Components/StaticMeshComponent.h"
@@ -447,6 +448,12 @@ void AEnemyShipBase::OnDeath()
 		if (ACrownsBanePlayerController* CBPC = Cast<ACrownsBanePlayerController>(PC))
 		{
 			CBPC->StatBumpShipsSunk();
+			// XP per kill: 50 base, scaled by max HP / 100 to reward tougher kills.
+			if (CBPC->Progression && HealthComponent)
+			{
+				const int32 KillXP = FMath::Max(50, FMath::FloorToInt(HealthComponent->GetMaxHealth() * 0.5f));
+				CBPC->Progression->AwardXP(KillXP);
+			}
 		}
 		if (ACrownsBaneHUD* HUD = Cast<ACrownsBaneHUD>(PC->GetHUD()))
 		{

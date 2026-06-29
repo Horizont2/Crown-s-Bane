@@ -318,6 +318,7 @@ private:
 	void DrawMissionComplete(float DeltaTime);
 	void DrawPauseMenu(class ACrownsBanePlayerController* PC);
 	void DrawHelpOverlay();
+	void DrawXPBar(class ACrownsBanePlayerController* PC);
 
 	// Helpers for minimap
 	void DrawMinimapDot(float CX, float CY, float DotX, float DotY, float DotSize, FLinearColor Color);

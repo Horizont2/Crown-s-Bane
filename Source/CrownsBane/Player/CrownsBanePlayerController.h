@@ -37,6 +37,9 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory")
 	UPlayerInventory* PlayerInventory;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Progression")
+	class UShipProgressionComponent* Progression;
+
 	UPROPERTY(BlueprintReadOnly, Category = "Docks")
 	bool bIsInDocks = false;
 
