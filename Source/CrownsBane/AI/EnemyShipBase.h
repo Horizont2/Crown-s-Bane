@@ -16,11 +16,13 @@ class USoundBase;
 UENUM(BlueprintType)
 enum class EShipAIState : uint8
 {
-	Patrol  UMETA(DisplayName = "Patrol"),
-	Chase   UMETA(DisplayName = "Chase"),
-	Attack  UMETA(DisplayName = "Attack"),
-	Retreat UMETA(DisplayName = "Retreat"),
-	Sink    UMETA(DisplayName = "Sink")
+	Patrol    UMETA(DisplayName = "Patrol"),
+	Chase     UMETA(DisplayName = "Chase"),
+	Attack    UMETA(DisplayName = "Attack"),
+	Evasive   UMETA(DisplayName = "Evasive Maneuver"),
+	Retreat   UMETA(DisplayName = "Retreat"),
+	Surrender UMETA(DisplayName = "Surrender"),
+	Sink      UMETA(DisplayName = "Sink")
 };
 
 UCLASS(Abstract)
@@ -113,6 +115,29 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI", meta = (ClampMin = "0.0", ClampMax = "1.0"))
 	float RetreatHealthThreshold = 0.25f;
 
+	// At or below this HP fraction, ship considers surrender (10%) вЂ” once it has
+	// taken at least one hit and the player is close enough.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float SurrenderHealthThreshold = 0.10f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI", meta=(ClampMin="0.0", ClampMax="1.0"))
+	float SurrenderChance = 0.5f;
+
+	// Cooldown between evasive maneuvers (seconds).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI")
+	float EvasiveCooldown = 6.0f;
+
+	float TimeSinceLastEvasive = 99.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI")
+	float EvasiveDuration = 1.5f;
+
+	float EvasiveTimeRemaining = 0.0f;
+	float EvasiveTurnSign = 1.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI")
+	bool bCanEvade = true;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI")
 	float RetreatSpeed = 700.0f;
 
@@ -171,7 +196,7 @@ protected:
 	float FireCooldownTimer = 0.0f;
 	float SinkTimer = 0.0f;
 	float CurrentSpeedActual = 0.0f;
-	float CurrentYawSpeed = 0.0f; // Змінна для плавності повороту
+	float CurrentYawSpeed = 0.0f; // пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
 	float PatrolWaitTimer = 0.0f;
 
 	UFUNCTION()

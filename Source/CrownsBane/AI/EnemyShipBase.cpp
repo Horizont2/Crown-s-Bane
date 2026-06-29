@@ -75,6 +75,31 @@ void AEnemyShipBase::Tick(float DeltaTime)
 		FireCooldownTimer -= DeltaTime;
 	}
 
+	TimeSinceLastEvasive += DeltaTime;
+
+	// Surrender + Evasive are sticky states — handle them first so the normal
+	// state machine doesn't immediately override.
+	if (CurrentState == EShipAIState::Surrender)
+	{
+		// Drift to a stop and stay there.  Player can still board for bonus loot.
+		CurrentSpeedActual = FMath::FInterpTo(CurrentSpeedActual, 0.0f, DeltaTime, 1.5f);
+		return;
+	}
+
+	if (CurrentState == EShipAIState::Evasive)
+	{
+		EvasiveTimeRemaining -= DeltaTime;
+		// Sharp turn at full speed in the chosen direction.
+		AddActorLocalRotation(FRotator(0.0f, EvasiveTurnSign * TurnRate * 2.5f * DeltaTime, 0.0f));
+		CurrentSpeedActual = FMath::FInterpTo(CurrentSpeedActual, ChaseSpeed * 1.1f, DeltaTime, 2.0f);
+		AddActorWorldOffset(GetActorForwardVector() * CurrentSpeedActual * DeltaTime, false);
+		if (EvasiveTimeRemaining <= 0.0f)
+		{
+			TransitionToState(EShipAIState::Attack);
+		}
+		return;
+	}
+
 	const float HealthPct = HealthComponent ? HealthComponent->GetHealthPercent() : 1.0f;
 	const bool bShouldRetreat = bCanRetreat && (RetreatHealthThreshold > 0.0f) && (HealthPct <= RetreatHealthThreshold);
 
@@ -130,6 +155,28 @@ float AEnemyShipBase::TakeDamage(float DamageAmount, FDamageEvent const& DamageE
 {
 	float Actual = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
 	if (DamageAmount > 0.0f) bHasAggro = true;
+
+	// Take-a-hit reaction: chance to start an evasive maneuver (sharp turn).
+	if (DamageAmount > 0.0f && bCanEvade && TimeSinceLastEvasive >= EvasiveCooldown
+	    && CurrentState != EShipAIState::Sink
+	    && CurrentState != EShipAIState::Surrender)
+	{
+		TimeSinceLastEvasive = 0.0f;
+		EvasiveTimeRemaining = EvasiveDuration;
+		EvasiveTurnSign = FMath::FRand() < 0.5f ? -1.0f : 1.0f;
+		TransitionToState(EShipAIState::Evasive);
+	}
+
+	// Surrender check: if pushed below SurrenderHealthThreshold and rolled the chance.
+	if (HealthComponent && HealthComponent->IsAlive()
+	    && HealthComponent->GetHealthPercent() <= SurrenderHealthThreshold
+	    && CurrentState != EShipAIState::Surrender
+	    && CurrentState != EShipAIState::Sink
+	    && FMath::FRand() < SurrenderChance)
+	{
+		TransitionToState(EShipAIState::Surrender);
+	}
+
 	return Actual;
 }
 
