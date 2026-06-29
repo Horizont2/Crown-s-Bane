@@ -80,7 +80,7 @@ void ACannonball::OnHit(UPrimitiveComponent* HitComponent, AActor* OtherActor,
 
 	UE_LOG(LogTemp, Log, TEXT("Cannonball hit: %s"), *OtherActor->GetName());
 
-	// СТВОРЮЄМО БЕЗПЕЧНИЙ FVECTOR ОДИН РАЗ ДЛЯ ВСІЄЇ ФУНКЦІЇ
+	// пїЅпїЅпїЅпїЅпїЅЮЄпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ FVECTOR пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅ пїЅСІпїЅпїЅ пїЅпїЅпїЅпїЅЦІпїЅ
 	const FVector ImpactLoc = Hit.ImpactPoint.IsZero() ? GetActorLocation() : FVector(Hit.ImpactPoint);
 
 	// Apply damage via UE damage system
@@ -111,8 +111,8 @@ void ACannonball::OnHit(UPrimitiveComponent* HitComponent, AActor* OtherActor,
 			{
 				if (ACrownsBaneHUD* HUD = Cast<ACrownsBaneHUD>(PC->GetHUD()))
 				{
-					// Використовуємо наш підготовлений ImpactLoc
 					HUD->AddFloatingDamage(ImpactLoc, CannonballData.BaseDamage, bHitShip);
+					HUD->TriggerHitMarker(bHitShip);
 				}
 			}
 		}
@@ -127,12 +127,12 @@ void ACannonball::OnHit(UPrimitiveComponent* HitComponent, AActor* OtherActor,
 
 		if (FX)
 		{
-			// Використовуємо наш підготовлений ImpactLoc
+			// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ ImpactLoc
 			UNiagaraFunctionLibrary::SpawnSystemAtLocation(W, FX, ImpactLoc, ImpactRot);
 		}
 		if (SFX)
 		{
-			// Використовуємо наш підготовлений ImpactLoc
+			// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ ImpactLoc
 			UGameplayStatics::PlaySoundAtLocation(W, SFX, ImpactLoc);
 		}
 	}

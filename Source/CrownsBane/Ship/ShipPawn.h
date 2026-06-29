@@ -141,6 +141,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	UInputAction* IA_Look;
 
+	// Toggle docks/upgrade UI (U key). Active only when inside DocksZone.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	UInputAction* IA_ToggleDocks;
+
+	// Toggle quest log (J key).
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	UInputAction* IA_QuestLog;
+
 	// ---- Camera & Aiming ----
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera")
 	float DefaultSpringArmLength = 1800.0f;
@@ -243,14 +251,14 @@ protected:
 	void Input_FireRight(const FInputActionValue& Value);
 	void Input_Fire(const FInputActionValue& Value);
 	void Input_Look(const FInputActionValue& Value);
-	void Input_ToggleDocks(const FInputActionValue& Value);
-	void Input_AimPressed(const FInputActionValue& Value);
-	void Input_AimReleased(const FInputActionValue& Value);
-	void Input_ToggleQuestLog(const FInputActionValue& Value);
 
 	// New Aim Inputs
 	void Input_AimStart(const FInputActionValue& Value);
 	void Input_AimStop(const FInputActionValue& Value);
+
+	// UI hotkeys
+	void Input_ToggleDocks(const FInputActionValue& Value);
+	void Input_ToggleQuestLog(const FInputActionValue& Value);
 
 	void DoIncreaseSail();
 	void DoDecreaseSail();
@@ -282,9 +290,6 @@ private:
 	void HandleDeath();
 
 	AWindSystem* CachedWindSystem;
-
-	// Raw input from A/D (target value) and smoothed value applied to actual turn rate.
-	float TurnInputRaw   = 0.0f;
 	float TurnInputValue = 0.0f;
 	float SpeedPenaltyFraction = 0.0f;
 	float SpeedPenaltyTimeRemaining = 0.0f;
@@ -300,4 +305,6 @@ private:
 
 	float LookYawOffset = 0.0f;
 	float LookPitchOffset = 0.0f;
+
+	float LastSeenHealth = -1.0f;
 };
