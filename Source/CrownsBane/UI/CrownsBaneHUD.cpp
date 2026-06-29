@@ -1,6 +1,7 @@
 // Copyright 2024 Crown's Bane. All Rights Reserved.
 
 #include "UI/CrownsBaneHUD.h"
+#include "UI/UICrownStyle.h"
 #include "Ship/ShipPawn.h"
 #include "Combat/CannonComponent.h"
 #include "Components/HealthComponent.h"
@@ -1508,4 +1509,61 @@ void ACrownsBaneHUD::DrawLeadIndicator(AShipPawn* Ship)
 	// Range readout
 	DrawText(FString::Printf(TEXT("%.0fm"), PredD * 0.01f),
 		Tint.ToFColor(true), ScreenPos.X + 10.f, ScreenPos.Y - 8.f, nullptr, 0.85f, false);
+}
+
+// ============== UNIFIED STYLE HELPERS (UI-A) ==============
+
+void ACrownsBaneHUD::DrawPanel(float X, float Y, float W, float H, uint8 Style)
+{
+	const CrownStyle::EPanelStyle S = static_cast<CrownStyle::EPanelStyle>(Style);
+	const FLinearColor Bg = (S == CrownStyle::EPanelStyle::Subtle) ? CrownStyle::BgLight : CrownStyle::BgDark;
+	DrawFilledRect(X, Y, W, H, Bg);
+
+	const FLinearColor Border = CrownStyle::BorderForStyle(S);
+	if (Border.A > 0.01f)
+	{
+		const float T = CrownStyle::ThicknessForStyle(S);
+		DrawBorderedRect(X, Y, W, H, CrownStyle::BgTransparent, Border, T);
+	}
+
+	// Subtle highlight stripe along the top for "lit from above" feel.
+	if (S != CrownStyle::EPanelStyle::Subtle)
+	{
+		DrawFilledRect(X + 2.f, Y + 2.f, W - 4.f, 1.f, FLinearColor(1.0f, 1.0f, 1.0f, 0.06f));
+	}
+}
+
+void ACrownsBaneHUD::DrawBody(const FString& Text, float X, float Y, float Scale)
+{
+	DrawText(Text, CrownStyle::TextPrimary, X, Y, nullptr, CrownStyle::ScaleBody * Scale, false);
+}
+
+void ACrownsBaneHUD::DrawHeading(const FString& Text, float X, float Y)
+{
+	DrawText(Text, CrownStyle::TextGold, X, Y, nullptr, CrownStyle::ScaleHeading, false);
+}
+
+void ACrownsBaneHUD::DrawCaption(const FString& Text, float X, float Y)
+{
+	DrawText(Text, CrownStyle::TextDim, X, Y, nullptr, CrownStyle::ScaleCaption, false);
+}
+
+void ACrownsBaneHUD::DrawSmoothBar(float X, float Y, float W, float H, float Frac, FLinearColor Fill, bool bPulse)
+{
+	Frac = FMath::Clamp(Frac, 0.0f, 1.0f);
+
+	// Background trough (slightly larger for outline)
+	DrawFilledRect(X - 1.f, Y - 1.f, W + 2.f, H + 2.f, FLinearColor(0.05f, 0.05f, 0.05f, 0.95f));
+
+	// Fill
+	const float Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
+	const float PulseAdd = bPulse ? (0.20f * CrownStyle::Pulse(Now, 1.2f)) : 0.0f;
+	FLinearColor F = Fill;
+	F.R = FMath::Clamp(F.R + PulseAdd, 0.f, 1.f);
+	F.G = FMath::Clamp(F.G + PulseAdd, 0.f, 1.f);
+	F.B = FMath::Clamp(F.B + PulseAdd, 0.f, 1.f);
+	DrawFilledRect(X, Y, W * Frac, H, F);
+
+	// Highlight strip (top 1px)
+	DrawFilledRect(X, Y, W * Frac, 1.f, FLinearColor(1.0f, 1.0f, 1.0f, 0.4f));
 }

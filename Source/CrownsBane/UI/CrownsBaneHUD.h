@@ -262,6 +262,16 @@ private:
 	void DrawStar(float CX, float CY, float Radius, FLinearColor Color);
 	void DrawArrow(float CX, float CY, float Radius, float AngleDegrees, FLinearColor Color);
 
+	// ---- Unified style helpers (UICrownStyle) ----
+	// Draws a CrownStyle::EPanelStyle-themed panel at (X,Y) with size (W,H).
+	void DrawPanel(float X, float Y, float W, float H, uint8 Style /*CrownStyle::EPanelStyle*/);
+	// Body text using CrownStyle::TextPrimary, font scale ScaleBody.
+	void DrawBody(const FString& Text, float X, float Y, float Scale = 1.0f);
+	void DrawHeading(const FString& Text, float X, float Y);
+	void DrawCaption(const FString& Text, float X, float Y);
+	// Smooth bar with optional pulse-highlight when bPulse is true.
+	void DrawSmoothBar(float X, float Y, float W, float H, float Frac, FLinearColor Fill, bool bPulse = false);
+
 	// Cached references (refreshed each frame for safety)
 	AShipPawn* GetPlayerShip() const;
 	AWantedLevelManager* GetWantedLevelManager() const;
