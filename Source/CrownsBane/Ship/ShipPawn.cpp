@@ -20,6 +20,7 @@
 #include "NiagaraSystem.h"
 #include "NiagaraFunctionLibrary.h"
 #include "Camera/CameraShakeBase.h"
+#include "Player/CrownsBanePlayerController.h"
 
 AShipPawn::AShipPawn()
 {
@@ -145,6 +146,7 @@ void AShipPawn::EnsureInputAssetsExist()
 	MakeIA(IA_FireRight,    EInputActionValueType::Boolean, TEXT("IA_FireRight_Auto"));
 	MakeIA(IA_Fire,         EInputActionValueType::Boolean, TEXT("IA_Fire_Auto"));
 	MakeIA(IA_Look,         EInputActionValueType::Axis2D,  TEXT("IA_Look_Auto"));
+	MakeIA(IA_ToggleDocks,  EInputActionValueType::Boolean, TEXT("IA_ToggleDocks_Auto"));
 
 	if (!ShipMappingContext)
 	{
@@ -174,6 +176,9 @@ void AShipPawn::EnsureInputAssetsExist()
 
 		// Mouse look (camera rotation).  Mouse2D gives (X, Y) delta.
 		ShipMappingContext->MapKey(IA_Look, EKeys::Mouse2D);
+
+		// Docks / upgrade UI
+		ShipMappingContext->MapKey(IA_ToggleDocks, EKeys::U);
 
 		UE_LOG(LogTemp, Warning, TEXT("[ShipPawn] Auto-created fallback IMC_Ship with default keybinds "
 			"(W/S sails, A/D or arrows turn, Q/LMB port fire, E/RMB starboard fire, mouse look)."));
@@ -252,12 +257,13 @@ void AShipPawn::AddInputMappingContext()
 		Overlay->MapKey(IA_Fire, EKeys::SpaceBar);
 	}
 	if (IA_Look) Overlay->MapKey(IA_Look, EKeys::Mouse2D);
+	if (IA_ToggleDocks) Overlay->MapKey(IA_ToggleDocks, EKeys::U);
 	Subsystem->AddMappingContext(Overlay, 0);
 
 	if (GEngine && bShowDebugOnScreen)
 	{
 		GEngine->AddOnScreenDebugMessage(-1, 3.f, FColor::Green,
-			TEXT("Canonical IMC registered (W/S/A/D/Q/E/LMB/Space/mouse-look)"));
+			TEXT("Canonical IMC registered (W/S/A/D/Q/E/LMB/Space/mouse-look/U-docks)"));
 	}
 }
 
@@ -350,7 +356,8 @@ void AShipPawn::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 		if (IA_FireLeft)  EIC->BindAction(IA_FireLeft,  ETriggerEvent::Started, this, &AShipPawn::Input_FireLeft);
 		if (IA_FireRight) EIC->BindAction(IA_FireRight, ETriggerEvent::Started, this, &AShipPawn::Input_FireRight);
 		if (IA_Fire)      EIC->BindAction(IA_Fire,      ETriggerEvent::Started, this, &AShipPawn::Input_Fire);
-		if (IA_Look)      EIC->BindAction(IA_Look,      ETriggerEvent::Triggered, this, &AShipPawn::Input_Look);
+		if (IA_Look)        EIC->BindAction(IA_Look,        ETriggerEvent::Triggered, this, &AShipPawn::Input_Look);
+		if (IA_ToggleDocks) EIC->BindAction(IA_ToggleDocks, ETriggerEvent::Started,   this, &AShipPawn::Input_ToggleDocks);
 
 		bEnhancedInputReady = true;
 		UE_LOG(LogTemp, Log, TEXT("[ShipPawn] Enhanced Input bound successfully."));
@@ -440,6 +447,14 @@ void AShipPawn::Input_Look(const FInputActionValue& Value)
 {
 	LastInputSource = TEXT("EnhancedInput");
 	DoLook(Value.Get<FVector2D>());
+}
+
+void AShipPawn::Input_ToggleDocks(const FInputActionValue& /*Value*/)
+{
+	if (ACrownsBanePlayerController* PC = Cast<ACrownsBanePlayerController>(GetController()))
+	{
+		PC->ToggleUpgradeUI();
+	}
 }
 
 bool AShipPawn::ConsumeActionCooldown(FName ActionTag, float CooldownSec)

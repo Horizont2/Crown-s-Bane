@@ -58,11 +58,13 @@ public:
 	UFUNCTION(BlueprintPure, Category = "UI")
 	bool IsUpgradeUIOpen() const { return bUpgradeUIOpen; }
 
+	UFUNCTION(BlueprintCallable, Category = "UI")
+	void ToggleUpgradeUI();
+
 	UFUNCTION(BlueprintCallable, Category = "Upgrades")
 	bool BuyUpgrade(uint8 CategoryByte);
 
 private:
-	void ToggleUpgradeUI();
 
 	bool bUpgradeUIOpen = false;
 

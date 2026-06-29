@@ -236,6 +236,7 @@ protected:
 	void Input_FireRight(const FInputActionValue& Value);
 	void Input_Fire(const FInputActionValue& Value);
 	void Input_Look(const FInputActionValue& Value);
+	void Input_ToggleDocks(const FInputActionValue& Value);
 
 	// Pathway-agnostic action implementations.  Enhanced Input callbacks and
 	// raw polling both route through these so behaviour is identical.

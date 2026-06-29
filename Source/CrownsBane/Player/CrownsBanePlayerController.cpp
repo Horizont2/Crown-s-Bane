@@ -97,11 +97,7 @@ void ACrownsBanePlayerController::ForceFocusGameViewport()
 void ACrownsBanePlayerController::SetupInputComponent()
 {
 	Super::SetupInputComponent();
-
-	if (InputComponent)
-	{
-		InputComponent->BindAction("ToggleUpgradeUI", IE_Pressed, this, &ACrownsBanePlayerController::ToggleUpgradeUI);
-	}
+	// U-key docks toggle is now handled via Enhanced Input in ShipPawn (IA_ToggleDocks).
 }
 
 void ACrownsBanePlayerController::OnEnterDocks(ADocksZone* DocksZone)
