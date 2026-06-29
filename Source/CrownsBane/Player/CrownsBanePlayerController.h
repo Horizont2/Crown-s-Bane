@@ -40,6 +40,9 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Progression")
 	class UShipProgressionComponent* Progression;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Audio")
+	class USoundManager* SoundManager;
+
 	UPROPERTY(BlueprintReadOnly, Category = "Docks")
 	bool bIsInDocks = false;
 

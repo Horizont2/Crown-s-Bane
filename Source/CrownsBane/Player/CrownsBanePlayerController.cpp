@@ -18,12 +18,14 @@
 #include "Player/CrownsBaneSaveGame.h"
 #include "Player/PlayerInventory.h"
 #include "Player/ShipProgressionComponent.h"
+#include "Audio/SoundManager.h"
 
 ACrownsBanePlayerController::ACrownsBanePlayerController()
 {
 	PrimaryActorTick.bCanEverTick = true;
 	PlayerInventory = CreateDefaultSubobject<UPlayerInventory>(TEXT("PlayerInventory"));
 	Progression    = CreateDefaultSubobject<UShipProgressionComponent>(TEXT("Progression"));
+	SoundManager   = CreateDefaultSubobject<USoundManager>(TEXT("SoundManager"));
 	bIsInDocks = false;
 	bUpgradeUIOpen = false;
 }

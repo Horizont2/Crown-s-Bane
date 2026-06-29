@@ -11,6 +11,7 @@
 #include "Systems/WindSystem.h"
 #include "Player/CrownsBanePlayerController.h"
 #include "Player/ShipProgressionComponent.h"
+#include "Audio/SoundManager.h"
 #include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
@@ -193,6 +194,10 @@ void ACannonball::OnHit(UPrimitiveComponent* HitComponent, AActor* OtherActor,
 					if (ACrownsBanePlayerController* CBPC = Cast<ACrownsBanePlayerController>(PC))
 					{
 						if (CBPC->Progression) CBPC->Progression->AwardXP(bCrit ? 10 : 5);
+						if (CBPC->SoundManager)
+						{
+							CBPC->SoundManager->PlayAtLocation(ESoundCue::Impact, ImpactLoc, 1.0f);
+						}
 					}
 				}
 				// Hit-stop on confirmed ship hits only (skip water hits).
