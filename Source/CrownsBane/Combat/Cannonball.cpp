@@ -6,6 +6,7 @@
 #include "GameFramework/ProjectileMovementComponent.h"
 #include "Components/HealthComponent.h"
 #include "Ship/ShipPawn.h"
+#include "AI/EnemyShipBase.h"
 #include "UI/CrownsBaneHUD.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
@@ -93,14 +94,37 @@ void ACannonball::OnHit(UPrimitiveComponent* HitComponent, AActor* OtherActor,
 
 	AController* InstCtrl = OwnerInstigator ? OwnerInstigator->GetInstigatorController() : nullptr;
 
+	// Critical-hit roll: 15% baseline, +5% if hit Z is above target's mid-line
+	// (a high impact = mast/rigging hit, more likely to dismount something).
+	const FVector OtherCenter = OtherActor->GetActorLocation();
+	const bool bHighHit = (ImpactLoc.Z - OtherCenter.Z) > 50.0f;
+	const float CritChance = bHighHit ? 0.20f : 0.15f;
+	const bool bCrit = FMath::FRand() < CritChance;
+	const float FinalDamage = CannonballData.BaseDamage * (bCrit ? 2.0f : 1.0f);
+
 	// Direct hit damage.
 	UGameplayStatics::ApplyDamage(
 		OtherActor,
-		CannonballData.BaseDamage,
+		FinalDamage,
 		InstCtrl,
 		this,
 		UDamageType::StaticClass()
 	);
+
+	// Knockback: small impulse along the cannonball's velocity direction, scaled
+	// by damage.  Skips the player ship (we don't want the player getting
+	// punted around their own collision body).
+	const bool bHitShipForKB = OtherActor->IsA(AShipPawn::StaticClass()) ||
+		OtherActor->IsA(AEnemyShipBase::StaticClass());
+	if (bHitShipForKB && OtherActor != OwnerInstigator)
+	{
+		const FVector Dir = GetVelocity().GetSafeNormal2D();
+		if (!Dir.IsZero())
+		{
+			const float KBStrength = FinalDamage * 8.0f;
+			OtherActor->AddActorWorldOffset(Dir * KBStrength * 0.01f, false);
+		}
+	}
 
 	// Apply chain shot slow effect
 	if (CannonballData.Type == ECannonballType::Chain)
@@ -138,8 +162,8 @@ void ACannonball::OnHit(UPrimitiveComponent* HitComponent, AActor* OtherActor,
 			{
 				if (ACrownsBaneHUD* HUD = Cast<ACrownsBaneHUD>(PC->GetHUD()))
 				{
-					HUD->AddFloatingDamage(ImpactLoc, CannonballData.BaseDamage, bHitShip);
-					HUD->TriggerHitMarker(bHitShip);
+					HUD->AddFloatingDamage(ImpactLoc, FinalDamage, bHitShip);
+					HUD->TriggerHitMarker(bHitShip && bCrit ? true : bHitShip);
 				}
 			}
 		}
