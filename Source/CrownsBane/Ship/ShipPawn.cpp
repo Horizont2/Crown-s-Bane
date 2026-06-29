@@ -26,6 +26,10 @@
 #include "UI/CrownsBaneHUD.h"
 #include "AI/EnemyShipBase.h"
 #include "EngineUtils.h"
+#include "Docks/DocksZone.h"
+#include "Player/PlayerInventory.h"
+#include "Loot/ResourceTypes.h"
+#include "Combat/Cannonball.h"
 #include "Engine/DamageEvents.h"
 
 AShipPawn::AShipPawn()
@@ -350,6 +354,19 @@ float AShipPawn::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent,
 	const float BraceMul = bBracing ? (1.0f - BraceDamageReduction) : 1.0f;
 	const float MitigatedDamage = DamageAmount * (1.0f - ArmorReduction) * BraceMul;
 	float Actual = Super::TakeDamage(MitigatedDamage, DamageEvent, EventInstigator, DamageCauser);
+
+	// Sail damage: Heavy / Explosive shots tear into the rigging.
+	if (DamageCauser)
+	{
+		if (ACannonball* Ball = Cast<ACannonball>(DamageCauser))
+		{
+			if (Ball->CannonballData.Type == ECannonballType::Heavy ||
+			    Ball->CannonballData.Type == ECannonballType::Explosive)
+			{
+				SailIntegrity = FMath::Clamp(SailIntegrity - SailDamagePerHeavyHit, 0.10f, 1.0f);
+			}
+		}
+	}
 
 	// Damage-direction marker for HUD.
 	if (MitigatedDamage > 0.0f && DamageCauser)
@@ -838,7 +855,9 @@ float AShipPawn::GetTargetSpeed() const
 	}
 
 	float Penalty = FMath::Clamp(1.0f - SpeedPenaltyFraction, 0.0f, 1.0f);
-	return MaxSpeed * SailMult * Penalty * GetWindMultiplier();
+	// Sail integrity caps max speed — torn sails can't pull as much.
+	const float SailMul = FMath::Clamp(SailIntegrity, 0.1f, 1.0f);
+	return MaxSpeed * SailMult * Penalty * SailMul * GetWindMultiplier();
 }
 
 float AShipPawn::GetWindMultiplier() const
@@ -994,5 +1013,77 @@ void AShipPawn::TickSinking(float DeltaTime)
 		{
 			UGameplayStatics::SetGlobalTimeDilation(W, 1.0f);
 		}
+		RespawnAtLastDock();
+	}
+}
+
+void AShipPawn::RespawnAtLastDock()
+{
+	UWorld* W = GetWorld();
+	if (!W) return;
+
+	// Find nearest dock as fallback respawn point.
+	ADocksZone* NearestDock = nullptr;
+	float BestD2 = TNumericLimits<float>::Max();
+	for (TActorIterator<ADocksZone> It(W); It; ++It)
+	{
+		ADocksZone* D = *It;
+		if (!D) continue;
+		const float D2 = FVector::DistSquared(GetActorLocation(), D->GetActorLocation());
+		if (D2 < BestD2) { BestD2 = D2; NearestDock = D; }
+	}
+	if (!NearestDock)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[ShipPawn] Respawn: no DocksZone found — staying put."));
+		// Restore mesh transform at least.
+		if (ShipMesh) { ShipMesh->SetRelativeLocation(FVector::ZeroVector); ShipMesh->SetRelativeRotation(FRotator::ZeroRotator); }
+		if (HealthComponent) HealthComponent->Heal(HealthComponent->GetMaxHealth());
+		LastSeenHealth = HealthComponent ? HealthComponent->GetCurrentHealth() : -1.f;
+		SailIntegrity = 1.0f;
+		return;
+	}
+
+	// Despawn enemies in radius around the dock so we don't immediately die again.
+	const FVector DockLoc = NearestDock->GetActorLocation();
+	const float R2 = RespawnEnemyDespawnRadius * RespawnEnemyDespawnRadius;
+	for (TActorIterator<AEnemyShipBase> It(W); It; ++It)
+	{
+		AEnemyShipBase* E = *It;
+		if (E && FVector::DistSquared(E->GetActorLocation(), DockLoc) < R2)
+		{
+			E->Destroy();
+		}
+	}
+
+	// Gold penalty.
+	if (ACrownsBanePlayerController* PC = Cast<ACrownsBanePlayerController>(GetController()))
+	{
+		if (UPlayerInventory* Inv = PC->PlayerInventory)
+		{
+			const int32 Lost = FMath::FloorToInt(Inv->GetGold() * DeathGoldPenaltyFraction);
+			Inv->SpendResource(EResourceType::Gold, Lost);
+			if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 6.f, FColor::Red,
+				FString::Printf(TEXT("Death penalty: -%d gold"), Lost));
+		}
+		// Banner.
+		if (ACrownsBaneHUD* HUD = Cast<ACrownsBaneHUD>(PC->GetHUD()))
+		{
+			HUD->ShowBanner(TEXT("YE LIVED, CAPTAIN"), TEXT("Respawned at port."),
+				FLinearColor(1.0f, 0.85f, 0.3f, 1.0f), 3.0f);
+		}
+	}
+
+	// Teleport ship to dock + heal + reset state.
+	SetActorLocation(DockLoc + FVector(0, 0, 60));
+	SetActorRotation(NearestDock->GetActorRotation());
+	if (HealthComponent) HealthComponent->Heal(HealthComponent->GetMaxHealth());
+	LastSeenHealth = HealthComponent ? HealthComponent->GetCurrentHealth() : -1.f;
+	SailIntegrity = 1.0f;
+	CurrentSpeed = 0.0f;
+	CurrentSailLevel = ESailLevel::Stop;
+	if (ShipMesh)
+	{
+		ShipMesh->SetRelativeLocation(FVector::ZeroVector);
+		ShipMesh->SetRelativeRotation(FRotator::ZeroRotator);
 	}
 }

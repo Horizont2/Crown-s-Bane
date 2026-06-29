@@ -15,6 +15,8 @@
 #include "UnrealClient.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Upgrades/UpgradeTypes.h"
+#include "Player/CrownsBaneSaveGame.h"
+#include "Player/PlayerInventory.h"
 
 ACrownsBanePlayerController::ACrownsBanePlayerController()
 {
@@ -257,3 +259,55 @@ void ACrownsBanePlayerController::StatBumpCannonballsFired(int32 N) { StatCannon
 void ACrownsBanePlayerController::StatBumpDamageDealt(float Dmg)    { StatDamageDealt += FMath::FloorToInt(Dmg); }
 void ACrownsBanePlayerController::StatBumpDamageTaken(float Dmg)    { StatDamageTaken += FMath::FloorToInt(Dmg); }
 void ACrownsBanePlayerController::StatBumpGoldEarned(int32 Amt)     { StatGoldEarned += Amt; }
+
+void ACrownsBanePlayerController::AutoSaveGame(FVector RespawnLoc, FRotator RespawnRot)
+{
+	UCrownsBaneSaveGame* SG = Cast<UCrownsBaneSaveGame>(
+		UGameplayStatics::CreateSaveGameObject(UCrownsBaneSaveGame::StaticClass()));
+	if (!SG) return;
+
+	if (PlayerInventory)
+	{
+		SG->Resources.Gold  = PlayerInventory->GetGold();
+		SG->Resources.Wood  = PlayerInventory->GetWood();
+		SG->Resources.Metal = PlayerInventory->GetMetal();
+		SG->Ammo            = PlayerInventory->GetAmmo();
+	}
+
+	SG->RespawnLocation = RespawnLoc;
+	SG->RespawnRotation = RespawnRot;
+	SG->TotalShipsSunk  = StatShipsSunk;
+	SG->StatPlayTimeSeconds = StatPlayTimeSeconds;
+
+	UGameplayStatics::SaveGameToSlot(SG, UCrownsBaneSaveGame::SlotName, UCrownsBaneSaveGame::UserIndex);
+	UE_LOG(LogTemp, Log, TEXT("[Save] Auto-saved at %s"), *RespawnLoc.ToString());
+}
+
+bool ACrownsBanePlayerController::LoadGameFromSlot()
+{
+	if (!UGameplayStatics::DoesSaveGameExist(UCrownsBaneSaveGame::SlotName, UCrownsBaneSaveGame::UserIndex))
+	{
+		return false;
+	}
+	UCrownsBaneSaveGame* SG = Cast<UCrownsBaneSaveGame>(
+		UGameplayStatics::LoadGameFromSlot(UCrownsBaneSaveGame::SlotName, UCrownsBaneSaveGame::UserIndex));
+	if (!SG) return false;
+
+	if (PlayerInventory)
+	{
+		PlayerInventory->Gold  = SG->Resources.Gold;
+		PlayerInventory->Wood  = SG->Resources.Wood;
+		PlayerInventory->Metal = SG->Resources.Metal;
+		PlayerInventory->CannonAmmo = SG->Ammo;
+	}
+	if (AShipPawn* Ship = GetShipPawn())
+	{
+		Ship->SetActorLocation(SG->RespawnLocation);
+		Ship->SetActorRotation(SG->RespawnRotation);
+		if (Ship->HealthComponent) Ship->HealthComponent->FullHeal();
+	}
+	StatShipsSunk = SG->TotalShipsSunk;
+	StatPlayTimeSeconds = SG->StatPlayTimeSeconds;
+	UE_LOG(LogTemp, Log, TEXT("[Save] Loaded slot."));
+	return true;
+}

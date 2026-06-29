@@ -46,4 +46,26 @@ public:
 
 	UPROPERTY(BlueprintReadWrite, Category = "Save")
 	float TotalGoldEarned = 0.0f;
+
+	// Last respawn point (set on dock entry).
+	UPROPERTY(BlueprintReadWrite, Category = "Save")
+	FVector RespawnLocation = FVector::ZeroVector;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Save")
+	FRotator RespawnRotation = FRotator::ZeroRotator;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Save")
+	int32 Ammo = 40;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Save")
+	int32 ShipLevel = 1;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Save")
+	int32 ShipXP = 0;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Save")
+	TArray<FString> UnlockedPerks;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Save")
+	float StatPlayTimeSeconds = 0.0f;
 };

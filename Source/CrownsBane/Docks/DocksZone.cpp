@@ -6,6 +6,8 @@
 #include "Components/HealthComponent.h"
 #include "Systems/WantedLevelManager.h"
 #include "Player/CrownsBanePlayerController.h"
+#include "Ship/ShipPawn.h"
+#include "UI/CrownsBaneHUD.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
@@ -54,6 +56,23 @@ void ADocksZone::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor
 	HealPlayer(OtherActor);
 	ResetWantedLevel();
 	NotifyPlayerController(true);
+
+	// Repair sails on dock entry.
+	if (AShipPawn* Ship = Cast<AShipPawn>(OtherActor))
+	{
+		Ship->SailIntegrity = FMath::Min(1.0f, Ship->SailIntegrity + Ship->SailRegenAtDock);
+	}
+
+	// Auto-save snapshot — and notify HUD.
+	APlayerController* PCNow = UGameplayStatics::GetPlayerController(GetWorld(), 0);
+	if (ACrownsBanePlayerController* CBPC = Cast<ACrownsBanePlayerController>(PCNow))
+	{
+		CBPC->AutoSaveGame(GetActorLocation(), GetActorRotation());
+		if (ACrownsBaneHUD* HUD = Cast<ACrownsBaneHUD>(CBPC->GetHUD()))
+		{
+			HUD->PushResourceToast(TEXT("✓ Game saved"), FLinearColor(0.4f, 1.0f, 0.5f, 1.0f));
+		}
+	}
 
 	OnPlayerEnterDocks.Broadcast();
 }

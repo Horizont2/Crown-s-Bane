@@ -131,6 +131,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Stats")  void StatBumpDamageTaken(float Dmg);
 	UFUNCTION(BlueprintCallable, Category = "Stats")  void StatBumpGoldEarned(int32 Amt);
 
+	UFUNCTION(BlueprintCallable, Category = "Save")
+	void AutoSaveGame(FVector RespawnLoc, FRotator RespawnRot);
+
+	UFUNCTION(BlueprintCallable, Category = "Save")
+	bool LoadGameFromSlot();
+
 private:
 
 	bool bUpgradeUIOpen = false;

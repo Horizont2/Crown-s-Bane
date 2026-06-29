@@ -461,6 +461,28 @@ private:
 	float SinkElapsed = 0.0f;
 	void TickSinking(float DeltaTime);
 
+	// Respawn at last dock with gold penalty.
+	void RespawnAtLastDock();
+
+public:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Death", meta=(ClampMin="0.0", ClampMax="1.0"))
+	float DeathGoldPenaltyFraction = 0.25f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Death")
+	float RespawnEnemyDespawnRadius = 4000.0f;
+
+	// Sails integrity 0..1 — Heavy/Explosive hits damage it; below 1.0 it
+	// linearly scales MaxSpeed.  Restored to 1.0 at docks.
+	UPROPERTY(BlueprintReadOnly, Category = "Combat|Sails")
+	float SailIntegrity = 1.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Sails")
+	float SailDamagePerHeavyHit = 0.15f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Sails")
+	float SailRegenAtDock = 1.0f;
+private:
+
 public:
 	// Tuneables for the death-sink sequence.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FX|Death")

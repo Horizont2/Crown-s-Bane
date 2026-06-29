@@ -246,6 +246,15 @@ void ACrownsBaneHUD::DrawHealthBar(AShipPawn* Ship)
 		: Ship->GetSailLevel() == ESailLevel::HalfSail ? TEXT("HALF SAIL") : TEXT("FULL SAIL");
 	DrawText(FString::Printf(TEXT("%.0f knots   |   %s"), Ship->GetCurrentSpeed() / 50.f, SailLabel),
 		FColor(180, 200, 220), BarX, BarY + HealthBarHeight + 6.f, nullptr, 0.85f, false);
+
+	// Sail integrity warning when torn.
+	if (Ship->SailIntegrity < 0.99f)
+	{
+		const FColor SailCol = (Ship->SailIntegrity < 0.5f) ? FColor(255, 120, 120) : FColor(255, 200, 100);
+		DrawText(FString::Printf(TEXT("SAILS  %.0f%%"), Ship->SailIntegrity * 100.f),
+			SailCol, BarX + HealthBarWidth - 90.f, BarY + HealthBarHeight + 6.f,
+			nullptr, 0.85f, false);
+	}
 }
 
 void ACrownsBaneHUD::DrawReloadTimers(UCannonComponent* Cannons)
