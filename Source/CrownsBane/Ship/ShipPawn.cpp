@@ -139,6 +139,7 @@ void AShipPawn::EnsureInputAssetsExist()
 	MakeIA(IA_QuestLog,    EInputActionValueType::Boolean, TEXT("IA_QuestLog_Auto"));
 	MakeIA(IA_Board,       EInputActionValueType::Boolean, TEXT("IA_Board_Auto"));
 	MakeIA(IA_Trader,      EInputActionValueType::Boolean, TEXT("IA_Trader_Auto"));
+	MakeIA(IA_LockOn,      EInputActionValueType::Boolean, TEXT("IA_LockOn_Auto"));
 
 	if (!ShipMappingContext)
 	{
@@ -158,6 +159,7 @@ void AShipPawn::EnsureInputAssetsExist()
 		ShipMappingContext->MapKey(IA_QuestLog,    EKeys::J);
 		ShipMappingContext->MapKey(IA_Board,       EKeys::F);
 		ShipMappingContext->MapKey(IA_Trader,      EKeys::T);
+		ShipMappingContext->MapKey(IA_LockOn,      EKeys::Tab);
 	}
 }
 
@@ -192,6 +194,7 @@ void AShipPawn::AddInputMappingContext()
 	if (IA_QuestLog)    Overlay->MapKey(IA_QuestLog,    EKeys::J);
 	if (IA_Board)       Overlay->MapKey(IA_Board,       EKeys::F);
 	if (IA_Trader)      Overlay->MapKey(IA_Trader,      EKeys::T);
+	if (IA_LockOn)      Overlay->MapKey(IA_LockOn,      EKeys::Tab);
 
 	Subsystem->AddMappingContext(Overlay, 0);
 }
@@ -264,6 +267,7 @@ void AShipPawn::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 		if (IA_QuestLog)    EIC->BindAction(IA_QuestLog,    ETriggerEvent::Started, this, &AShipPawn::Input_ToggleQuestLog);
 		if (IA_Board)       EIC->BindAction(IA_Board,       ETriggerEvent::Started, this, &AShipPawn::Input_Board);
 		if (IA_Trader)      EIC->BindAction(IA_Trader,      ETriggerEvent::Started, this, &AShipPawn::Input_Trader);
+		if (IA_LockOn)      EIC->BindAction(IA_LockOn,      ETriggerEvent::Started, this, &AShipPawn::Input_LockOn);
 
 		bEnhancedInputReady = true;
 	}
@@ -328,6 +332,45 @@ void AShipPawn::Input_Trader(const FInputActionValue&)
 	{
 		PC->ToggleTraderMenu();
 	}
+}
+
+void AShipPawn::Input_LockOn(const FInputActionValue&)
+{
+	CycleLockOnTarget();
+}
+
+void AShipPawn::CycleLockOnTarget()
+{
+	UWorld* W = GetWorld();
+	if (!W) return;
+
+	// Collect every alive enemy within LockOnMaxRange, sorted by camera-relative yaw.
+	TArray<AEnemyShipBase*> Candidates;
+	const FVector MyLoc = GetActorLocation();
+	const float MaxR2 = LockOnMaxRange * LockOnMaxRange;
+	for (TActorIterator<AEnemyShipBase> It(W); It; ++It)
+	{
+		AEnemyShipBase* E = *It;
+		if (!E || !E->HealthComponent || !E->HealthComponent->IsAlive()) continue;
+		if (FVector::DistSquared(MyLoc, E->GetActorLocation()) > MaxR2) continue;
+		Candidates.Add(E);
+	}
+	if (Candidates.Num() == 0) { LockedTarget = nullptr; return; }
+
+	// Sort by clockwise yaw from camera forward so Tab cycles in a natural ring.
+	const FVector CamFwd = Camera ? Camera->GetForwardVector() : GetActorForwardVector();
+	Candidates.Sort([this, &MyLoc, &CamFwd](const AEnemyShipBase& A, const AEnemyShipBase& B)
+	{
+		const FVector DA = (A.GetActorLocation() - MyLoc).GetSafeNormal2D();
+		const FVector DB = (B.GetActorLocation() - MyLoc).GetSafeNormal2D();
+		const float AA = FMath::Atan2(FVector::CrossProduct(CamFwd, DA).Z, FVector::DotProduct(CamFwd, DA));
+		const float AB = FMath::Atan2(FVector::CrossProduct(CamFwd, DB).Z, FVector::DotProduct(CamFwd, DB));
+		return AA < AB;
+	});
+
+	// Find current locked target in list and advance by one; if not present, lock first.
+	int32 Idx = Candidates.IndexOfByKey(LockedTarget);
+	LockedTarget = Candidates[(Idx + 1) % Candidates.Num()];
 }
 
 void AShipPawn::UpdateBoardingTarget()

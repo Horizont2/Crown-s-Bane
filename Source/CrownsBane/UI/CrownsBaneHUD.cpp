@@ -145,7 +145,12 @@ void ACrownsBaneHUD::DrawHUD()
 		DrawDocksPrompt();
 	}
 
-	if (Ship) DrawBoardingPrompt(Ship);
+	if (Ship)
+	{
+		DrawBoardingPrompt(Ship);
+		DrawLockOnReticle(Ship);
+		DrawLeadIndicator(Ship);
+	}
 }
 
 void ACrownsBaneHUD::DrawTextWithShadow(const FString& Text, FColor TextColor, float X, float Y, UFont* Font, float Scale)
@@ -1397,4 +1402,82 @@ void ACrownsBaneHUD::DrawTraderMenu(ACrownsBanePlayerController* PC, UPlayerInve
 
 	DrawText(TEXT("Trader operates only while inside a Docks Zone."),
 		FColor(160, 160, 160), PX + 18.f, PY + PH - 28.f, nullptr, 0.9f, false);
+}
+
+// -------- LOCK-ON RETICLE --------
+
+void ACrownsBaneHUD::DrawLockOnReticle(AShipPawn* Ship)
+{
+	if (!Ship || !Ship->LockedTarget || !Canvas) return;
+	AEnemyShipBase* T = Ship->LockedTarget;
+	if (!T->HealthComponent || !T->HealthComponent->IsAlive()) return;
+
+	FVector2D ScreenPos;
+	if (!Project(T->GetActorLocation(), ScreenPos)) return;
+
+	const float R = 40.f;
+	const FLinearColor Tint(1.0f, 0.25f, 0.25f, 0.95f);
+
+	// 4 corner brackets around the target
+	const float L = 10.f;
+	const float Th = 3.f;
+	// TL
+	DrawFilledRect(ScreenPos.X - R,        ScreenPos.Y - R,        L, Th, Tint);
+	DrawFilledRect(ScreenPos.X - R,        ScreenPos.Y - R,        Th, L, Tint);
+	// TR
+	DrawFilledRect(ScreenPos.X + R - L,    ScreenPos.Y - R,        L, Th, Tint);
+	DrawFilledRect(ScreenPos.X + R - Th,   ScreenPos.Y - R,        Th, L, Tint);
+	// BL
+	DrawFilledRect(ScreenPos.X - R,        ScreenPos.Y + R - Th,   L, Th, Tint);
+	DrawFilledRect(ScreenPos.X - R,        ScreenPos.Y + R - L,    Th, L, Tint);
+	// BR
+	DrawFilledRect(ScreenPos.X + R - L,    ScreenPos.Y + R - Th,   L, Th, Tint);
+	DrawFilledRect(ScreenPos.X + R - Th,   ScreenPos.Y + R - L,    Th, L, Tint);
+
+	// Distance label
+	const float Dist = FVector::Dist(Ship->GetActorLocation(), T->GetActorLocation()) * 0.01f;
+	DrawText(FString::Printf(TEXT("LOCK  %.0fm"), Dist),
+		FColor(255, 120, 120), ScreenPos.X - R, ScreenPos.Y + R + 4.f, nullptr, 0.95f, false);
+}
+
+// -------- LEAD INDICATOR (predicted impact point for moving target) --------
+
+void ACrownsBaneHUD::DrawLeadIndicator(AShipPawn* Ship)
+{
+	if (!Ship || !Ship->LockedTarget || !Ship->CannonComponent || !Canvas) return;
+	AEnemyShipBase* T = Ship->LockedTarget;
+	if (!T->HealthComponent || !T->HealthComponent->IsAlive()) return;
+
+	// Estimate time-of-flight: distance / initial cannonball speed.  Good enough
+	// for an aim assist that doesn't lie when the target stands still.
+	const FVector ShipLoc   = Ship->GetActorLocation();
+	const FVector TargetLoc = T->GetActorLocation();
+	const float   Dist      = FVector::Dist(ShipLoc, TargetLoc);
+	const float   ProjSpeed = 3000.0f;
+	const float   TOF       = Dist / FMath::Max(1.0f, ProjSpeed);
+
+	// Predicted velocity = current actor velocity (works for AI ships using AddActorWorldOffset).
+	const FVector TargetVel = T->GetVelocity();
+	const FVector PredictedLoc = TargetLoc + TargetVel * TOF;
+
+	FVector2D ScreenPos;
+	if (!Project(PredictedLoc, ScreenPos)) return;
+
+	// Crosshair color reflects whether the predicted impact is within cannon range.
+	const float Range  = Ship->CannonComponent->MaxRange;
+	const float PredD  = FVector::Dist(ShipLoc, PredictedLoc);
+	const float RatioR = PredD / FMath::Max(100.0f, Range);
+	const FLinearColor Tint =
+		(RatioR <= 0.6f)  ? FLinearColor(0.2f, 1.0f, 0.3f, 0.95f) :   // green: comfortable range
+		(RatioR <= 1.0f)  ? FLinearColor(1.0f, 0.85f, 0.2f, 0.95f) :  // yellow: edge of range
+		                    FLinearColor(1.0f, 0.25f, 0.25f, 0.9f);   // red: out of range
+
+	// Diamond marker at predicted impact: 4 small rectangles forming a rotated square.
+	const float S = 6.f;
+	DrawFilledRect(ScreenPos.X - S, ScreenPos.Y - 1.f, S * 2.f, 2.f, Tint);
+	DrawFilledRect(ScreenPos.X - 1.f, ScreenPos.Y - S, 2.f, S * 2.f, Tint);
+
+	// Range readout
+	DrawText(FString::Printf(TEXT("%.0fm"), PredD * 0.01f),
+		Tint.ToFColor(true), ScreenPos.X + 10.f, ScreenPos.Y - 8.f, nullptr, 0.85f, false);
 }

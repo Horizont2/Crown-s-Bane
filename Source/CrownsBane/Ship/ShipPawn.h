@@ -157,6 +157,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	UInputAction* IA_Trader;
 
+	// Cycle lock-on target (Tab key).
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	UInputAction* IA_LockOn;
+
 	// ---- Boarding ----
 	// Enemy HP fraction at or below which the ship becomes boardable.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Boarding", meta=(ClampMin="0.05", ClampMax="0.5"))
@@ -173,6 +177,19 @@ public:
 	// Cached: the enemy currently in boarding range, or null.  HUD reads this to draw the prompt.
 	UPROPERTY(BlueprintReadOnly, Category = "Combat|Boarding")
 	class AEnemyShipBase* CurrentBoardingTarget = nullptr;
+
+	// ---- Lock-on target (Tab cycles between visible enemies) ----
+	UPROPERTY(BlueprintReadOnly, Category = "Combat|LockOn")
+	class AEnemyShipBase* LockedTarget = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|LockOn")
+	float LockOnMaxRange = 9000.0f;
+
+	UFUNCTION(BlueprintCallable, Category = "Combat|LockOn")
+	void CycleLockOnTarget();
+
+	UFUNCTION(BlueprintCallable, Category = "Combat|LockOn")
+	void ClearLockOn() { LockedTarget = nullptr; }
 
 	// ---- Camera & Aiming ----
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera")
@@ -302,6 +319,7 @@ protected:
 	void Input_ToggleQuestLog(const FInputActionValue& Value);
 	void Input_Board(const FInputActionValue& Value);
 	void Input_Trader(const FInputActionValue& Value);
+	void Input_LockOn(const FInputActionValue& Value);
 
 	void UpdateBoardingTarget();
 	void ExecuteBoarding();
