@@ -1110,7 +1110,7 @@ void ACrownsBaneHUD::DrawActiveQuestTracker(ATreasureQuestManager* Mgr, AShipPaw
 	const float Y = Canvas->ClipY - H - 200.f; // sits above the wind/storm panels
 
 	DrawFilledRect(X, Y, W, H, FLinearColor(0.05f, 0.05f, 0.08f, 0.72f));
-	DrawBorderedRect(X, Y, W, H, FLinearColor::Transparent, FLinearColor(1.0f, 0.85f, 0.3f, 0.9f), 1.5f);
+	DrawBorderedRect(X, Y, W, H, FLinearColor(0,0,0,0), FLinearColor(1.0f, 0.85f, 0.3f, 0.9f), 1.5f);
 
 	const FColor Title(255, 220, 110);
 	const FColor Body(220, 220, 220);
@@ -1146,7 +1146,7 @@ void ACrownsBaneHUD::DrawQuestLog(ATreasureQuestManager* Mgr, AShipPawn* Ship)
 	// Background dimmer for the full screen behind the panel
 	DrawFilledRect(0, 0, SW, SH, FLinearColor(0.0f, 0.0f, 0.0f, 0.45f));
 	DrawFilledRect(PanelX, PanelY, PanelW, PanelH, FLinearColor(0.06f, 0.05f, 0.04f, 0.92f));
-	DrawBorderedRect(PanelX, PanelY, PanelW, PanelH, FLinearColor::Transparent,
+	DrawBorderedRect(PanelX, PanelY, PanelW, PanelH, FLinearColor(0,0,0,0),
 		FLinearColor(0.9f, 0.75f, 0.35f, 1.0f), 2.0f);
 
 	DrawText(TEXT("✦  QUEST LOG  ✦"), FColor(255, 230, 140), PanelX + 16.f, PanelY + 12.f, nullptr, 1.4f, false);
@@ -1221,7 +1221,7 @@ void ACrownsBaneHUD::DrawUpgradeMenu(ACrownsBanePlayerController* PC, AUpgradeMa
 	const float PanelY = (SH - PanelH) * 0.5f;
 
 	DrawFilledRect(PanelX, PanelY, PanelW, PanelH, FLinearColor(0.05f, 0.06f, 0.08f, 0.95f));
-	DrawBorderedRect(PanelX, PanelY, PanelW, PanelH, FLinearColor::Transparent,
+	DrawBorderedRect(PanelX, PanelY, PanelW, PanelH, FLinearColor(0,0,0,0),
 		FLinearColor(0.8f, 0.6f, 0.2f, 1.0f), 2.5f);
 
 	DrawText(TEXT("⚒  SHIPWRIGHT  ⚒"), FColor(255, 220, 100), PanelX + 18.f, PanelY + 12.f, nullptr, 1.5f, false);
