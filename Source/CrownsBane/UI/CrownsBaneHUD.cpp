@@ -829,18 +829,37 @@ void ACrownsBaneHUD::DrawAmmoCounter(UPlayerInventory* Inventory)
 
 void ACrownsBaneHUD::DrawDocksPrompt()
 {
-	float ScreenW = Canvas->ClipX;
-	float ScreenH = Canvas->ClipY;
+	const float SW = Canvas->ClipX;
+	const float SH = Canvas->ClipY;
 
-	FString PromptLine1 = TEXT("=== DOCKS ===");
-	FString PromptLine2 = TEXT("Ship repaired! Press [U] to upgrade.");
+	// Pull dock context from the player's controller if available.
+	FString DockTitle = TEXT("DOCKED");
+	FLinearColor TitleTint = CrownStyle::AccentGold;
+	if (APlayerController* RawPC = GetOwningPlayerController())
+	{
+		if (ACrownsBanePlayerController* CBPC = Cast<ACrownsBanePlayerController>(RawPC))
+		{
+			if (CBPC->CurrentDocksZone)
+			{
+				const ADocksZone* DZ = CBPC->CurrentDocksZone;
+				const TCHAR* T = (DZ->DockType == EDockType::Naval) ? TEXT("NAVAL")
+					: (DZ->DockType == EDockType::PirateHaven) ? TEXT("PIRATE HAVEN") : TEXT("MERCHANT PORT");
+				DockTitle = FString::Printf(TEXT("%s — %s"), T, *DZ->DockName);
+				TitleTint = (DZ->DockType == EDockType::Naval) ? FLinearColor(0.5f, 0.7f, 1.0f, 1.0f)
+					: (DZ->DockType == EDockType::PirateHaven) ? FLinearColor(1.0f, 0.5f, 0.3f, 1.0f) : CrownStyle::AccentGold;
+			}
+		}
+	}
 
-	float TextX = ScreenW * 0.5f - 150.0f;
-	float TextY = ScreenH * 0.3f;
+	const float W = 360.f;
+	const float H = 76.f;
+	const float X = (SW - W) * 0.5f;
+	const float Y = SH * 0.30f;
+	DrawPanel(X, Y, W, H, (uint8)CrownStyle::EPanelStyle::Highlight);
 
-	DrawFilledRect(TextX - 10, TextY - 10, 320.0f, 60.0f, FLinearColor(0.0f, 0.0f, 0.0f, 0.7f));
-	DrawText(PromptLine1, FColor::Yellow, TextX, TextY, nullptr, 1.2f, false);
-	DrawText(PromptLine2, FColor::White, TextX, TextY + 28.0f, nullptr, 0.9f, false);
+	DrawText(DockTitle, TitleTint.ToFColor(true), X + CrownStyle::Sp3, Y + 8.f, nullptr, 1.3f, false);
+	DrawText(TEXT("[U] Upgrades    [T] Trader    [J] Quest log"),
+		CrownStyle::TextPrimary, X + CrownStyle::Sp3, Y + 42.f, nullptr, 0.95f, false);
 }
 
 // ---- Helper draw primitives ----
@@ -1551,55 +1570,89 @@ void ACrownsBaneHUD::DrawTraderMenu(ACrownsBanePlayerController* PC, UPlayerInve
 
 	const float SW = Canvas->ClipX;
 	const float SH = Canvas->ClipY;
-	DrawFilledRect(0, 0, SW, SH, FLinearColor(0.0f, 0.0f, 0.0f, 0.55f));
+	DrawFilledRect(0, 0, SW, SH, FLinearColor(0.0f, 0.0f, 0.0f, 0.60f));
 
-	const float PW = FMath::Min(680.f, SW * 0.6f);
-	const float PH = FMath::Min(500.f, SH * 0.7f);
+	const float PW = FMath::Min(740.f, SW * 0.65f);
+	const float PH = FMath::Min(560.f, SH * 0.75f);
 	const float PX = (SW - PW) * 0.5f;
 	const float PY = (SH - PH) * 0.5f;
 
-	DrawFilledRect(PX, PY, PW, PH, FLinearColor(0.06f, 0.05f, 0.04f, 0.95f));
-	DrawBorderedRect(PX, PY, PW, PH, FLinearColor(0,0,0,0), FLinearColor(0.6f, 0.85f, 0.4f, 1.0f), 2.5f);
+	DrawPanel(PX, PY, PW, PH, (uint8)CrownStyle::EPanelStyle::Highlight);
 
-	DrawText(TEXT("⚓  TRADER  ⚓"), FColor(180, 255, 160), PX + 18.f, PY + 12.f, nullptr, 1.4f, false);
-	DrawText(TEXT("Press T to close   |   Number keys 1-6 to trade"),
-		FColor(180, 180, 180), PX + 18.f, PY + 44.f, nullptr, 0.95f, false);
+	// Dock context — type + name + price multipliers.
+	EDockType DType = EDockType::Merchant;
+	FString DName = TEXT("");
+	if (PC->CurrentDocksZone)
+	{
+		DType = PC->CurrentDocksZone->DockType;
+		DName = PC->CurrentDocksZone->DockName;
+	}
+	const TCHAR* TypeStr = (DType == EDockType::Naval) ? TEXT("NAVAL")
+		: (DType == EDockType::PirateHaven) ? TEXT("PIRATE") : TEXT("MERCHANT");
+	const FLinearColor TypeTint = (DType == EDockType::Naval)
+		? FLinearColor(0.5f, 0.7f, 1.0f, 1.0f)
+		: (DType == EDockType::PirateHaven) ? FLinearColor(1.0f, 0.5f, 0.3f, 1.0f)
+		: CrownStyle::AccentGold;
+
+	DrawText(TEXT("⚓  TRADER"), FColor(180, 255, 160), PX + CrownStyle::Sp3, PY + 14.f, nullptr, 1.5f, false);
+	DrawText(FString::Printf(TEXT("%s  •  %s"), TypeStr, *DName), TypeTint.ToFColor(true),
+		PX + 180.f, PY + 22.f, nullptr, 1.05f, false);
+	DrawCaption(TEXT("T to close   |   1-6 to trade"), PX + CrownStyle::Sp3, PY + 52.f);
 
 	const FString InvLine = Inv
-		? FString::Printf(TEXT("Gold %d   Wood %d   Metal %d   Ammo %d/%d"),
+		? FString::Printf(TEXT("%d g    %d wood    %d metal    %d/%d ammo"),
 				Inv->GetGold(), Inv->GetWood(), Inv->GetMetal(),
 				Inv->GetAmmo(), Inv->GetMaxAmmo())
 		: TEXT("");
-	DrawText(InvLine, FColor(255, 215, 90), PX + PW - 380.f, PY + 44.f, nullptr, 0.9f, false);
+	DrawText(InvLine, FColor(255, 215, 90), PX + PW - 320.f, PY + 22.f, nullptr, 0.95f, false);
 
-	DrawFilledRect(PX + 16.f, PY + 72.f, PW - 32.f, 1.f, FLinearColor(0.6f, 0.5f, 0.25f, 0.7f));
+	DrawFilledRect(PX + CrownStyle::Sp3, PY + 80.f, PW - CrownStyle::Sp4, 1.f,
+		CrownStyle::AccentGold * FLinearColor(1,1,1,0.5f));
 
-	struct FRow { const TCHAR* Key; const TCHAR* Label; int32 Price; FColor PriceTint; };
+	// Compute effective prices for display.
+	const float BuyMul  = (DType == EDockType::PirateHaven) ? 0.70f : (DType == EDockType::Naval ? 1.20f : 1.00f);
+	const float SellMul = (DType == EDockType::Merchant)    ? 1.25f : (DType == EDockType::Naval ? 0.70f : 1.00f);
+	auto BuyPrice  = [&](int32 Base) { return FMath::Max(1, FMath::RoundToInt(Base * BuyMul)); };
+	auto SellPayout = [&](int32 Base) { return FMath::Max(1, FMath::RoundToInt(Base * SellMul)); };
+
+	struct FRow { const TCHAR* Key; const TCHAR* Label; const TCHAR* Desc; int32 Price; bool bSell; };
 	const FRow Rows[] = {
-		{ TEXT("[1]"), TEXT("Buy +10 ammo"),  PC->BuyAmmoPrice,   FColor(230, 230, 160) },
-		{ TEXT("[2]"), TEXT("Buy +10 wood"),  PC->BuyWoodPrice,   FColor(230, 230, 160) },
-		{ TEXT("[3]"), TEXT("Buy +5 metal"),  PC->BuyMetalPrice,  FColor(230, 230, 160) },
-		{ TEXT("[4]"), TEXT("Sell 10 wood"),  PC->SellWoodPrice,  FColor(160, 230, 160) },
-		{ TEXT("[5]"), TEXT("Sell 5 metal"),  PC->SellMetalPrice, FColor(160, 230, 160) },
-		{ TEXT("[6]"), TEXT("Full repair"),   PC->HealCost,       FColor(160, 200, 255) },
+		{ TEXT("1"), TEXT("Buy ammo"),    TEXT("+10 cannonballs"),   BuyPrice(PC->BuyAmmoPrice),   false },
+		{ TEXT("2"), TEXT("Buy wood"),    TEXT("+10 wood for repair"), BuyPrice(PC->BuyWoodPrice),  false },
+		{ TEXT("3"), TEXT("Buy metal"),   TEXT("+5 metal for armor"),  BuyPrice(PC->BuyMetalPrice), false },
+		{ TEXT("4"), TEXT("Sell wood"),   TEXT("Trade 10 wood"),      SellPayout(PC->SellWoodPrice), true },
+		{ TEXT("5"), TEXT("Sell metal"),  TEXT("Trade 5 metal"),      SellPayout(PC->SellMetalPrice), true },
+		{ TEXT("6"), TEXT("Full repair"), TEXT("Restore hull HP"),    BuyPrice(PC->HealCost),       false },
 	};
 
-	float Y = PY + 88.f;
-	const float RowH = 52.f;
+	float Y = PY + 96.f;
+	const float RowH = 62.f;
 	for (int32 i = 0; i < UE_ARRAY_COUNT(Rows); ++i)
 	{
 		const FRow& R = Rows[i];
-		DrawFilledRect(PX + 16.f, Y, PW - 32.f, RowH - 6.f, FLinearColor(0.10f, 0.10f, 0.05f, 0.55f));
-		DrawText(R.Key,   FColor(255, 220, 100), PX + 26.f, Y + 8.f, nullptr, 1.15f, false);
-		DrawText(R.Label, FColor(240, 240, 240), PX + 70.f, Y + 8.f, nullptr, 1.1f,  false);
-		const FString CostStr = FString::Printf(TEXT("%s%d g"),
-			(i < 3 || i == 5) ? TEXT("") : TEXT("+"), R.Price);
-		DrawText(CostStr, R.PriceTint, PX + PW - 110.f, Y + 8.f, nullptr, 1.05f, false);
+		DrawFilledRect(PX + CrownStyle::Sp3, Y, PW - CrownStyle::Sp4, RowH - 8.f,
+			FLinearColor(0.08f, 0.08f, 0.04f, 0.65f));
+
+		// Number badge
+		DrawFilledRect(PX + 24.f, Y + 8.f, 32.f, 32.f, CrownStyle::AccentGold * FLinearColor(1,1,1,0.8f));
+		DrawText(R.Key, FColor(20, 20, 10), PX + 35.f, Y + 12.f, nullptr, 1.25f, false);
+
+		DrawText(R.Label, CrownStyle::TextPrimary, PX + 70.f, Y + 6.f, nullptr, 1.15f, false);
+		DrawText(R.Desc,  CrownStyle::TextDim,     PX + 70.f, Y + 28.f, nullptr, 0.9f, false);
+
+		const FString CostStr = R.bSell
+			? FString::Printf(TEXT("+%d g"), R.Price)
+			: FString::Printf(TEXT("%d g"),  R.Price);
+		const FColor PriceCol = R.bSell ? FColor(140, 230, 150) : FColor(255, 220, 140);
+		DrawText(CostStr, PriceCol, PX + PW - 110.f, Y + 14.f, nullptr, 1.25f, false);
+
 		Y += RowH;
 	}
 
-	DrawText(TEXT("Trader operates only while inside a Docks Zone."),
-		FColor(160, 160, 160), PX + 18.f, PY + PH - 28.f, nullptr, 0.9f, false);
+	const FString Hint = (DType == EDockType::Merchant)    ? TEXT("Best sell rates here.")
+		: (DType == EDockType::PirateHaven) ? TEXT("Discount on goods, but pirate shipwrights overcharge upgrades.")
+		: TEXT("Naval port — premium prices, no questions asked.");
+	DrawCaption(Hint, PX + CrownStyle::Sp3, PY + PH - 28.f);
 }
 
 // -------- LOCK-ON RETICLE --------
