@@ -224,6 +224,20 @@ void AShipPawn::Tick(float DeltaTime)
 	UpdateMovement(DeltaTime);
 	UpdateBoardingTarget();
 
+	// Boarding QTE countdown.  Real-time DeltaTime (not dilated) preferred but
+	// regular DeltaTime is fine because the player can re-board on failure.
+	if (bBoardingActive)
+	{
+		BoardingQTETimeRemaining -= DeltaTime;
+		if (BoardingQTETimeRemaining <= 0.0f)
+		{
+			bBoardingActive = false;
+			BoardingQTETarget = nullptr;
+			if (GEngine) GEngine->AddOnScreenDebugMessage(8888, 2.5f, FColor::Red,
+				TEXT("BOARDING FAILED — crew retreated."));
+		}
+	}
+
 	if (!FMath::IsNearlyZero(TurnInputValue))
 	{
 		float SpeedFraction = MaxSpeed > 0.0f ? CurrentSpeed / MaxSpeed : 0.0f;
@@ -401,20 +415,43 @@ void AShipPawn::UpdateBoardingTarget()
 
 void AShipPawn::ExecuteBoarding()
 {
+	if (bBoardingActive) return;                             // already in QTE
 	if (!CurrentBoardingTarget || !CurrentBoardingTarget->HealthComponent) return;
 
-	// Sink the target immediately — boarding instantly subdues a crippled crew.
-	const float Damage = CurrentBoardingTarget->HealthComponent->GetCurrentHealth() + 1.0f;
-	FDamageEvent DmgEvent;
-	CurrentBoardingTarget->TakeDamage(Damage, DmgEvent, GetController(), this);
-
+	// Start the QTE — player must mash SPACE before the timer runs out.
+	bBoardingActive = true;
+	BoardingQTETarget = CurrentBoardingTarget;
+	BoardingQTEHits = 0;
+	BoardingQTETimeRemaining = BoardingQTEDuration;
 	if (GEngine && bShowDebugOnScreen)
 	{
-		GEngine->AddOnScreenDebugMessage(-1, 2.5f, FColor::Yellow,
-			FString::Printf(TEXT("BOARDED %s — loot x%.1f"), *CurrentBoardingTarget->GetName(), BoardingLootMultiplier));
+		GEngine->AddOnScreenDebugMessage(8888, 1.5f, FColor::Orange,
+			TEXT("BOARDING — mash SPACE to subdue the crew!"));
 	}
+}
 
-	CurrentBoardingTarget = nullptr;
+void AShipPawn::RegisterBoardingQTEPress()
+{
+	if (!bBoardingActive || !BoardingQTETarget) return;
+	BoardingQTEHits++;
+	if (BoardingQTEHits >= BoardingQTERequiredHits)
+	{
+		// SUCCESS — instant kill + loot multiplier.
+		if (BoardingQTETarget->HealthComponent)
+		{
+			const float Dmg = BoardingQTETarget->HealthComponent->GetCurrentHealth() + 1.0f;
+			FDamageEvent DmgEvent;
+			BoardingQTETarget->TakeDamage(Dmg, DmgEvent, GetController(), this);
+		}
+		if (GEngine)
+		{
+			GEngine->AddOnScreenDebugMessage(8888, 3.f, FColor::Green,
+				FString::Printf(TEXT("BOARDING WON — loot x%.1f"), BoardingLootMultiplier));
+		}
+		bBoardingActive = false;
+		BoardingQTETarget = nullptr;
+		CurrentBoardingTarget = nullptr;
+	}
 }
 
 bool AShipPawn::ConsumeActionCooldown(FName ActionTag, float CooldownSec)
@@ -499,6 +536,16 @@ void AShipPawn::PollRawInputFallback(float DeltaTime)
 {
 	APlayerController* PC = Cast<APlayerController>(GetController());
 	if (!PC) return;
+
+	// Boarding QTE — every fresh SpaceBar press counts as one mash.
+	{
+		const bool bSpaceNow = PC->IsInputKeyDown(EKeys::SpaceBar);
+		if (bBoardingActive && bSpaceNow && !bQTEPrevSpace)
+		{
+			RegisterBoardingQTEPress();
+		}
+		bQTEPrevSpace = bSpaceNow;
+	}
 
 	// Menu hotkeys (number row 1-7).  Active only while the relevant menu is
 	// open, so they never accidentally fire during sailing.

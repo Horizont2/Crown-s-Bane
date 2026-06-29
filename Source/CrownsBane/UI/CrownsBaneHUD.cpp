@@ -1324,13 +1324,42 @@ void ACrownsBaneHUD::DrawUpgradeMenu(ACrownsBanePlayerController* PC, AUpgradeMa
 		PanelX + 18.f, PanelY + PanelH - 30.f, nullptr, 0.9f, false);
 }
 
-// -------- BOARDING PROMPT --------
+// -------- BOARDING PROMPT + QTE --------
 void ACrownsBaneHUD::DrawBoardingPrompt(AShipPawn* Ship)
 {
-	if (!Ship || !Ship->CurrentBoardingTarget || !Canvas) return;
+	if (!Ship || !Canvas) return;
 
 	const float SW = Canvas->ClipX;
 	const float SH = Canvas->ClipY;
+
+	if (Ship->bBoardingActive)
+	{
+		const float BW = 460.f;
+		const float BH = 84.f;
+		const float BX = (SW - BW) * 0.5f;
+		const float BY = SH * 0.55f;
+
+		DrawFilledRect(BX, BY, BW, BH, FLinearColor(0.10f, 0.05f, 0.02f, 0.92f));
+		DrawBorderedRect(BX, BY, BW, BH, FLinearColor(0,0,0,0), FLinearColor(1.0f, 0.4f, 0.1f, 1.0f), 2.5f);
+		DrawText(TEXT("BOARDING — MASH [SPACE]"), FColor(255, 220, 100), BX + 18.f, BY + 8.f, nullptr, 1.25f, false);
+
+		const float HitFrac = (Ship->BoardingQTERequiredHits > 0)
+			? FMath::Clamp((float)Ship->BoardingQTEHits / (float)Ship->BoardingQTERequiredHits, 0.f, 1.f)
+			: 0.f;
+		const float BarX = BX + 18.f;
+		const float BarY = BY + 38.f;
+		const float BarW = BW - 36.f;
+		const float BarH = 14.f;
+		DrawFilledRect(BarX, BarY, BarW, BarH, FLinearColor(0.2f, 0.15f, 0.05f, 0.9f));
+		DrawFilledRect(BarX, BarY, BarW * HitFrac, BarH, FLinearColor(1.0f, 0.7f, 0.15f, 1.0f));
+		DrawText(FString::Printf(TEXT("%d / %d   |   %.1fs"),
+				Ship->BoardingQTEHits, Ship->BoardingQTERequiredHits,
+				FMath::Max(0.f, Ship->BoardingQTETimeRemaining)),
+			FColor(255, 230, 180), BarX, BarY + BarH + 4.f, nullptr, 0.9f, false);
+		return;
+	}
+
+	if (!Ship->CurrentBoardingTarget) return;
 
 	const float W = 320.f;
 	const float H = 64.f;
@@ -1339,7 +1368,6 @@ void ACrownsBaneHUD::DrawBoardingPrompt(AShipPawn* Ship)
 
 	DrawFilledRect(X, Y, W, H, FLinearColor(0.10f, 0.04f, 0.04f, 0.85f));
 	DrawBorderedRect(X, Y, W, H, FLinearColor(0,0,0,0), FLinearColor(1.0f, 0.55f, 0.1f, 1.0f), 2.0f);
-
 	DrawText(TEXT("[F] BOARD"), FColor(255, 200, 80), X + 22.f, Y + 8.f,  nullptr, 1.4f, false);
 	DrawText(TEXT("Enemy is crippled — board for bonus loot"),
 		FColor(220, 220, 220), X + 22.f, Y + 38.f, nullptr, 0.9f, false);

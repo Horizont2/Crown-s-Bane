@@ -178,6 +178,30 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "Combat|Boarding")
 	class AEnemyShipBase* CurrentBoardingTarget = nullptr;
 
+	// ---- Boarding QTE state ----
+	UPROPERTY(BlueprintReadOnly, Category = "Combat|Boarding|QTE")
+	bool bBoardingActive = false;
+
+	// Hits required to win the QTE (spacebar mashes).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Boarding|QTE")
+	int32 BoardingQTERequiredHits = 6;
+
+	// Time window before the QTE auto-fails.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Boarding|QTE")
+	float BoardingQTEDuration = 4.0f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Combat|Boarding|QTE")
+	int32 BoardingQTEHits = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Combat|Boarding|QTE")
+	float BoardingQTETimeRemaining = 0.0f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Combat|Boarding|QTE")
+	class AEnemyShipBase* BoardingQTETarget = nullptr;
+
+	// Press SPACE during a QTE to register a hit.
+	void RegisterBoardingQTEPress();
+
 	// ---- Lock-on target (Tab cycles between visible enemies) ----
 	UPROPERTY(BlueprintReadOnly, Category = "Combat|LockOn")
 	class AEnemyShipBase* LockedTarget = nullptr;
@@ -364,6 +388,7 @@ private:
 	bool bRawPrevQ = false;
 	bool bRawPrevE = false;
 	bool bRawPrevFire = false;
+	bool bQTEPrevSpace = false;
 
 	TMap<FName, float> ActionFireTimes;
 
