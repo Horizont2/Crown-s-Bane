@@ -349,4 +349,23 @@ private:
 	float LookPitchOffset = 0.0f;
 
 	float LastSeenHealth = -1.0f;
+
+	// Cinematic death-sink state.
+	bool bIsSinking = false;
+	float SinkElapsed = 0.0f;
+	void TickSinking(float DeltaTime);
+
+public:
+	// Tuneables for the death-sink sequence.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FX|Death")
+	float SinkDuration = 4.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FX|Death")
+	float SinkDepth = 800.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FX|Death")
+	float SinkPitchDegrees = -22.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FX|Death", meta=(ClampMin="0.1", ClampMax="1.0"))
+	float SinkTimeDilation = 0.5f;
 };

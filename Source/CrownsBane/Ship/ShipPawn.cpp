@@ -209,6 +209,12 @@ void AShipPawn::Tick(float DeltaTime)
 		}
 	}
 
+	if (bIsSinking)
+	{
+		TickSinking(DeltaTime);
+		return;
+	}
+
 	PollRawInputFallback(DeltaTime);
 	UpdateAiming(DeltaTime);
 	UpdateMovement(DeltaTime);
@@ -691,10 +697,46 @@ void AShipPawn::HandleDeath()
 	if (DamageFireFX)  DamageFireFX->Deactivate();
 	if (BowWakeFX)     BowWakeFX->Deactivate();
 
-	// Safety: reset aim/dilation so a death mid-aim doesn't leave the world in slo-mo.
 	bIsAiming = false;
+
+	// Kick off the cinematic sink: time slows, controls freeze, hull tips and
+	// descends.  Tick() now branches to TickSinking() until SinkDuration elapses.
+	bIsSinking = true;
+	SinkElapsed = 0.0f;
+	CurrentSpeed = 0.0f;
+	TurnInputValue = 0.0f;
 	if (UWorld* W = GetWorld())
 	{
-		UGameplayStatics::SetGlobalTimeDilation(W, 1.0f);
+		UGameplayStatics::SetGlobalTimeDilation(W, SinkTimeDilation);
+	}
+}
+
+void AShipPawn::TickSinking(float DeltaTime)
+{
+	SinkElapsed += DeltaTime;
+	const float T = FMath::Clamp(SinkElapsed / FMath::Max(0.1f, SinkDuration), 0.0f, 1.0f);
+
+	// Pitch nose-down and sink along Z over the duration; the mesh handles
+	// the visible motion so collision/root stays well-behaved.
+	if (ShipMesh)
+	{
+		FRotator R = ShipMesh->GetRelativeRotation();
+		R.Pitch = FMath::Lerp(0.0f, SinkPitchDegrees, T);
+		R.Roll  = FMath::Lerp(0.0f, -8.0f, T);
+		ShipMesh->SetRelativeRotation(R);
+
+		FVector L = ShipMesh->GetRelativeLocation();
+		L.Z = FMath::Lerp(0.0f, -SinkDepth, T);
+		ShipMesh->SetRelativeLocation(L);
+	}
+
+	// Restore time and stop ticking the sink once the animation completes.
+	if (T >= 1.0f)
+	{
+		bIsSinking = false;
+		if (UWorld* W = GetWorld())
+		{
+			UGameplayStatics::SetGlobalTimeDilation(W, 1.0f);
+		}
 	}
 }
