@@ -140,6 +140,8 @@ void AShipPawn::EnsureInputAssetsExist()
 	MakeIA(IA_Board,       EInputActionValueType::Boolean, TEXT("IA_Board_Auto"));
 	MakeIA(IA_Trader,      EInputActionValueType::Boolean, TEXT("IA_Trader_Auto"));
 	MakeIA(IA_LockOn,      EInputActionValueType::Boolean, TEXT("IA_LockOn_Auto"));
+	MakeIA(IA_Brace,       EInputActionValueType::Boolean, TEXT("IA_Brace_Auto"));
+	MakeIA(IA_DropAnchor,  EInputActionValueType::Boolean, TEXT("IA_DropAnchor_Auto"));
 
 	if (!ShipMappingContext)
 	{
@@ -160,6 +162,8 @@ void AShipPawn::EnsureInputAssetsExist()
 		ShipMappingContext->MapKey(IA_Board,       EKeys::F);
 		ShipMappingContext->MapKey(IA_Trader,      EKeys::T);
 		ShipMappingContext->MapKey(IA_LockOn,      EKeys::Tab);
+		ShipMappingContext->MapKey(IA_Brace,       EKeys::B);
+		ShipMappingContext->MapKey(IA_DropAnchor,  EKeys::V);
 	}
 }
 
@@ -195,6 +199,8 @@ void AShipPawn::AddInputMappingContext()
 	if (IA_Board)       Overlay->MapKey(IA_Board,       EKeys::F);
 	if (IA_Trader)      Overlay->MapKey(IA_Trader,      EKeys::T);
 	if (IA_LockOn)      Overlay->MapKey(IA_LockOn,      EKeys::Tab);
+	if (IA_Brace)       Overlay->MapKey(IA_Brace,       EKeys::B);
+	if (IA_DropAnchor)  Overlay->MapKey(IA_DropAnchor,  EKeys::V);
 
 	Subsystem->AddMappingContext(Overlay, 0);
 }
@@ -223,6 +229,39 @@ void AShipPawn::Tick(float DeltaTime)
 	UpdateAiming(DeltaTime);
 	UpdateMovement(DeltaTime);
 	UpdateBoardingTarget();
+
+	// While bracing, ship cannot fire (handled by gating in DoCameraAimFire below).
+
+	// Ramming check: if any enemy is within 500cm AND we're moving fast enough,
+	// apply mutual damage scaled by our speed.  RamCooldown prevents per-frame spam.
+	RamCooldown = FMath::Max(0.0f, RamCooldown - DeltaTime);
+	if (RamCooldown <= 0.0f && CurrentSpeed >= RamMinSpeedForDamage)
+	{
+		for (TActorIterator<AEnemyShipBase> It(GetWorld()); It; ++It)
+		{
+			AEnemyShipBase* E = *It;
+			if (!E || !E->HealthComponent || !E->HealthComponent->IsAlive()) continue;
+			const float D = FVector::Dist(GetActorLocation(), E->GetActorLocation());
+			if (D > 500.0f) continue;
+
+			const float RamDmg = CurrentSpeed * RamDamageScale;
+			FDamageEvent DmgEvent;
+			E->TakeDamage(RamDmg, DmgEvent, GetController(), this);
+			if (HealthComponent)
+			{
+				HealthComponent->TakeDamage(RamDmg * RamSelfDamageFraction);
+			}
+			// Push both ships apart so we don't immediately re-trigger.
+			const FVector Sep = (GetActorLocation() - E->GetActorLocation()).GetSafeNormal2D();
+			E->AddActorWorldOffset(-Sep * 200.0f, false);
+			AddActorWorldOffset(Sep * 100.0f, false);
+			CurrentSpeed *= 0.4f;
+			RamCooldown = 1.2f;
+			if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Red,
+				FString::Printf(TEXT("RAM! %.0f dmg / -%.0f self"), RamDmg, RamDmg * RamSelfDamageFraction));
+			break;
+		}
+	}
 
 	// Boarding QTE countdown.  Real-time DeltaTime (not dilated) preferred but
 	// regular DeltaTime is fine because the player can re-board on failure.
@@ -282,6 +321,13 @@ void AShipPawn::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 		if (IA_Board)       EIC->BindAction(IA_Board,       ETriggerEvent::Started, this, &AShipPawn::Input_Board);
 		if (IA_Trader)      EIC->BindAction(IA_Trader,      ETriggerEvent::Started, this, &AShipPawn::Input_Trader);
 		if (IA_LockOn)      EIC->BindAction(IA_LockOn,      ETriggerEvent::Started, this, &AShipPawn::Input_LockOn);
+		if (IA_Brace)
+		{
+			EIC->BindAction(IA_Brace, ETriggerEvent::Started,   this, &AShipPawn::Input_BraceStart);
+			EIC->BindAction(IA_Brace, ETriggerEvent::Completed, this, &AShipPawn::Input_BraceStop);
+			EIC->BindAction(IA_Brace, ETriggerEvent::Canceled,  this, &AShipPawn::Input_BraceStop);
+		}
+		if (IA_DropAnchor)  EIC->BindAction(IA_DropAnchor,  ETriggerEvent::Started, this, &AShipPawn::Input_DropAnchor);
 
 		bEnhancedInputReady = true;
 	}
@@ -293,7 +339,8 @@ void AShipPawn::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 
 float AShipPawn::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
 {
-	const float MitigatedDamage = DamageAmount * (1.0f - ArmorReduction);
+	const float BraceMul = bBracing ? (1.0f - BraceDamageReduction) : 1.0f;
+	const float MitigatedDamage = DamageAmount * (1.0f - ArmorReduction) * BraceMul;
 	float Actual = Super::TakeDamage(MitigatedDamage, DamageEvent, EventInstigator, DamageCauser);
 
 	if (MitigatedDamage > 0.0f && HitCameraShake)
@@ -351,6 +398,17 @@ void AShipPawn::Input_Trader(const FInputActionValue&)
 void AShipPawn::Input_LockOn(const FInputActionValue&)
 {
 	CycleLockOnTarget();
+}
+
+void AShipPawn::Input_BraceStart(const FInputActionValue&) { bBracing = true; }
+void AShipPawn::Input_BraceStop (const FInputActionValue&) { bBracing = false; }
+
+void AShipPawn::Input_DropAnchor(const FInputActionValue&)
+{
+	// Instant hard stop — speed, target speed, and sail level all snap to zero.
+	CurrentSpeed = 0.0f;
+	CurrentSailLevel = ESailLevel::Stop;
+	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.f, FColor::Cyan, TEXT("ANCHOR DROPPED"));
 }
 
 void AShipPawn::CycleLockOnTarget()
@@ -517,6 +575,7 @@ void AShipPawn::DoLook(const FVector2D& Delta)
 void AShipPawn::DoCameraAimFire()
 {
 	if (!CannonComponent || !Camera) return;
+	if (bBracing) return; // Brace blocks fire
 
 	if (bIsAiming)
 	{

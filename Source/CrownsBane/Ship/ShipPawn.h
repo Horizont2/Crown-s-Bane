@@ -161,6 +161,35 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	UInputAction* IA_LockOn;
 
+	// Brace for impact (B hold) — halves incoming damage but stops fire.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	UInputAction* IA_Brace;
+
+	// Drop anchor (V) — emergency hard stop.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	UInputAction* IA_DropAnchor;
+
+	// ---- Brace / Ramming ----
+	UPROPERTY(BlueprintReadOnly, Category = "Combat|Brace")
+	bool bBracing = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Brace", meta=(ClampMin="0.0", ClampMax="0.95"))
+	float BraceDamageReduction = 0.5f;
+
+	// Ram damage dealt to enemy per cm/s of contact speed.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Ram")
+	float RamDamageScale = 0.05f;
+
+	// Fraction of ram damage applied to self.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Ram")
+	float RamSelfDamageFraction = 0.4f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Ram")
+	float RamMinSpeedForDamage = 600.0f;
+
+	// Cooldown so ramming doesn't apply on every tick of overlap.
+	float RamCooldown = 0.0f;
+
 	// ---- Boarding ----
 	// Enemy HP fraction at or below which the ship becomes boardable.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Boarding", meta=(ClampMin="0.05", ClampMax="0.5"))
@@ -363,6 +392,9 @@ protected:
 	void Input_Board(const FInputActionValue& Value);
 	void Input_Trader(const FInputActionValue& Value);
 	void Input_LockOn(const FInputActionValue& Value);
+	void Input_BraceStart(const FInputActionValue& Value);
+	void Input_BraceStop(const FInputActionValue& Value);
+	void Input_DropAnchor(const FInputActionValue& Value);
 
 	void UpdateBoardingTarget();
 	void ExecuteBoarding();
