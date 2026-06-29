@@ -46,6 +46,14 @@ AShipPawn::AShipPawn()
 	SpringArm->bInheritRoll = false;
 	SpringArm->bDoCollisionTest = true;
 
+	// Cinematic camera lag — SpringArm trails behind the ship's actual motion
+	// so the camera "catches up" smoothly instead of snapping with the hull.
+	SpringArm->bEnableCameraLag = true;
+	SpringArm->bEnableCameraRotationLag = true;
+	SpringArm->CameraLagSpeed = 4.0f;
+	SpringArm->CameraRotationLagSpeed = 8.0f;
+	SpringArm->CameraLagMaxDistance = 250.0f;
+
 	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
 	Camera->SetupAttachment(SpringArm, USpringArmComponent::SocketName);
 	Camera->bUsePawnControlRotation = false;
@@ -81,6 +89,17 @@ AShipPawn::AShipPawn()
 void AShipPawn::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// Push BP-configured camera lag values onto the SpringArm (constructor only
+	// sets defaults — designers can override via the Details panel).
+	if (SpringArm)
+	{
+		SpringArm->bEnableCameraLag = bUseCameraLag;
+		SpringArm->bEnableCameraRotationLag = bUseCameraLag;
+		SpringArm->CameraLagSpeed = CameraLagSpeed;
+		SpringArm->CameraRotationLagSpeed = CameraRotationLagSpeed;
+		SpringArm->CameraLagMaxDistance = CameraLagMaxDistance;
+	}
 
 	// Ensure IMC/IA assets exist, creating defaults if BP left them empty.
 	// This makes input work out-of-the-box with zero Blueprint configuration.
@@ -287,6 +306,11 @@ void AShipPawn::Tick(float DeltaTime)
 	// the same key state (idempotent).
 	PollRawInputFallback(DeltaTime);
 
+	// Smooth raw turn input -> TurnInputValue (rudder lag).
+	TurnInputValue = FMath::FInterpTo(TurnInputValue, TurnInputRaw, DeltaTime, TurnInputInterpSpeed);
+	if (FMath::IsNearlyZero(TurnInputRaw) && FMath::Abs(TurnInputValue) < 0.005f)
+		TurnInputValue = 0.0f;
+
 	UpdateMovement(DeltaTime);
 
 	if (!FMath::IsNearlyZero(TurnInputValue))
@@ -296,6 +320,7 @@ void AShipPawn::Tick(float DeltaTime)
 		AddActorLocalRotation(FRotator(0.0f, TurnInputValue * TurnRate * DeltaTime, 0.0f));
 	}
 
+	UpdateWaveMotion(DeltaTime);
 	UpdateVisualRoll(DeltaTime);
 	UpdateBowWake();
 
@@ -496,7 +521,8 @@ void AShipPawn::DoDecreaseSail()
 
 void AShipPawn::DoSetTurnAxis(float Value)
 {
-	TurnInputValue = FMath::Clamp(Value, -1.0f, 1.0f);
+	// Store raw input — Tick() smooths TurnInputRaw -> TurnInputValue every frame.
+	TurnInputRaw = FMath::Clamp(Value, -1.0f, 1.0f);
 }
 
 void AShipPawn::DoFireLeft()
@@ -645,11 +671,16 @@ float AShipPawn::GetWindMultiplier() const
 
 void AShipPawn::UpdateMovement(float DeltaTime)
 {
-	float Target = GetTargetSpeed();
-	if (CurrentSpeed < Target)
-		CurrentSpeed = FMath::Min(CurrentSpeed + AccelerationRate * DeltaTime, Target);
-	else if (CurrentSpeed > Target)
-		CurrentSpeed = FMath::Max(CurrentSpeed - DecelerationRate * DeltaTime, Target);
+	const float Target = GetTargetSpeed();
+
+	// Exponential-decay smoothing: feels like a heavy mass building/losing momentum.
+	// Tau is the time-constant in seconds. Alpha = 1 - exp(-dt/tau) so framerate-independent.
+	const float Tau = FMath::Max(0.05f, SpeedSmoothingTau);
+	const float Alpha = 1.0f - FMath::Exp(-DeltaTime / Tau);
+	CurrentSpeed = FMath::Lerp(CurrentSpeed, Target, Alpha);
+
+	// Snap to zero when very low to avoid micro-drift.
+	if (FMath::IsNearlyZero(Target) && CurrentSpeed < 1.0f) CurrentSpeed = 0.0f;
 
 	if (CurrentSpeed > 0.01f)
 	{
@@ -662,12 +693,33 @@ void AShipPawn::UpdateVisualRoll(float DeltaTime)
 {
 	if (!ShipMesh) return;
 
-	float TargetRoll = -TurnInputValue * MaxVisualRoll;
+	// Bank harder at high speed — turning a ship at full speed throws it onto its side.
+	const float SpeedNorm = MaxSpeed > 0.0f ? FMath::Clamp(CurrentSpeed / MaxSpeed, 0.f, 1.f) : 0.0f;
+	const float SpeedBoost = FMath::Lerp(0.6f, RollSpeedMultiplier, SpeedNorm);
+
+	const float TargetRoll = -TurnInputValue * MaxVisualRoll * SpeedBoost;
 	CurrentVisualRoll = FMath::FInterpTo(CurrentVisualRoll, TargetRoll, DeltaTime, VisualRollInterpSpeed);
 
+	// Combine turn-roll with the small wave-induced roll/pitch.
+	const float WaveRoll  = WaveRollAmplitude  * FMath::Sin(WaveTime * WaveRollFrequency  * 2.0f * PI);
+	const float WavePitch = WavePitchAmplitude * FMath::Sin(WaveTime * WavePitchFrequency * 2.0f * PI + 1.3f);
+
 	FRotator LocalRot = ShipMesh->GetRelativeRotation();
-	LocalRot.Roll = CurrentVisualRoll;
+	LocalRot.Roll  = CurrentVisualRoll + WaveRoll;
+	LocalRot.Pitch = WavePitch;
 	ShipMesh->SetRelativeRotation(LocalRot);
+
+	// Vertical bob — applied as relative Z on the mesh so collisions/forward motion stay unaffected.
+	const float TargetBob = WaveBobAmplitude * FMath::Sin(WaveTime * WaveBobFrequency * 2.0f * PI + 0.7f);
+	CurrentWaveBob = FMath::FInterpTo(CurrentWaveBob, TargetBob, DeltaTime, 3.0f);
+	FVector LocalLoc = ShipMesh->GetRelativeLocation();
+	LocalLoc.Z = CurrentWaveBob;
+	ShipMesh->SetRelativeLocation(LocalLoc);
+}
+
+void AShipPawn::UpdateWaveMotion(float DeltaTime)
+{
+	WaveTime += DeltaTime;
 }
 
 void AShipPawn::ApplySpeedPenalty(float PenaltyFraction, float Duration)

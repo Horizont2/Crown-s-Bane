@@ -176,12 +176,64 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
 	float HighSpeedTurnFactor = 0.4f;
 
+	// Smoothing on TurnInputValue itself — high = snappy, low = sluggish.  Gives the
+	// ship perceptible "rudder lag" instead of instant-snap turns.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Feel")
+	float TurnInputInterpSpeed = 3.5f;
+
+	// Speed lerp uses S-curve via cubic ease, controlled by these tau values
+	// (lower = snappier, higher = heavier). Acceleration/deceleration use
+	// AccelerationRate/DecelerationRate as base but blended exponentially —
+	// ship behaves like a 200t mass that gently picks up speed.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Feel", meta=(ClampMin="0.1"))
+	float SpeedSmoothingTau = 1.4f;
+
 	// Visual roll when turning (degrees at max turn)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Visual")
 	float MaxVisualRoll = 8.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Visual")
 	float VisualRollInterpSpeed = 2.0f;
+
+	// At full speed the visual roll scales by this factor (heavier banking
+	// at top speed makes turns feel weighty).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Visual")
+	float RollSpeedMultiplier = 1.5f;
+
+	// Amplitude of constant wave-induced pitching motion (degrees).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Visual")
+	float WavePitchAmplitude = 1.8f;
+
+	// How fast the wave-pitching oscillates (Hz).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Visual")
+	float WavePitchFrequency = 0.35f;
+
+	// Amplitude of constant wave-induced rolling motion (degrees).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Visual")
+	float WaveRollAmplitude = 1.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Visual")
+	float WaveRollFrequency = 0.27f;
+
+	// Vertical bob amplitude (cm) — small "lift" up and down as waves pass.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Visual")
+	float WaveBobAmplitude = 12.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Visual")
+	float WaveBobFrequency = 0.42f;
+
+	// Camera lag — SpringArm trails behind the ship for cinematic feel.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Feel")
+	bool bUseCameraLag = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Feel")
+	float CameraLagSpeed = 4.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Feel")
+	float CameraLagMaxDistance = 250.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Feel")
+	float CameraRotationLagSpeed = 8.0f;
 
 	// ---- Wind ----
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wind")
@@ -278,10 +330,18 @@ private:
 	void HandleDeath();
 
 	AWindSystem* CachedWindSystem;
+
+	// Raw input from A/D (target value) and smoothed value applied to actual turn rate.
+	float TurnInputRaw   = 0.0f;
 	float TurnInputValue = 0.0f;
 	float SpeedPenaltyFraction = 0.0f;
 	float SpeedPenaltyTimeRemaining = 0.0f;
 	float CurrentVisualRoll = 0.0f;
+
+	// Time accumulator for wave-pitch / wave-roll / wave-bob noise.
+	float WaveTime = 0.0f;
+	float CurrentWaveBob = 0.0f;
+	void UpdateWaveMotion(float DeltaTime);
 
 	// Raw-poll edge-trigger trackers
 	bool bRawPrevW = false;
