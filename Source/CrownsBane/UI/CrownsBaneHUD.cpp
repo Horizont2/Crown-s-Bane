@@ -10,6 +10,7 @@
 #include "Systems/StormSystem.h"
 #include "Systems/DayNightSystem.h"
 #include "Loot/TreasureQuestManager.h"
+#include "Quests/BountyManager.h"
 #include "Loot/TreasureChest.h"
 #include "Loot/LootPickup.h"
 #include "Loot/TreasureMapPickup.h"
@@ -1181,6 +1182,33 @@ void ACrownsBaneHUD::DrawQuestLog(ATreasureQuestManager* Mgr, AShipPawn* Ship)
 
 	DrawText(FString::Printf(TEXT("%d / %d active"), Quests.Num(), Mgr->MaxActiveQuests),
 		FColor(180, 180, 180), PanelX + 16.f, PanelY + PanelH - 24.f, nullptr, 0.9f, false);
+
+	// Bounty section — render below treasure list if a BountyManager exists in the level.
+	TArray<AActor*> BountyFound;
+	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ABountyManager::StaticClass(), BountyFound);
+	if (BountyFound.Num() == 0) return;
+	ABountyManager* BM = Cast<ABountyManager>(BountyFound[0]);
+	if (!BM) return;
+
+	const TArray<FBountyQuest>& Bounties = BM->GetActiveBounties();
+	if (Bounties.Num() == 0) return;
+
+	DrawText(TEXT("◆  BOUNTIES  ◆"), FColor(255, 180, 100),
+		PanelX + 16.f, Y + 8.f, nullptr, 1.05f, false);
+	Y += 30.f;
+
+	for (int32 i = 0; i < Bounties.Num(); ++i)
+	{
+		if (Y > PanelY + PanelH - 30.f) break;
+		const FBountyQuest& B = Bounties[i];
+		DrawFilledRect(PanelX + 16.f, Y, PanelW - 32.f, RowH - 6.f, FLinearColor(0.14f, 0.08f, 0.04f, 0.55f));
+		DrawText(FString::Printf(TEXT("%s"), *B.Title),
+			FColor(255, 220, 140), PanelX + 26.f, Y + 6.f, nullptr, 1.05f, false);
+		DrawText(FString::Printf(TEXT("Kills %d / %d   Reward %dg"),
+				B.CurrentKills, B.TargetKills, B.RewardGold),
+			FColor(210, 210, 210), PanelX + 26.f, Y + 28.f, nullptr, 0.95f, false);
+		Y += RowH;
+	}
 }
 
 // -------- UPGRADE MENU OVERLAY (U key while docked) --------

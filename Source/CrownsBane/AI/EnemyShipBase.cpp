@@ -5,6 +5,8 @@
 #include "Components/HealthComponent.h"
 #include "Loot/LootSpawner.h"
 #include "Systems/WantedLevelManager.h"
+#include "Systems/DynamicMusicManager.h"
+#include "Quests/BountyManager.h"
 #include "EngineUtils.h"
 #include "Components/StaticMeshComponent.h"
 #include "NiagaraComponent.h"
@@ -388,6 +390,19 @@ void AEnemyShipBase::OnDeath()
 
 	if (DamageSmokeFX) DamageSmokeFX->Deactivate();
 	if (DamageFireFX)  DamageFireFX->Deactivate();
+
+	// Bounty / music tracking — both managers are optional so this is opt-in
+	// (drop one in the level to enable).
+	{
+		TArray<AActor*> Found;
+		UGameplayStatics::GetAllActorsOfClass(GetWorld(), ABountyManager::StaticClass(), Found);
+		if (Found.Num() > 0) Cast<ABountyManager>(Found[0])->NotifyEnemyKilled();
+	}
+	{
+		TArray<AActor*> Found;
+		UGameplayStatics::GetAllActorsOfClass(GetWorld(), ADynamicMusicManager::StaticClass(), Found);
+		if (Found.Num() > 0) Cast<ADynamicMusicManager>(Found[0])->NotifyEnemyKilled();
+	}
 
 	TArray<AActor*> Managers;
 	UGameplayStatics::GetAllActorsOfClass(GetWorld(), AWantedLevelManager::StaticClass(), Managers);
