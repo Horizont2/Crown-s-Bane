@@ -91,11 +91,13 @@ void ACannonball::OnHit(UPrimitiveComponent* HitComponent, AActor* OtherActor,
 	// �����ު�� ��������� FVECTOR ���� ��� ��� �Ѳ�� ����ֲ�
 	const FVector ImpactLoc = Hit.ImpactPoint.IsZero() ? GetActorLocation() : FVector(Hit.ImpactPoint);
 
-	// Apply damage via UE damage system
+	AController* InstCtrl = OwnerInstigator ? OwnerInstigator->GetInstigatorController() : nullptr;
+
+	// Direct hit damage.
 	UGameplayStatics::ApplyDamage(
 		OtherActor,
 		CannonballData.BaseDamage,
-		OwnerInstigator ? OwnerInstigator->GetInstigatorController() : nullptr,
+		InstCtrl,
 		this,
 		UDamageType::StaticClass()
 	);
@@ -104,6 +106,23 @@ void ACannonball::OnHit(UPrimitiveComponent* HitComponent, AActor* OtherActor,
 	if (CannonballData.Type == ECannonballType::Chain)
 	{
 		ApplySlowEffect(OtherActor);
+	}
+
+	// Explosive splash: deal half-damage to every actor within SplashRadius of impact.
+	if (CannonballData.SplashRadius > 0.0f && CannonballData.Type == ECannonballType::Explosive)
+	{
+		const FVector Center = ImpactLoc;
+		const float R = CannonballData.SplashRadius;
+		const float R2 = R * R;
+		TArray<AActor*> Overlapped;
+		UGameplayStatics::GetAllActorsOfClass(GetWorld(), AActor::StaticClass(), Overlapped);
+		for (AActor* A : Overlapped)
+		{
+			if (!A || A == OtherActor || A == OwnerInstigator || A == this) continue;
+			if (FVector::DistSquared(A->GetActorLocation(), Center) > R2) continue;
+			const float Falloff = 1.0f - FMath::Sqrt(FVector::DistSquared(A->GetActorLocation(), Center) / R2);
+			UGameplayStatics::ApplyDamage(A, CannonballData.BaseDamage * 0.55f * Falloff, InstCtrl, this, UDamageType::StaticClass());
+		}
 	}
 
 	// Queue a floating damage number on the HUD

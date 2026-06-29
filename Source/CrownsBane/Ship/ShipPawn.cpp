@@ -528,6 +528,33 @@ void AShipPawn::PollRawInputFallback(float DeltaTime)
 			if (PC->IsInputKeyDown(NumKeys[4]) && ConsumeActionCooldown(TEXT("TrSel5"), 0.30f)) CBPC->SellMetal();
 			if (PC->IsInputKeyDown(NumKeys[5]) && ConsumeActionCooldown(TEXT("TrHeal6"), 0.30f)) CBPC->PayForHeal();
 		}
+
+		// Ammo switching 1-5 — only when no menu is open and we have a CannonComponent.
+		if (!CBPC->IsTraderMenuOpen() && !CBPC->IsUpgradeUIOpen() && !CBPC->IsQuestLogOpen() && CannonComponent)
+		{
+			static const ECannonballType TypeMap[5] = {
+				ECannonballType::Standard, ECannonballType::Chain,
+				ECannonballType::Grape,    ECannonballType::Heavy,
+				ECannonballType::Explosive
+			};
+			for (int32 i = 0; i < 5; ++i)
+			{
+				if (PC->IsInputKeyDown(NumKeys[i]) && ConsumeActionCooldown(FName(*FString::Printf(TEXT("Ammo%d"), i)), 0.30f))
+				{
+					CannonComponent->ActiveCannonballType = TypeMap[i];
+					if (GEngine)
+					{
+						static const TCHAR* Names[5] = {
+							TEXT("Round Shot"), TEXT("Chain Shot"),
+							TEXT("Grape Shot"), TEXT("Heavy Shot"),
+							TEXT("Explosive Shell")
+						};
+						GEngine->AddOnScreenDebugMessage(7777, 2.f, FColor::Yellow,
+							FString::Printf(TEXT("Ammo: %s"), Names[i]));
+					}
+				}
+			}
+		}
 	}
 
 	if (!bEnhancedInputReady)

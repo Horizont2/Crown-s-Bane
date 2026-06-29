@@ -6,8 +6,11 @@
 UENUM(BlueprintType)
 enum class ECannonballType : uint8
 {
-	Standard    UMETA(DisplayName = "Standard Cannonball"),
-	Chain       UMETA(DisplayName = "Chain Shot")
+	Standard    UMETA(DisplayName = "Round Shot"),
+	Chain       UMETA(DisplayName = "Chain Shot"),
+	Grape       UMETA(DisplayName = "Grape Shot"),
+	Heavy       UMETA(DisplayName = "Heavy Shot"),
+	Explosive   UMETA(DisplayName = "Explosive Shell")
 };
 
 USTRUCT(BlueprintType)
@@ -38,6 +41,18 @@ struct FCannonballData
 	// Gravity scale for projectile
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cannonball")
 	float GravityScale = 1.0f;
+
+	// Splash radius for explosive shell (cm). 0 = direct hit only.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cannonball")
+	float SplashRadius = 0.0f;
+
+	// Grape Shot: shots fired per cannon (1 = normal). Higher = shotgun spread.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cannonball")
+	int32 PelletsPerShot = 1;
+
+	// Extra random yaw spread applied per pellet (degrees).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cannonball")
+	float ExtraSpreadAngle = 0.0f;
 
 	FCannonballData()
 	{
@@ -71,6 +86,42 @@ struct FCannonballData
 		Data.SlowFraction = 0.5f;
 		Data.SlowDuration = 5.0f;
 		Data.GravityScale = 1.2f;
+		return Data;
+	}
+
+	static FCannonballData MakeGrape()
+	{
+		FCannonballData Data;
+		Data.Type = ECannonballType::Grape;
+		Data.BaseDamage = 6.0f;          // each pellet hits softly...
+		Data.InitialSpeed = 2800.0f;
+		Data.MaxSpeed = 2800.0f;
+		Data.GravityScale = 1.5f;
+		Data.PelletsPerShot = 5;          // ...but five pellets per cannon = murder up close
+		Data.ExtraSpreadAngle = 14.0f;
+		return Data;
+	}
+
+	static FCannonballData MakeHeavy()
+	{
+		FCannonballData Data;
+		Data.Type = ECannonballType::Heavy;
+		Data.BaseDamage = 55.0f;          // hurts a lot
+		Data.InitialSpeed = 2200.0f;      // slower
+		Data.MaxSpeed = 2200.0f;
+		Data.GravityScale = 1.5f;         // arcs more
+		return Data;
+	}
+
+	static FCannonballData MakeExplosive()
+	{
+		FCannonballData Data;
+		Data.Type = ECannonballType::Explosive;
+		Data.BaseDamage = 35.0f;
+		Data.InitialSpeed = 2400.0f;
+		Data.MaxSpeed = 2400.0f;
+		Data.GravityScale = 1.3f;
+		Data.SplashRadius = 600.0f;       // 6m AoE around impact
 		return Data;
 	}
 };

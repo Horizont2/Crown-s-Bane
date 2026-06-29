@@ -136,8 +136,18 @@ void UCannonComponent::FireBroadside(ECannonSide Side)
 		}
 	}
 
-	FCannonballData Data = (ActiveCannonballType == ECannonballType::Chain) ? FCannonballData::MakeChain() : FCannonballData::MakeStandard();
-	Data.BaseDamage = DamagePerCannon;
+	FCannonballData Data;
+	switch (ActiveCannonballType)
+	{
+	case ECannonballType::Chain:     Data = FCannonballData::MakeChain();     break;
+	case ECannonballType::Grape:     Data = FCannonballData::MakeGrape();     break;
+	case ECannonballType::Heavy:     Data = FCannonballData::MakeHeavy();     break;
+	case ECannonballType::Explosive: Data = FCannonballData::MakeExplosive(); break;
+	default:                         Data = FCannonballData::MakeStandard();  break;
+	}
+	// DamagePerCannon scales the per-type base, not replaces it, so the Heavy
+	// Shot's 55-base still hits like a Heavy Shot even when DamagePerCannon = 25.
+	Data.BaseDamage *= FMath::Max(0.1f, DamagePerCannon / 25.0f);
 
 	// Вибираємо динамічний вектор (якщо цілимося), або статичний
 	FVector ElevatedDir;
@@ -161,14 +171,29 @@ void UCannonComponent::FireBroadside(ECannonSide Side)
 
 	bool bFiredFromSocket = false;
 	const float HalfSpread = CannonSpreadAngle * 0.5f;
+	const float ExtraSpread = Data.ExtraSpreadAngle;
+	const int32 Pellets = FMath::Max(1, Data.PelletsPerShot);
 
 	auto ApplySpread = [&](FVector BaseDir) -> FVector
 		{
-			float YawJitter = FMath::FRandRange(-HalfSpread, HalfSpread);
-			float PitchJitter = FMath::FRandRange(-HalfSpread * 0.3f, HalfSpread * 0.3f);
-			FRotator Jitter(PitchJitter, YawJitter, 0.0f);
+			float Yaw = FMath::FRandRange(-HalfSpread - ExtraSpread, HalfSpread + ExtraSpread);
+			float Pitch = FMath::FRandRange(-(HalfSpread + ExtraSpread) * 0.3f, (HalfSpread + ExtraSpread) * 0.3f);
+			FRotator Jitter(Pitch, Yaw, 0.0f);
 			return Jitter.RotateVector(BaseDir).GetSafeNormal();
 		};
+
+	auto FireOneCannon = [&](FVector SpawnLoc)
+	{
+		// One PlayFireFX per cannon barrel; multiple pellets per cannon for grape shot.
+		FVector ShotDir = ApplySpread(ElevatedDir);
+		SpawnCannonball(SpawnLoc, ShotDir, Data);
+		PlayFireFX(SpawnLoc, ShotDir.Rotation());
+		for (int32 p = 1; p < Pellets; ++p)
+		{
+			FVector PelletDir = ApplySpread(ElevatedDir);
+			SpawnCannonball(SpawnLoc, PelletDir, Data);
+		}
+	};
 
 	if (MeshComp)
 	{
@@ -177,10 +202,7 @@ void UCannonComponent::FireBroadside(ECannonSide Side)
 			FName SocketName = FName(*FString::Printf(TEXT("%s%d"), *SocketPrefix.ToString(), i));
 			if (MeshComp->DoesSocketExist(SocketName))
 			{
-				FVector SpawnLoc = MeshComp->GetSocketLocation(SocketName);
-				FVector ShotDir = ApplySpread(ElevatedDir);
-				SpawnCannonball(SpawnLoc, ShotDir, Data);
-				PlayFireFX(SpawnLoc, ShotDir.Rotation());
+				FireOneCannon(MeshComp->GetSocketLocation(SocketName));
 				bFiredFromSocket = true;
 			}
 		}
@@ -198,9 +220,7 @@ void UCannonComponent::FireBroadside(ECannonSide Side)
 			float LengthOffset = (i - (CannonsPerSide - 1) * 0.5f) * CannonSpacing;
 			FVector LengthDir = Owner->GetActorForwardVector();
 			FVector SpawnLoc = Owner->GetActorLocation() + BaseOffset + LengthDir * LengthOffset + FVector(0.0f, 0.0f, 50.0f);
-			FVector ShotDir = ApplySpread(ElevatedDir);
-			SpawnCannonball(SpawnLoc, ShotDir, Data);
-			PlayFireFX(SpawnLoc, ShotDir.Rotation());
+			FireOneCannon(SpawnLoc);
 		}
 	}
 
