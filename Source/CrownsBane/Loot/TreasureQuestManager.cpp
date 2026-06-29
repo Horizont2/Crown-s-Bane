@@ -33,10 +33,8 @@ FGuid ATreasureQuestManager::IssueQuest(const FVector& Origin)
 		SeaLevelZ
 	);
 
-	// UE 5.8 stricter ternary: TSubclassOf<T> vs UClass* arms must be unified explicitly.
-	TSubclassOf<ATreasureChest> ClassToSpawn = TreasureChestClass
-		? TreasureChestClass
-		: TSubclassOf<ATreasureChest>(ATreasureChest::StaticClass());
+	// бхопюбкемн рср:
+	UClass* ClassToSpawn = TreasureChestClass ? TreasureChestClass.Get() : ATreasureChest::StaticClass();
 
 	FActorSpawnParameters Params;
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
@@ -87,9 +85,9 @@ FGuid ATreasureQuestManager::IssueQuest(const FVector& Origin)
 void ATreasureQuestManager::CompleteQuest(FGuid QuestId)
 {
 	const int32 Removed = ActiveQuests.RemoveAll([QuestId](const FTreasureQuest& Q)
-	{
-		return Q.QuestId == QuestId;
-	});
+		{
+			return Q.QuestId == QuestId;
+		});
 
 	if (Removed > 0)
 	{

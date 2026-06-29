@@ -52,12 +52,10 @@ void AEnemyShipBase::BeginPlay()
 	}
 
 	if (DamageSmokeFX && SmokeAsset) DamageSmokeFX->SetAsset(SmokeAsset);
-	if (DamageFireFX  && FireAsset)  DamageFireFX->SetAsset(FireAsset);
+	if (DamageFireFX && FireAsset)  DamageFireFX->SetAsset(FireAsset);
 
 	FVector RandomDir = FVector(FMath::FRandRange(-1.0f, 1.0f), FMath::FRandRange(-1.0f, 1.0f), 0.0f).GetSafeNormal();
 	PatrolTarget = SpawnLocation + RandomDir * PatrolRadius * FMath::FRandRange(0.3f, 1.0f);
-
-	UE_LOG(LogTemp, Log, TEXT("EnemyShipBase: %s spawned. Initial state: Patrol."), *GetName());
 }
 
 void AEnemyShipBase::Tick(float DeltaTime)
@@ -75,28 +73,19 @@ void AEnemyShipBase::Tick(float DeltaTime)
 		FireCooldownTimer -= DeltaTime;
 	}
 
-	// Retreat check — highest priority after Sink
 	const float HealthPct = HealthComponent ? HealthComponent->GetHealthPercent() : 1.0f;
 	const bool bShouldRetreat = bCanRetreat && (RetreatHealthThreshold > 0.0f) && (HealthPct <= RetreatHealthThreshold);
 
 	if (bShouldRetreat)
 	{
-		if (CurrentState != EShipAIState::Retreat)
-		{
-			TransitionToState(EShipAIState::Retreat);
-		}
+		if (CurrentState != EShipAIState::Retreat) TransitionToState(EShipAIState::Retreat);
 	}
 	else if (CurrentState == EShipAIState::Retreat && !bShouldRetreat)
 	{
-		// Healed above threshold — resume normal AI
 		TransitionToState(EShipAIState::Patrol);
 	}
 	else
 	{
-		// Is the player a legal target right now?
-		//   - bIgnoreWantedLevel: scripted aggressive encounters (bosses)
-		//   - bHasAggro: the player attacked us first (self-defense)
-		//   - WantedLevel > 0: the player is being hunted
 		bool bCanEngagePlayer = bIgnoreWantedLevel || bHasAggro;
 		if (!bCanEngagePlayer)
 		{
@@ -112,19 +101,16 @@ void AEnemyShipBase::Tick(float DeltaTime)
 		{
 			if (IsPlayerInRange(AttackRange))
 			{
-				if (CurrentState != EShipAIState::Attack)
-					TransitionToState(EShipAIState::Attack);
+				if (CurrentState != EShipAIState::Attack) TransitionToState(EShipAIState::Attack);
 			}
 			else
 			{
-				if (CurrentState != EShipAIState::Chase)
-					TransitionToState(EShipAIState::Chase);
+				if (CurrentState != EShipAIState::Chase) TransitionToState(EShipAIState::Chase);
 			}
 		}
 		else
 		{
-			if (CurrentState != EShipAIState::Patrol)
-				TransitionToState(EShipAIState::Patrol);
+			if (CurrentState != EShipAIState::Patrol) TransitionToState(EShipAIState::Patrol);
 		}
 	}
 
@@ -138,28 +124,16 @@ void AEnemyShipBase::Tick(float DeltaTime)
 	}
 }
 
-float AEnemyShipBase::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent,
-	AController* EventInstigator, AActor* DamageCauser)
+float AEnemyShipBase::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
 {
 	float Actual = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
-
-	if (DamageAmount > 0.0f)
-	{
-		// Remember the player attacked us — we return fire even with no wanted level.
-		bHasAggro = true;
-	}
+	if (DamageAmount > 0.0f) bHasAggro = true;
 	return Actual;
 }
 
 void AEnemyShipBase::TransitionToState(EShipAIState NewState)
 {
 	if (CurrentState == NewState) return;
-
-	UE_LOG(LogTemp, Log, TEXT("EnemyShipBase: %s %s -> %s"),
-		*GetName(),
-		*StaticEnum<EShipAIState>()->GetNameStringByValue((int64)CurrentState),
-		*StaticEnum<EShipAIState>()->GetNameStringByValue((int64)NewState));
-
 	CurrentState = NewState;
 }
 
@@ -182,7 +156,7 @@ bool AEnemyShipBase::IsBroadsideAligned(ECannonSide& OutSide) const
 	if (!Player) return false;
 
 	FVector ToPlayer = (Player->GetActorLocation() - GetActorLocation()).GetSafeNormal();
-	float DotRight   = FVector::DotProduct(ToPlayer, GetActorRightVector());
+	float DotRight = FVector::DotProduct(ToPlayer, GetActorRightVector());
 	float DotForward = FVector::DotProduct(ToPlayer, GetActorForwardVector());
 
 	if (FMath::Abs(DotRight) > FMath::Abs(DotForward))
@@ -200,7 +174,23 @@ void AEnemyShipBase::TryFireAtPlayer()
 	ECannonSide Side;
 	if (IsBroadsideAligned(Side) && CannonComponent->CanFire(Side))
 	{
+		APawn* Player = GetPlayerPawn();
+		if (Player)
+		{
+			// ШІ стріляє на випередження! 
+			float Dist = FVector::Dist(GetActorLocation(), Player->GetActorLocation());
+			float TimeToImpact = Dist / 3000.0f; // Базова швидкість ядра
+
+			FVector TargetVel = Player->GetVelocity();
+			FVector PredictedLoc = Player->GetActorLocation() + (TargetVel * TimeToImpact);
+			PredictedLoc.Z = 0.0f;
+
+			CannonComponent->SetIsAiming(true);
+			CannonComponent->UpdateAimTarget(Side, PredictedLoc);
+		}
+
 		CannonComponent->FireBroadside(Side);
+		CannonComponent->SetIsAiming(false); // Скидаємо стан після пострілу
 		FireCooldownTimer = FireCooldown;
 	}
 }
@@ -214,13 +204,13 @@ void AEnemyShipBase::UpdateDamageFX()
 	if (DamageSmokeFX)
 	{
 		const bool bOn = bAlive && (Pct < SmokeHPThreshold);
-		if (bOn  && !DamageSmokeFX->IsActive()) DamageSmokeFX->Activate(true);
+		if (bOn && !DamageSmokeFX->IsActive()) DamageSmokeFX->Activate(true);
 		if (!bOn && DamageSmokeFX->IsActive())  DamageSmokeFX->Deactivate();
 	}
 	if (DamageFireFX)
 	{
 		const bool bOn = bAlive && (Pct < FireHPThreshold);
-		if (bOn  && !DamageFireFX->IsActive()) DamageFireFX->Activate(true);
+		if (bOn && !DamageFireFX->IsActive()) DamageFireFX->Activate(true);
 		if (!bOn && DamageFireFX->IsActive())  DamageFireFX->Deactivate();
 	}
 }
@@ -237,7 +227,7 @@ void AEnemyShipBase::HandleStatePatrol(float DeltaTime)
 			FVector RandomDir = FVector(FMath::FRandRange(-1.0f, 1.0f), FMath::FRandRange(-1.0f, 1.0f), 0.0f).GetSafeNormal();
 			PatrolTarget = SpawnLocation + RandomDir * PatrolRadius * FMath::FRandRange(0.3f, 1.0f);
 		}
-		CurrentSpeedActual = 0.0f;
+		MoveToward(PatrolTarget, 0.0f, DeltaTime); // Плавна зупинка
 	}
 	else
 	{
@@ -261,12 +251,11 @@ void AEnemyShipBase::HandleStateAttack(float DeltaTime)
 	APawn* Player = GetPlayerPawn();
 	if (!Player) return;
 
-	const float Dist    = FVector::Dist(GetActorLocation(), Player->GetActorLocation());
+	const float Dist = FVector::Dist(GetActorLocation(), Player->GetActorLocation());
 	FVector ToPlayerDir = (Player->GetActorLocation() - GetActorLocation()).GetSafeNormal();
 	ToPlayerDir.Z = 0.f;
 
-	const float DotRight   = FVector::DotProduct(ToPlayerDir, GetActorRightVector());
-	const float DotForward = FVector::DotProduct(ToPlayerDir, GetActorForwardVector());
+	const float DotRight = FVector::DotProduct(ToPlayerDir, GetActorRightVector());
 
 	if (FMath::Abs(DotRight) < 0.5f)
 	{
@@ -296,16 +285,14 @@ void AEnemyShipBase::HandleStateRetreat(float DeltaTime)
 {
 	APawn* Player = GetPlayerPawn();
 
-	// If player is gone or we're safely out of detection range, return to patrol
 	if (!Player || !IsPlayerInRange(DetectionRange * 2.0f))
 	{
 		TransitionToState(EShipAIState::Patrol);
 		return;
 	}
 
-	// Flee directly away from player, biased toward spawn for cover
 	const FVector FromPlayer = (GetActorLocation() - Player->GetActorLocation()).GetSafeNormal2D();
-	const FVector ToSpawn    = (SpawnLocation - GetActorLocation()).GetSafeNormal2D();
+	const FVector ToSpawn = (SpawnLocation - GetActorLocation()).GetSafeNormal2D();
 	FVector FleeDir = (FromPlayer * 0.7f + ToSpawn * 0.3f).GetSafeNormal();
 
 	const FVector FleeTarget = GetActorLocation() + FleeDir * 3000.0f;
@@ -316,23 +303,13 @@ void AEnemyShipBase::HandleStateRetreat(float DeltaTime)
 void AEnemyShipBase::HandleStateSink(float DeltaTime)
 {
 	SinkTimer += DeltaTime;
-
-	// Dramatic sink: three phases over ~6 seconds total.
-	//   Phase 1 (0..1.2s):  Stern rises — pitch up to +28°, slight roll, slow Z drop
-	//   Phase 2 (1.2..3.5s): Pitch continues to +55°, roll increases, Z drops faster
-	//   Phase 3 (3.5..6s):   Full plunge — stern goes straight up, ship falls quickly
 	const float Alpha = FMath::Clamp(SinkTimer / 6.0f, 0.0f, 1.0f);
-
-	// Pitch (stern-up rotation) — eased upward
 	const float TargetPitch = FMath::InterpEaseOut(0.0f, 75.0f, Alpha, 2.5f);
-	// Roll toward starboard (slight drunken lean)
 	const float TargetRoll = FMath::InterpEaseOut(0.0f, 20.0f, Alpha, 2.0f);
-	// Z descent — slow at first, then fast
 	const float ZDescent = -FMath::InterpEaseIn(0.0f, 450.0f, Alpha, 2.0f) * DeltaTime;
 
 	AddActorWorldOffset(FVector(0.0f, 0.0f, ZDescent));
 
-	// Smooth pitch/roll toward targets
 	const FRotator Current = GetActorRotation();
 	const FRotator Target(
 		FMath::FInterpTo(Current.Pitch, TargetPitch, DeltaTime, 1.2f),
@@ -341,7 +318,6 @@ void AEnemyShipBase::HandleStateSink(float DeltaTime)
 	);
 	SetActorRotation(Target);
 
-	// One-time splash at start of phase 3
 	static const float SplashTrigger = 3.5f;
 	if (SinkTimer >= SplashTrigger && SinkTimer - DeltaTime < SplashTrigger)
 	{
@@ -352,20 +328,17 @@ void AEnemyShipBase::HandleStateSink(float DeltaTime)
 		}
 	}
 
-	if (SinkTimer >= 6.0f)
-	{
-		Destroy();
-	}
+	if (SinkTimer >= 6.0f) Destroy();
 }
 
-void AEnemyShipBase::MoveToward(FVector TargetLocation, float Speed, float DeltaTime)
+void AEnemyShipBase::MoveToward(FVector TargetLocation, float TargetSpeed, float DeltaTime)
 {
-	FVector ToTarget = (TargetLocation - GetActorLocation());
-	ToTarget.Z = 0.0f;
-	const float Dist = ToTarget.Size();
-	if (Dist < 1.0f) { CurrentSpeedActual = 0.0f; return; }
+	// Фізика руху: плавне прискорення та гальмування
+	float Dist = FVector::Dist2D(TargetLocation, GetActorLocation());
+	float DesiredSpeed = (Dist < 100.0f) ? 0.0f : TargetSpeed;
 
-	CurrentSpeedActual = FMath::Min(Speed, Dist / DeltaTime);
+	CurrentSpeedActual = FMath::FInterpTo(CurrentSpeedActual, DesiredSpeed, DeltaTime, AccelerationInterpSpeed);
+
 	FVector MoveDir = GetActorForwardVector();
 	MoveDir.Z = 0.0f;
 	AddActorWorldOffset(MoveDir * CurrentSpeedActual * DeltaTime, true);
@@ -373,76 +346,60 @@ void AEnemyShipBase::MoveToward(FVector TargetLocation, float Speed, float Delta
 
 void AEnemyShipBase::TurnToward(FVector TargetLocation, float DeltaTime)
 {
-	FVector ToTarget = (TargetLocation - GetActorLocation());
-	ToTarget.Z = 0.0f;
-	if (ToTarget.IsNearlyZero()) return;
-	ToTarget.Normalize();
+	FVector ToTarget = (TargetLocation - GetActorLocation()).GetSafeNormal2D();
 
-	FVector Forward = GetActorForwardVector();
-	Forward.Z = 0.0f;
-	Forward.Normalize();
+	// Система уникнення перешкод (Obstacle Avoidance)
+	FHitResult Hit;
+	FVector Start = GetActorLocation();
+	FVector End = Start + GetActorForwardVector() * AvoidanceRayLength;
+	FCollisionQueryParams Params;
+	Params.AddIgnoredActor(this);
 
-	const float DotRight      = FVector::DotProduct(GetActorRightVector(), ToTarget);
-	const float DotForward    = FVector::DotProduct(Forward, ToTarget);
-	const float TurnDir       = (DotRight > 0.0f) ? 1.0f : -1.0f;
-	const float AngleToTarget = FMath::RadiansToDegrees(FMath::Acos(FMath::Clamp(DotForward, -1.0f, 1.0f)));
+	if (GetWorld()->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Params))
+	{
+		// Якщо попереду перешкода, штучний інтелект відхиляється від неї
+		FVector AvoidNormal = Hit.ImpactNormal.GetSafeNormal2D();
+		ToTarget = (ToTarget + AvoidNormal * 2.0f).GetSafeNormal2D();
+	}
 
-	const float YawDelta = TurnDir * FMath::Min(TurnRate * DeltaTime, AngleToTarget);
-	AddActorLocalRotation(FRotator(0.0f, YawDelta, 0.0f));
+	// Фізика повороту: плавне входження в поворот (інерція штурвалу)
+	FVector Forward = GetActorForwardVector().GetSafeNormal2D();
+	float DotRight = FVector::DotProduct(GetActorRightVector(), ToTarget);
+	float DotForward = FVector::DotProduct(Forward, ToTarget);
+	float TurnDir = (DotRight > 0.0f) ? 1.0f : -1.0f;
+	float AngleToTarget = FMath::RadiansToDegrees(FMath::Acos(FMath::Clamp(DotForward, -1.0f, 1.0f)));
+
+	float TargetYawSpeed = TurnDir * FMath::Min(TurnRate, AngleToTarget / DeltaTime);
+	CurrentYawSpeed = FMath::FInterpTo(CurrentYawSpeed, TargetYawSpeed, DeltaTime, TurnInterpSpeed);
+
+	AddActorLocalRotation(FRotator(0.0f, CurrentYawSpeed * DeltaTime, 0.0f));
 }
 
-void AEnemyShipBase::OnDeathDelegate()
-{
-	OnDeath();
-}
-
-void AEnemyShipBase::OnHealthChangedHandler(float CurrentHealth, float MaxHealth)
-{
-	UpdateDamageFX();
-}
+void AEnemyShipBase::OnDeathDelegate() { OnDeath(); }
+void AEnemyShipBase::OnHealthChangedHandler(float CurrentHealth, float MaxHealth) { UpdateDamageFX(); }
 
 void AEnemyShipBase::OnDeath()
 {
-	UE_LOG(LogTemp, Log, TEXT("EnemyShipBase: %s is sinking!"), *GetName());
 	TransitionToState(EShipAIState::Sink);
 
-	// Death FX
 	const FVector Loc = GetActorLocation();
-	if (DeathExplosionAsset)
-	{
-		UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), DeathExplosionAsset, Loc, GetActorRotation());
-	}
-	if (DeathSound)
-	{
-		UGameplayStatics::PlaySoundAtLocation(GetWorld(), DeathSound, Loc);
-	}
+	if (DeathExplosionAsset) UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), DeathExplosionAsset, Loc, GetActorRotation());
+	if (DeathSound) UGameplayStatics::PlaySoundAtLocation(GetWorld(), DeathSound, Loc);
 
-	// Stop persistent FX
 	if (DamageSmokeFX) DamageSmokeFX->Deactivate();
 	if (DamageFireFX)  DamageFireFX->Deactivate();
 
-	// Notify wanted level manager
 	TArray<AActor*> Managers;
 	UGameplayStatics::GetAllActorsOfClass(GetWorld(), AWantedLevelManager::StaticClass(), Managers);
 	if (Managers.Num() > 0)
 	{
-		if (AWantedLevelManager* WLM = Cast<AWantedLevelManager>(Managers[0]))
-		{
-			WLM->OnEnemyKilled();
-		}
+		if (AWantedLevelManager* WLM = Cast<AWantedLevelManager>(Managers[0])) WLM->OnEnemyKilled();
 	}
 
-	// Spawn loot
 	FActorSpawnParameters SpawnParams;
 	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-	if (LootSpawnerClass)
-	{
-		GetWorld()->SpawnActor<AActor>(LootSpawnerClass, Loc, FRotator::ZeroRotator, SpawnParams);
-	}
-	else
-	{
-		GetWorld()->SpawnActor<ALootSpawner>(ALootSpawner::StaticClass(), Loc, FRotator::ZeroRotator, SpawnParams);
-	}
+	if (LootSpawnerClass) GetWorld()->SpawnActor<AActor>(LootSpawnerClass, Loc, FRotator::ZeroRotator, SpawnParams);
+	else GetWorld()->SpawnActor<ALootSpawner>(ALootSpawner::StaticClass(), Loc, FRotator::ZeroRotator, SpawnParams);
 
 	if (CannonComponent) CannonComponent->Deactivate();
 }

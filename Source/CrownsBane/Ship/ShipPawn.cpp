@@ -1,3 +1,5 @@
+// Copyright 2024 Crown's Bane. All Rights Reserved.
+
 #include "Ship/ShipPawn.h"
 #include "Combat/CannonComponent.h"
 #include "Components/HealthComponent.h"
@@ -27,7 +29,6 @@ AShipPawn::AShipPawn()
 {
 	PrimaryActorTick.bCanEverTick = true;
 
-	// Separate SceneComponent root so visual mesh roll does not affect ActorForwardVector.
 	SceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("SceneRoot"));
 	RootComponent = SceneRoot;
 
@@ -39,7 +40,7 @@ AShipPawn::AShipPawn()
 
 	SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArm"));
 	SpringArm->SetupAttachment(RootComponent);
-	SpringArm->TargetArmLength = 1800.0f;
+	SpringArm->TargetArmLength = DefaultSpringArmLength;
 	SpringArm->SetRelativeRotation(FRotator(-25.0f, 0.0f, 0.0f));
 	SpringArm->bUsePawnControlRotation = false;
 	SpringArm->bInheritPitch = false;
@@ -78,189 +79,98 @@ AShipPawn::AShipPawn()
 	BowWakeFX->bAutoActivate = false;
 	BowWakeFX->SetRelativeLocation(BowWakeOffset);
 
-	// CRITICAL: auto-possess by Player 0, disable AI auto-possess
 	AutoPossessPlayer = EAutoReceiveInput::Player0;
-	AutoPossessAI     = EAutoPossessAI::Disabled;
+	AutoPossessAI = EAutoPossessAI::Disabled;
 
-	bUseControllerRotationYaw   = false;
+	bUseControllerRotationYaw = false;
 	bUseControllerRotationPitch = false;
-	bUseControllerRotationRoll  = false;
+	bUseControllerRotationRoll = false;
 }
 
 void AShipPawn::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// Push BP-configured camera lag values onto the SpringArm (constructor only
-	// sets defaults — designers can override via the Details panel).
-	if (SpringArm)
-	{
-		SpringArm->bEnableCameraLag = bUseCameraLag;
-		SpringArm->bEnableCameraRotationLag = bUseCameraLag;
-		SpringArm->CameraLagSpeed = CameraLagSpeed;
-		SpringArm->CameraRotationLagSpeed = CameraRotationLagSpeed;
-		SpringArm->CameraLagMaxDistance = CameraLagMaxDistance;
-	}
-
-	// Ensure IMC/IA assets exist, creating defaults if BP left them empty.
-	// This makes input work out-of-the-box with zero Blueprint configuration.
 	EnsureInputAssetsExist();
-
-	// Fallback: some possession orderings let BeginPlay run with a valid controller.
 	AddInputMappingContext();
 
 	TArray<AActor*> Found;
 	UGameplayStatics::GetAllActorsOfClass(GetWorld(), AWindSystem::StaticClass(), Found);
 	CachedWindSystem = Found.Num() > 0 ? Cast<AWindSystem>(Found[0]) : nullptr;
 
-	// Bind health events for damage FX
 	if (HealthComponent)
 	{
 		HealthComponent->OnHealthChanged.AddDynamic(this, &AShipPawn::HandleHealthChanged);
 		HealthComponent->OnDeath.AddDynamic(this, &AShipPawn::HandleDeath);
 	}
 
-	// Assign Niagara assets to components if provided via BP
 	if (DamageSmokeFX && SmokeAsset) DamageSmokeFX->SetAsset(SmokeAsset);
 	if (DamageFireFX && FireAsset)   DamageFireFX->SetAsset(FireAsset);
 	if (BowWakeFX && WakeAsset)      BowWakeFX->SetAsset(WakeAsset);
-
-	UE_LOG(LogTemp, Log, TEXT("[ShipPawn] BeginPlay. Controller=%s  Wind=%s"),
-		GetController() ? *GetController()->GetName() : TEXT("NULL"),
-		CachedWindSystem ? TEXT("found") : TEXT("not found"));
 }
 
-// Canonical UE5 possession hook — called on client after PlayerController takes this pawn.
 void AShipPawn::PawnClientRestart()
 {
 	Super::PawnClientRestart();
 	EnsureInputAssetsExist();
 	AddInputMappingContext();
-	UE_LOG(LogTemp, Log, TEXT("[ShipPawn] PawnClientRestart -> IMC registered."));
 }
 
-// Called on server/standalone when controller changes (including initial possession).
 void AShipPawn::NotifyControllerChanged()
 {
 	Super::NotifyControllerChanged();
 	EnsureInputAssetsExist();
 	AddInputMappingContext();
-	UE_LOG(LogTemp, Log, TEXT("[ShipPawn] NotifyControllerChanged -> IMC registered."));
 }
 
 void AShipPawn::EnsureInputAssetsExist()
 {
-	// Create missing Input Actions. These are transient objects outlived by the pawn.
 	auto MakeIA = [this](UInputAction*& Target, EInputActionValueType ValueType, const TCHAR* Tag)
-	{
-		if (Target) return;
-		Target = NewObject<UInputAction>(this, UInputAction::StaticClass(), FName(Tag));
-		Target->ValueType = ValueType;
-		UE_LOG(LogTemp, Warning, TEXT("[ShipPawn] Auto-created fallback %s (BP field was NULL)."), Tag);
-	};
+		{
+			if (Target) return;
+			Target = NewObject<UInputAction>(this, UInputAction::StaticClass(), FName(Tag));
+			Target->ValueType = ValueType;
+		};
 
 	MakeIA(IA_IncreaseSail, EInputActionValueType::Boolean, TEXT("IA_IncreaseSail_Auto"));
 	MakeIA(IA_DecreaseSail, EInputActionValueType::Boolean, TEXT("IA_DecreaseSail_Auto"));
-	MakeIA(IA_Turn,         EInputActionValueType::Axis1D,  TEXT("IA_Turn_Auto"));
-	MakeIA(IA_FireLeft,     EInputActionValueType::Boolean, TEXT("IA_FireLeft_Auto"));
-	MakeIA(IA_FireRight,    EInputActionValueType::Boolean, TEXT("IA_FireRight_Auto"));
-	MakeIA(IA_Fire,         EInputActionValueType::Boolean, TEXT("IA_Fire_Auto"));
-	MakeIA(IA_Look,         EInputActionValueType::Axis2D,  TEXT("IA_Look_Auto"));
-	MakeIA(IA_ToggleDocks,  EInputActionValueType::Boolean, TEXT("IA_ToggleDocks_Auto"));
-	MakeIA(IA_Aim,          EInputActionValueType::Boolean, TEXT("IA_Aim_Auto"));
-	MakeIA(IA_QuestLog,     EInputActionValueType::Boolean, TEXT("IA_QuestLog_Auto"));
+	MakeIA(IA_Turn, EInputActionValueType::Axis1D, TEXT("IA_Turn_Auto"));
+	MakeIA(IA_FireLeft, EInputActionValueType::Boolean, TEXT("IA_FireLeft_Auto"));
+	MakeIA(IA_FireRight, EInputActionValueType::Boolean, TEXT("IA_FireRight_Auto"));
+	MakeIA(IA_Fire, EInputActionValueType::Boolean, TEXT("IA_Fire_Auto"));
+	MakeIA(IA_Aim, EInputActionValueType::Boolean, TEXT("IA_Aim_Auto"));
+	MakeIA(IA_Look, EInputActionValueType::Axis2D, TEXT("IA_Look_Auto"));
 
 	if (!ShipMappingContext)
 	{
 		ShipMappingContext = NewObject<UInputMappingContext>(this, UInputMappingContext::StaticClass(), TEXT("IMC_Ship_Auto"));
-
 		ShipMappingContext->MapKey(IA_IncreaseSail, EKeys::W);
 		ShipMappingContext->MapKey(IA_DecreaseSail, EKeys::S);
-
-		// Turn axis: D = positive, A = negative via Negate modifier
 		ShipMappingContext->MapKey(IA_Turn, EKeys::D);
 		FEnhancedActionKeyMapping& TurnLeftMap = ShipMappingContext->MapKey(IA_Turn, EKeys::A);
-		UInputModifierNegate* Neg = NewObject<UInputModifierNegate>(ShipMappingContext);
-		TurnLeftMap.Modifiers.Add(Neg);
+		TurnLeftMap.Modifiers.Add(NewObject<UInputModifierNegate>(ShipMappingContext));
 
-		// Arrow keys also work
-		ShipMappingContext->MapKey(IA_Turn, EKeys::Right);
-		FEnhancedActionKeyMapping& TurnLeftArrow = ShipMappingContext->MapKey(IA_Turn, EKeys::Left);
-		TurnLeftArrow.Modifiers.Add(NewObject<UInputModifierNegate>(ShipMappingContext));
-
-		// Legacy manual-side fire
-		ShipMappingContext->MapKey(IA_FireLeft,  EKeys::Q);
+		ShipMappingContext->MapKey(IA_FireLeft, EKeys::Q);
 		ShipMappingContext->MapKey(IA_FireRight, EKeys::E);
-
-		// Camera-aimed fire (preferred): LMB and SpaceBar
 		ShipMappingContext->MapKey(IA_Fire, EKeys::LeftMouseButton);
-		ShipMappingContext->MapKey(IA_Fire, EKeys::SpaceBar);
-
-		// Mouse look (camera rotation).  Mouse2D gives (X, Y) delta.
-		ShipMappingContext->MapKey(IA_Look, EKeys::Mouse2D);
-
-		// Docks / upgrade UI
-		ShipMappingContext->MapKey(IA_ToggleDocks, EKeys::U);
 		ShipMappingContext->MapKey(IA_Aim, EKeys::RightMouseButton);
-		ShipMappingContext->MapKey(IA_QuestLog, EKeys::J);
-
-		UE_LOG(LogTemp, Warning, TEXT("[ShipPawn] Auto-created fallback IMC_Ship with default keybinds "
-			"(W/S sails, A/D or arrows turn, Q/LMB port fire, E/RMB starboard fire, mouse look)."));
+		ShipMappingContext->MapKey(IA_Look, EKeys::Mouse2D);
 	}
 }
 
 void AShipPawn::AddInputMappingContext()
 {
 	APlayerController* PC = Cast<APlayerController>(GetController());
-	if (!PC)
-	{
-		UE_LOG(LogTemp, Verbose, TEXT("[ShipPawn] AddInputMappingContext: no PlayerController yet."));
-		return;
-	}
+	if (!PC) return;
 
 	ULocalPlayer* LP = PC->GetLocalPlayer();
-	if (!LP)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[ShipPawn] No LocalPlayer on controller!"));
-		return;
-	}
+	if (!LP) return;
 
-	UEnhancedInputLocalPlayerSubsystem* Subsystem =
-		ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(LP);
-	if (!Subsystem)
-	{
-		UE_LOG(LogTemp, Error,
-			TEXT("[ShipPawn] EnhancedInput subsystem missing. "
-			     "Enable Enhanced Input plugin AND set Project Settings > Input > "
-			     "Default Input Component Class = EnhancedInputComponent."));
-		if (GEngine && bShowDebugOnScreen)
-		{
-			GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Red,
-				TEXT("Enhanced Input subsystem not found! Check Project Settings > Input."));
-		}
-		return;
-	}
-
-	if (!ShipMappingContext)
-	{
-		UE_LOG(LogTemp, Error,
-			TEXT("[ShipPawn] ShipMappingContext is NULL! Assign IMC_Ship in BP_PlayerShip Details panel."));
-		if (GEngine && bShowDebugOnScreen)
-		{
-			GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Red,
-				TEXT("BP_PlayerShip: ShipMappingContext NOT assigned! Assign IMC_Ship in Details."));
-		}
-		return;
-	}
+	UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(LP);
+	if (!Subsystem) return;
 
 	Subsystem->ClearAllMappings();
 
-	// Build a canonical "overlay" IMC built with guaranteed-correct keybinds
-	// (Negate modifier on A/Left, all required actions mapped).  This is the
-	// SOLE IMC we register, to avoid axis-sum conflicts with a possibly
-	// misconfigured user IMC (e.g. missing Negate on A).  Users who want custom
-	// keybinds should edit the source here or set ShipMappingContext in BP and
-	// remove this call.
 	UInputMappingContext* Overlay = NewObject<UInputMappingContext>(this, UInputMappingContext::StaticClass(), TEXT("IMC_Ship_Canonical"));
 	if (IA_IncreaseSail) Overlay->MapKey(IA_IncreaseSail, EKeys::W);
 	if (IA_DecreaseSail) Overlay->MapKey(IA_DecreaseSail, EKeys::S);
@@ -269,28 +179,14 @@ void AShipPawn::AddInputMappingContext()
 		Overlay->MapKey(IA_Turn, EKeys::D);
 		FEnhancedActionKeyMapping& MA = Overlay->MapKey(IA_Turn, EKeys::A);
 		MA.Modifiers.Add(NewObject<UInputModifierNegate>(Overlay));
-		Overlay->MapKey(IA_Turn, EKeys::Right);
-		FEnhancedActionKeyMapping& ML = Overlay->MapKey(IA_Turn, EKeys::Left);
-		ML.Modifiers.Add(NewObject<UInputModifierNegate>(Overlay));
 	}
-	if (IA_FireLeft)  Overlay->MapKey(IA_FireLeft,  EKeys::Q);
+	if (IA_FireLeft)  Overlay->MapKey(IA_FireLeft, EKeys::Q);
 	if (IA_FireRight) Overlay->MapKey(IA_FireRight, EKeys::E);
-	if (IA_Fire)
-	{
-		Overlay->MapKey(IA_Fire, EKeys::LeftMouseButton);
-		Overlay->MapKey(IA_Fire, EKeys::SpaceBar);
-	}
-	if (IA_Look) Overlay->MapKey(IA_Look, EKeys::Mouse2D);
-	if (IA_ToggleDocks) Overlay->MapKey(IA_ToggleDocks, EKeys::U);
+	if (IA_Fire) Overlay->MapKey(IA_Fire, EKeys::LeftMouseButton);
 	if (IA_Aim) Overlay->MapKey(IA_Aim, EKeys::RightMouseButton);
-	if (IA_QuestLog) Overlay->MapKey(IA_QuestLog, EKeys::J);
-	Subsystem->AddMappingContext(Overlay, 0);
+	if (IA_Look) Overlay->MapKey(IA_Look, EKeys::Mouse2D);
 
-	if (GEngine && bShowDebugOnScreen)
-	{
-		GEngine->AddOnScreenDebugMessage(-1, 3.f, FColor::Green,
-			TEXT("Canonical IMC registered (W/S/A/D/Q/E/LMB/Space/mouse-look/U-docks)"));
-	}
+	Subsystem->AddMappingContext(Overlay, 0);
 }
 
 void AShipPawn::Tick(float DeltaTime)
@@ -307,17 +203,8 @@ void AShipPawn::Tick(float DeltaTime)
 		}
 	}
 
-	// Final-fallback raw polling — runs unconditionally, but edge-triggered
-	// state means it never double-fires when Enhanced Input is also active.
-	// For TurnAxis, if EnhancedInput just updated it, raw polling will match
-	// the same key state (idempotent).
 	PollRawInputFallback(DeltaTime);
-
-	// Smooth raw turn input -> TurnInputValue (rudder lag).
-	TurnInputValue = FMath::FInterpTo(TurnInputValue, TurnInputRaw, DeltaTime, TurnInputInterpSpeed);
-	if (FMath::IsNearlyZero(TurnInputRaw) && FMath::Abs(TurnInputValue) < 0.005f)
-		TurnInputValue = 0.0f;
-
+	UpdateAiming(DeltaTime);
 	UpdateMovement(DeltaTime);
 
 	if (!FMath::IsNearlyZero(TurnInputValue))
@@ -330,112 +217,47 @@ void AShipPawn::Tick(float DeltaTime)
 	UpdateWaveMotion(DeltaTime);
 	UpdateVisualRoll(DeltaTime);
 	UpdateBowWake();
-
-	// Aim-mode visuals: interp FOV smoothly, apply global time dilation as a snap.
-	// (Interping dilation would slow its own transition — snap is correct here.)
-	if (Camera)
-	{
-		const float TargetFOV = bAimMode ? AimFOV : DefaultFOV;
-		const float NewFOV = FMath::FInterpTo(Camera->FieldOfView, TargetFOV, DeltaTime, AimFOVInterpSpeed);
-		Camera->SetFieldOfView(NewFOV);
-	}
-	if (UWorld* W = GetWorld())
-	{
-		const float TargetDil = bAimMode ? AimTimeDilation : 1.0f;
-		if (!FMath::IsNearlyEqual(UGameplayStatics::GetGlobalTimeDilation(W), TargetDil, 0.01f))
-		{
-			UGameplayStatics::SetGlobalTimeDilation(W, TargetDil);
-		}
-	}
-
-	if (GEngine && bShowDebugOnScreen)
-	{
-		static const TCHAR* SailNames[] = { TEXT("Stop"), TEXT("Half"), TEXT("Full") };
-
-		// Extra diagnostic: is the Slate viewport actually focused and has mouse capture?
-		bool bViewportFocused = false;
-		bool bMouseCaptured = false;
-		if (GEngine->GameViewport)
-		{
-			if (FViewport* VP = GEngine->GameViewport->Viewport)
-			{
-				bMouseCaptured = VP->HasMouseCapture();
-				bViewportFocused = VP->HasFocus();
-			}
-		}
-
-		GEngine->AddOnScreenDebugMessage(1001, 0.0f, FColor::Yellow,
-			FString::Printf(TEXT("[Ship] Sail=%s Speed=%.0f Turn=%.2f EI=%s LastInput=%s VPFocus=%s MouseCap=%s Ctrl=%s"),
-				SailNames[(int32)CurrentSailLevel], CurrentSpeed, TurnInputValue,
-				bEnhancedInputReady ? TEXT("OK") : TEXT("FALLBACK"),
-				*LastInputSource,
-				bViewportFocused ? TEXT("YES") : TEXT("NO"),
-				bMouseCaptured   ? TEXT("YES") : TEXT("NO"),
-				GetController() ? *GetController()->GetName() : TEXT("NONE")));
-
-		if (!bViewportFocused)
-		{
-			GEngine->AddOnScreenDebugMessage(1002, 0.0f, FColor::Red,
-				TEXT("!!! CLICK ON GAME VIEWPORT TO GIVE IT FOCUS !!!"));
-		}
-	}
 }
 
 void AShipPawn::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
-
-	// Make sure IA properties are non-null before binding.
 	EnsureInputAssetsExist();
 
-	// Attempt Enhanced Input binding (preferred).
 	UEnhancedInputComponent* EIC = Cast<UEnhancedInputComponent>(PlayerInputComponent);
 	if (EIC)
 	{
-		if (IA_IncreaseSail)
-			EIC->BindAction(IA_IncreaseSail, ETriggerEvent::Started,   this, &AShipPawn::Input_IncreaseSail);
-		if (IA_DecreaseSail)
-			EIC->BindAction(IA_DecreaseSail, ETriggerEvent::Started,   this, &AShipPawn::Input_DecreaseSail);
+		if (IA_IncreaseSail) EIC->BindAction(IA_IncreaseSail, ETriggerEvent::Started, this, &AShipPawn::Input_IncreaseSail);
+		if (IA_DecreaseSail) EIC->BindAction(IA_DecreaseSail, ETriggerEvent::Started, this, &AShipPawn::Input_DecreaseSail);
 		if (IA_Turn)
 		{
 			EIC->BindAction(IA_Turn, ETriggerEvent::Triggered, this, &AShipPawn::Input_Turn);
 			EIC->BindAction(IA_Turn, ETriggerEvent::Completed, this, &AShipPawn::Input_TurnCompleted);
-			EIC->BindAction(IA_Turn, ETriggerEvent::Canceled,  this, &AShipPawn::Input_TurnCompleted);
+			EIC->BindAction(IA_Turn, ETriggerEvent::Canceled, this, &AShipPawn::Input_TurnCompleted);
 		}
-		if (IA_FireLeft)  EIC->BindAction(IA_FireLeft,  ETriggerEvent::Started, this, &AShipPawn::Input_FireLeft);
+		if (IA_FireLeft)  EIC->BindAction(IA_FireLeft, ETriggerEvent::Started, this, &AShipPawn::Input_FireLeft);
 		if (IA_FireRight) EIC->BindAction(IA_FireRight, ETriggerEvent::Started, this, &AShipPawn::Input_FireRight);
-		if (IA_Fire)      EIC->BindAction(IA_Fire,      ETriggerEvent::Started, this, &AShipPawn::Input_Fire);
-		if (IA_Look)        EIC->BindAction(IA_Look,        ETriggerEvent::Triggered, this, &AShipPawn::Input_Look);
-		if (IA_ToggleDocks) EIC->BindAction(IA_ToggleDocks, ETriggerEvent::Started,   this, &AShipPawn::Input_ToggleDocks);
+		if (IA_Fire)      EIC->BindAction(IA_Fire, ETriggerEvent::Started, this, &AShipPawn::Input_Fire);
+
 		if (IA_Aim)
 		{
-			EIC->BindAction(IA_Aim, ETriggerEvent::Started,   this, &AShipPawn::Input_AimPressed);
-			EIC->BindAction(IA_Aim, ETriggerEvent::Completed, this, &AShipPawn::Input_AimReleased);
-			EIC->BindAction(IA_Aim, ETriggerEvent::Canceled,  this, &AShipPawn::Input_AimReleased);
+			EIC->BindAction(IA_Aim, ETriggerEvent::Started, this, &AShipPawn::Input_AimStart);
+			EIC->BindAction(IA_Aim, ETriggerEvent::Completed, this, &AShipPawn::Input_AimStop);
+			EIC->BindAction(IA_Aim, ETriggerEvent::Canceled, this, &AShipPawn::Input_AimStop);
 		}
-		if (IA_QuestLog) EIC->BindAction(IA_QuestLog, ETriggerEvent::Started, this, &AShipPawn::Input_ToggleQuestLog);
+
+		if (IA_Look) EIC->BindAction(IA_Look, ETriggerEvent::Triggered, this, &AShipPawn::Input_Look);
 
 		bEnhancedInputReady = true;
-		UE_LOG(LogTemp, Log, TEXT("[ShipPawn] Enhanced Input bound successfully."));
 	}
 	else
 	{
 		bEnhancedInputReady = false;
-		UE_LOG(LogTemp, Warning,
-			TEXT("[ShipPawn] EnhancedInputComponent cast failed; raw polling fallback will drive input. "
-			     "Check Project Settings > Input > Default Input Component Class."));
-		if (GEngine && bShowDebugOnScreen)
-		{
-			GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Yellow,
-				TEXT("EnhancedInputComponent not found — using raw key polling fallback."));
-		}
 	}
 }
 
-float AShipPawn::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent,
-	AController* EventInstigator, AActor* DamageCauser)
+float AShipPawn::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
 {
-	// Apply hull armor reduction BEFORE Super::TakeDamage so HealthComponent receives the reduced value
 	const float MitigatedDamage = DamageAmount * (1.0f - ArmorReduction);
 	float Actual = Super::TakeDamage(MitigatedDamage, DamageEvent, EventInstigator, DamageCauser);
 
@@ -444,66 +266,23 @@ float AShipPawn::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent,
 		if (APlayerController* PC = Cast<APlayerController>(GetController()))
 		{
 			const float MaxHP = HealthComponent ? HealthComponent->GetMaxHealth() : 200.0f;
-			const float Scale = FMath::Clamp(HitCameraShakeScale * (MitigatedDamage / MaxHP) * 5.0f,
-				0.3f, HitCameraShakeScale * 2.0f);
+			const float Scale = FMath::Clamp(HitCameraShakeScale * (MitigatedDamage / MaxHP) * 5.0f, 0.3f, HitCameraShakeScale * 2.0f);
 			PC->ClientStartCameraShake(HitCameraShake, Scale);
 		}
 	}
-
 	return Actual;
 }
 
-void AShipPawn::Input_IncreaseSail(const FInputActionValue& /*Value*/)
-{
-	if (!ConsumeActionCooldown(TEXT("IncSail"), 0.25f)) return;
-	LastInputSource = TEXT("EnhancedInput");
-	DoIncreaseSail();
-}
-
-void AShipPawn::Input_DecreaseSail(const FInputActionValue& /*Value*/)
-{
-	if (!ConsumeActionCooldown(TEXT("DecSail"), 0.25f)) return;
-	LastInputSource = TEXT("EnhancedInput");
-	DoDecreaseSail();
-}
-
-void AShipPawn::Input_Turn(const FInputActionValue& Value)
-{
-	LastInputSource = TEXT("EnhancedInput");
-	DoSetTurnAxis(Value.Get<float>());
-}
-
-void AShipPawn::Input_TurnCompleted(const FInputActionValue& /*Value*/)
-{
-	DoSetTurnAxis(0.0f);
-}
-
-void AShipPawn::Input_FireLeft(const FInputActionValue& /*Value*/)
-{
-	if (!ConsumeActionCooldown(TEXT("FireL"), 0.15f)) return;
-	LastInputSource = TEXT("EnhancedInput");
-	DoFireLeft();
-}
-
-void AShipPawn::Input_FireRight(const FInputActionValue& /*Value*/)
-{
-	if (!ConsumeActionCooldown(TEXT("FireR"), 0.15f)) return;
-	LastInputSource = TEXT("EnhancedInput");
-	DoFireRight();
-}
-
-void AShipPawn::Input_Fire(const FInputActionValue& /*Value*/)
-{
-	if (!ConsumeActionCooldown(TEXT("FireCam"), 0.15f)) return;
-	LastInputSource = TEXT("EnhancedInput");
-	DoCameraAimFire();
-}
-
-void AShipPawn::Input_Look(const FInputActionValue& Value)
-{
-	LastInputSource = TEXT("EnhancedInput");
-	DoLook(Value.Get<FVector2D>());
-}
+void AShipPawn::Input_IncreaseSail(const FInputActionValue&) { if (ConsumeActionCooldown(TEXT("IncSail"))) DoIncreaseSail(); }
+void AShipPawn::Input_DecreaseSail(const FInputActionValue&) { if (ConsumeActionCooldown(TEXT("DecSail"))) DoDecreaseSail(); }
+void AShipPawn::Input_Turn(const FInputActionValue& Value) { DoSetTurnAxis(Value.Get<float>()); }
+void AShipPawn::Input_TurnCompleted(const FInputActionValue&) { DoSetTurnAxis(0.0f); }
+void AShipPawn::Input_FireLeft(const FInputActionValue&) { if (ConsumeActionCooldown(TEXT("FireL"), 0.15f)) DoFireLeft(); }
+void AShipPawn::Input_FireRight(const FInputActionValue&) { if (ConsumeActionCooldown(TEXT("FireR"), 0.15f)) DoFireRight(); }
+void AShipPawn::Input_Fire(const FInputActionValue&) { if (ConsumeActionCooldown(TEXT("FireCam"), 0.15f)) DoCameraAimFire(); }
+void AShipPawn::Input_AimStart(const FInputActionValue&) { bIsAiming = true; }
+void AShipPawn::Input_AimStop(const FInputActionValue&) { bIsAiming = false; }
+void AShipPawn::Input_Look(const FInputActionValue& Value) { DoLook(Value.Get<FVector2D>()); }
 
 void AShipPawn::Input_ToggleDocks(const FInputActionValue& /*Value*/)
 {
@@ -546,8 +325,6 @@ bool AShipPawn::ConsumeActionCooldown(FName ActionTag, float CooldownSec)
 	return true;
 }
 
-// ---- Shared action implementations ---------------------------------------
-
 void AShipPawn::DoIncreaseSail()
 {
 	switch (CurrentSailLevel)
@@ -556,7 +333,6 @@ void AShipPawn::DoIncreaseSail()
 	case ESailLevel::HalfSail: CurrentSailLevel = ESailLevel::FullSail; break;
 	default: break;
 	}
-	UE_LOG(LogTemp, Log, TEXT("[ShipPawn] Sail -> %d (%s)"), (int)CurrentSailLevel, *LastInputSource);
 }
 
 void AShipPawn::DoDecreaseSail()
@@ -567,7 +343,6 @@ void AShipPawn::DoDecreaseSail()
 	case ESailLevel::HalfSail: CurrentSailLevel = ESailLevel::Stop;     break;
 	default: break;
 	}
-	UE_LOG(LogTemp, Log, TEXT("[ShipPawn] Sail -> %d (%s)"), (int)CurrentSailLevel, *LastInputSource);
 }
 
 void AShipPawn::DoSetTurnAxis(float Value)
@@ -576,35 +351,19 @@ void AShipPawn::DoSetTurnAxis(float Value)
 	TurnInputRaw = FMath::Clamp(Value, -1.0f, 1.0f);
 }
 
-void AShipPawn::DoFireLeft()
-{
-	if (CannonComponent) CannonComponent->FireBroadsideVolley(ECannonSide::Left);
-}
-
-void AShipPawn::DoFireRight()
-{
-	if (CannonComponent) CannonComponent->FireBroadsideVolley(ECannonSide::Right);
-}
+void AShipPawn::DoFireLeft() { if (CannonComponent) CannonComponent->FireBroadside(ECannonSide::Left); }
+void AShipPawn::DoFireRight() { if (CannonComponent) CannonComponent->FireBroadside(ECannonSide::Right); }
 
 void AShipPawn::DoLook(const FVector2D& Delta)
 {
-	// Aim mode = finer control while zoomed in.
-	const float SensScale = bAimMode ? AimLookSensitivityScale : 1.0f;
-	const float YawSens   = LookYawSensitivity   * SensScale;
-	const float PitchSens = LookPitchSensitivity * SensScale;
+	LookYawOffset = FRotator::NormalizeAxis(LookYawOffset + Delta.X * LookYawSensitivity);
+	LookPitchOffset = FMath::Clamp(LookPitchOffset - Delta.Y * LookPitchSensitivity, LookPitchMin, LookPitchMax);
 
-	// Mouse delta is typically already normalized (pixels × sensitivity from input config)
-	LookYawOffset   = FRotator::NormalizeAxis(LookYawOffset + Delta.X * YawSens);
-	LookPitchOffset = FMath::Clamp(LookPitchOffset - Delta.Y * PitchSens, LookPitchMin, LookPitchMax);
-
-	// Apply to SpringArm.  Yaw inherits ship yaw (SpringArm.bInheritYaw=true), so
-	// we only add the RELATIVE yaw offset; pitch we set directly since the arm
-	// already has base pitch of ~-25.
 	if (SpringArm)
 	{
 		FRotator Rel = SpringArm->GetRelativeRotation();
-		Rel.Yaw   = LookYawOffset;
-		Rel.Pitch = LookPitchOffset - 25.0f; // base down tilt
+		Rel.Yaw = LookYawOffset;
+		Rel.Pitch = LookPitchOffset - 25.0f;
 		SpringArm->SetRelativeRotation(Rel);
 	}
 }
@@ -613,119 +372,96 @@ void AShipPawn::DoCameraAimFire()
 {
 	if (!CannonComponent || !Camera) return;
 
-	const FVector CamFwd = Camera->GetForwardVector();
-	const float DotRight = FVector::DotProduct(CamFwd, GetActorRightVector());
+	if (bIsAiming)
+	{
+		CannonComponent->FireBroadside(AimingSide);
+	}
+	else
+	{
+		const FVector CamFwd = Camera->GetForwardVector();
+		const float DotRight = FVector::DotProduct(CamFwd, GetActorRightVector());
 
-	// Rolling broadside always — that's just how cannons fire in real life,
-	// and it gives the combat impact instead of a single thud.
-	if (DotRight > 0.35f)
-	{
-		CannonComponent->FireBroadsideVolley(ECannonSide::Right);
-	}
-	else if (DotRight < -0.35f)
-	{
-		CannonComponent->FireBroadsideVolley(ECannonSide::Left);
-	}
-	else if (GEngine)
-	{
-		GEngine->AddOnScreenDebugMessage(-1, 1.2f, FColor::Yellow,
-			TEXT("Turn camera left or right to aim broadside"));
+		if (DotRight > 0.35f) CannonComponent->FireBroadside(ECannonSide::Right);
+		else if (DotRight < -0.35f) CannonComponent->FireBroadside(ECannonSide::Left);
 	}
 }
 
 void AShipPawn::PollRawInputFallback(float DeltaTime)
 {
-	// Always run, regardless of whether Enhanced Input bound.  Per-action
-	// debounce (ConsumeActionCooldown) prevents double-fires when EI also works.
 	APlayerController* PC = Cast<APlayerController>(GetController());
 	if (!PC) return;
 
-	// Upgrade-menu hotkeys 1-7 — only honored when the menu is actually open.
-	if (ACrownsBanePlayerController* CBPC = Cast<ACrownsBanePlayerController>(PC))
+	if (!bEnhancedInputReady)
 	{
-		if (CBPC->IsUpgradeUIOpen())
-		{
-			static const FKey BuyKeys[] = {
-				EKeys::One, EKeys::Two, EKeys::Three, EKeys::Four,
-				EKeys::Five, EKeys::Six, EKeys::Seven
-			};
-			for (int32 i = 0; i < UE_ARRAY_COUNT(BuyKeys); ++i)
-			{
-				if (PC->IsInputKeyDown(BuyKeys[i]))
-				{
-					const FName Tag = FName(*FString::Printf(TEXT("BuyUpg%d"), i));
-					if (ConsumeActionCooldown(Tag, 0.30f))
-					{
-						CBPC->BuyUpgrade(static_cast<uint8>(i));
-					}
-				}
-			}
-		}
+		bIsAiming = PC->IsInputKeyDown(EKeys::RightMouseButton);
 	}
 
-	// --- Edge-triggered actions: debounced via ConsumeActionCooldown so if
-	// Enhanced Input already fired the action, the raw poll is swallowed.
 	const bool bW = PC->IsInputKeyDown(EKeys::W) || PC->IsInputKeyDown(EKeys::Up);
-	if (bW && !bRawPrevW && ConsumeActionCooldown(TEXT("IncSail"), 0.25f))
-	{
-		LastInputSource = TEXT("RawPoll");
-		DoIncreaseSail();
-	}
+	if (bW && !bRawPrevW && ConsumeActionCooldown(TEXT("IncSail"), 0.25f)) DoIncreaseSail();
 	bRawPrevW = bW;
 
 	const bool bS = PC->IsInputKeyDown(EKeys::S) || PC->IsInputKeyDown(EKeys::Down);
-	if (bS && !bRawPrevS && ConsumeActionCooldown(TEXT("DecSail"), 0.25f))
-	{
-		LastInputSource = TEXT("RawPoll");
-		DoDecreaseSail();
-	}
+	if (bS && !bRawPrevS && ConsumeActionCooldown(TEXT("DecSail"), 0.25f)) DoDecreaseSail();
 	bRawPrevS = bS;
 
 	const bool bQ = PC->IsInputKeyDown(EKeys::Q);
-	if (bQ && !bRawPrevQ && ConsumeActionCooldown(TEXT("FireL"), 0.15f))
-	{
-		LastInputSource = TEXT("RawPoll");
-		DoFireLeft();
-	}
+	if (bQ && !bRawPrevQ && ConsumeActionCooldown(TEXT("FireL"), 0.15f)) DoFireLeft();
 	bRawPrevQ = bQ;
 
 	const bool bE = PC->IsInputKeyDown(EKeys::E);
-	if (bE && !bRawPrevE && ConsumeActionCooldown(TEXT("FireR"), 0.15f))
-	{
-		LastInputSource = TEXT("RawPoll");
-		DoFireRight();
-	}
+	if (bE && !bRawPrevE && ConsumeActionCooldown(TEXT("FireR"), 0.15f)) DoFireRight();
 	bRawPrevE = bE;
 
 	const bool bFire = PC->IsInputKeyDown(EKeys::LeftMouseButton) || PC->IsInputKeyDown(EKeys::SpaceBar);
-	if (bFire && !bRawPrevFire && ConsumeActionCooldown(TEXT("FireCam"), 0.15f))
-	{
-		LastInputSource = TEXT("RawPoll");
-		DoCameraAimFire();
-	}
+	if (bFire && !bRawPrevFire && ConsumeActionCooldown(TEXT("FireCam"), 0.15f)) DoCameraAimFire();
 	bRawPrevFire = bFire;
 
-	// --- Continuous turn axis.  Only apply if Enhanced Input hasn't set it
-	// this frame (detect via: TurnInputValue untouched or EI off).
 	float Raw = 0.0f;
 	if (PC->IsInputKeyDown(EKeys::D) || PC->IsInputKeyDown(EKeys::Right)) Raw += 1.0f;
 	if (PC->IsInputKeyDown(EKeys::A) || PC->IsInputKeyDown(EKeys::Left))  Raw -= 1.0f;
-	if (!bEnhancedInputReady || FMath::IsNearlyZero(TurnInputValue))
-	{
-		DoSetTurnAxis(Raw);
-		if (!FMath::IsNearlyZero(Raw)) LastInputSource = TEXT("RawPoll");
-	}
+	if (!bEnhancedInputReady || FMath::IsNearlyZero(TurnInputValue)) DoSetTurnAxis(Raw);
 
-	// --- Mouse look: apply delta continuously if it isn't already driven by EI.
 	float MX = 0.f, MY = 0.f;
 	PC->GetInputMouseDelta(MX, MY);
-	if (!FMath::IsNearlyZero(MX) || !FMath::IsNearlyZero(MY))
+	if (!bEnhancedInputReady && (!FMath::IsNearlyZero(MX) || !FMath::IsNearlyZero(MY)))
 	{
-		if (!bEnhancedInputReady)
-		{
-			LastInputSource = TEXT("RawPoll");
-			DoLook(FVector2D(MX, MY));
-		}
+		DoLook(FVector2D(MX, MY));
+	}
+}
+
+void AShipPawn::UpdateAiming(float DeltaTime)
+{
+	if (!CannonComponent || !Camera || !SpringArm) return;
+
+	CannonComponent->SetIsAiming(bIsAiming);
+
+	if (bIsAiming)
+	{
+		// 1. Приближуємо камеру, але залишаємо їй вільний огляд
+		SpringArm->TargetArmLength = FMath::FInterpTo(SpringArm->TargetArmLength, AimSpringArmLength, DeltaTime, AimZoomSpeed);
+
+		// 2. Визначаємо активний борт за азимутом камери
+		FVector CamFwd = Camera->GetForwardVector();
+		float DotRight = FVector::DotProduct(CamFwd, GetActorRightVector());
+		AimingSide = (DotRight > 0.0f) ? ECannonSide::Right : ECannonSide::Left;
+
+		// 3. Відв'язуємо дистанцію прицілу від прямого променя
+		// Переводимо нахил камери (Pitch) у дистанцію по воді. 
+		FVector CamFwd2D = CamFwd.GetSafeNormal2D();
+		float Pitch = SpringArm->GetRelativeRotation().Pitch;
+
+		// MapRange: чим вище дивиться камера (ближче до -5), тим далі ціль
+		float NormalizedPitch = FMath::GetMappedRangeValueClamped(FVector2D(-60.0f, -5.0f), FVector2D(0.0f, 1.0f), Pitch);
+		float TargetDist = FMath::Lerp(500.0f, CannonComponent->MaxRange, NormalizedPitch);
+
+		FVector TargetLoc = GetActorLocation() + CamFwd2D * TargetDist;
+		TargetLoc.Z = 0.0f; // Приціл завжди на площині води
+
+		CannonComponent->UpdateAimTarget(AimingSide, TargetLoc);
+	}
+	else
+	{
+		SpringArm->TargetArmLength = FMath::FInterpTo(SpringArm->TargetArmLength, DefaultSpringArmLength, DeltaTime, AimZoomSpeed);
 	}
 }
 
@@ -765,7 +501,6 @@ void AShipPawn::UpdateMovement(float DeltaTime)
 
 	if (CurrentSpeed > 0.01f)
 	{
-		// sweep=false avoids getting stuck on invisible water collision
 		AddActorWorldOffset(GetActorForwardVector() * CurrentSpeed * DeltaTime, false);
 	}
 }
@@ -809,21 +544,11 @@ void AShipPawn::ApplySpeedPenalty(float PenaltyFraction, float Duration)
 	SpeedPenaltyTimeRemaining = Duration;
 }
 
-void AShipPawn::UpgradeMaxSpeed(float BonusSpeed)
-{
-	MaxSpeed += BonusSpeed;
-}
-
-void AShipPawn::UpgradeTurnRate(float BonusTurnRate)
-{
-	BaseTurnRate += BonusTurnRate;
-}
-
+void AShipPawn::UpgradeMaxSpeed(float BonusSpeed) { MaxSpeed += BonusSpeed; }
+void AShipPawn::UpgradeTurnRate(float BonusTurnRate) { BaseTurnRate += BonusTurnRate; }
 void AShipPawn::UpgradeHullArmor(float AdditionalReductionPct)
 {
-	// AdditionalReductionPct is expressed as percent (e.g. 10 = 10%)
 	ArmorReduction = FMath::Clamp(ArmorReduction + AdditionalReductionPct * 0.01f, 0.0f, 0.75f);
-	UE_LOG(LogTemp, Log, TEXT("[ShipPawn] Hull armor now %.0f%% reduction"), ArmorReduction * 100.0f);
 }
 
 void AShipPawn::UpdateDamageFX()
@@ -849,7 +574,6 @@ void AShipPawn::UpdateDamageFX()
 void AShipPawn::UpdateBowWake()
 {
 	if (!BowWakeFX) return;
-
 	const bool bMoving = CurrentSpeed > 50.0f;
 	if (bMoving && !BowWakeFX->IsActive()) BowWakeFX->Activate(true);
 	else if (!bMoving && BowWakeFX->IsActive()) BowWakeFX->Deactivate();
@@ -861,53 +585,19 @@ void AShipPawn::UpdateBowWake()
 	}
 }
 
-void AShipPawn::HandleHealthChanged(float CurrentHealth, float MaxHealth)
-{
-	UpdateDamageFX();
-
-	// Trigger red screen flash when WE take damage (only for the player pawn).
-	if (CurrentHealth < LastSeenHealth - 0.01f)
-	{
-		if (APlayerController* PC = Cast<APlayerController>(GetController()))
-		{
-			if (ACrownsBaneHUD* HUD = Cast<ACrownsBaneHUD>(PC->GetHUD()))
-			{
-				const float DamageDealt = LastSeenHealth - CurrentHealth;
-				const float Intensity = FMath::Clamp(DamageDealt / FMath::Max(1.0f, MaxHealth * 0.25f), 0.25f, 1.0f);
-				HUD->TriggerDamageFlash(Intensity);
-			}
-		}
-	}
-	LastSeenHealth = CurrentHealth;
-}
+void AShipPawn::HandleHealthChanged(float, float) { UpdateDamageFX(); }
 
 void AShipPawn::HandleDeath()
 {
-	// Play death FX at ship location
 	UWorld* World = GetWorld();
 	if (World)
 	{
 		const FVector Loc = GetActorLocation();
-		if (DeathExplosionAsset)
-		{
-			UNiagaraFunctionLibrary::SpawnSystemAtLocation(World, DeathExplosionAsset, Loc, GetActorRotation());
-		}
-		if (DeathSound)
-		{
-			UGameplayStatics::PlaySoundAtLocation(World, DeathSound, Loc);
-		}
+		if (DeathExplosionAsset) UNiagaraFunctionLibrary::SpawnSystemAtLocation(World, DeathExplosionAsset, Loc, GetActorRotation());
+		if (DeathSound) UGameplayStatics::PlaySoundAtLocation(World, DeathSound, Loc);
 	}
 
-	// Stop persistent FX
 	if (DamageSmokeFX) DamageSmokeFX->Deactivate();
 	if (DamageFireFX)  DamageFireFX->Deactivate();
 	if (BowWakeFX)     BowWakeFX->Deactivate();
-
-	// Safety: ensure time dilation/aim mode are reset so a stuck slo-mo doesn't
-	// outlive the player.
-	bAimMode = false;
-	if (UWorld* W = GetWorld())
-	{
-		UGameplayStatics::SetGlobalTimeDilation(W, 1.0f);
-	}
 }

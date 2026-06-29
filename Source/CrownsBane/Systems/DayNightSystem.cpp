@@ -87,7 +87,7 @@ void ADayNightSystem::ApplySunState()
 	SunLight->SetActorRotation(FRotator(Pitch, 40.0f, 0.0f));
 
 	const bool bIsNight = IsNight();
-	UDirectionalLightComponent* Comp = SunLight->GetComponent();
+	UDirectionalLightComponent* Comp = Cast<UDirectionalLightComponent>(SunLight->GetLightComponent());
 	if (!Comp) return;
 
 	const float DayFactor = GetDayFactor();

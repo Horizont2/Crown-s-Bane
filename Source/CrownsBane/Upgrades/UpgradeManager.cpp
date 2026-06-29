@@ -125,6 +125,40 @@ bool AUpgradeManager::GetNextUpgradeData(EUpgradeCategory Category, FUpgradeLeve
 	return true;
 }
 
+bool AUpgradeManager::RepairShip(UPlayerInventory* Inventory, AShipPawn* Ship)
+{
+	if (!Inventory || !Ship || !Ship->HealthComponent) return false;
+
+	float CurrentHP = Ship->HealthComponent->GetCurrentHealth();
+	float MaxHP = Ship->HealthComponent->GetMaxHealth();
+	float MissingHP = MaxHP - CurrentHP;
+
+	if (MissingHP <= 1.0f)
+	{
+		UE_LOG(LogTemp, Log, TEXT("UpgradeManager: Ship is already at full health."));
+		return false;
+	}
+
+	// Вартість ремонту: 1 дерево і 2 золота за кожні 10 одиниць здоров'я
+	int32 RepairUnits = FMath::CeilToInt(MissingHP / 10.0f);
+	int32 WoodCost = RepairUnits * 1;
+	int32 GoldCost = RepairUnits * 2;
+
+	if (Inventory->HasResource(EResourceType::Wood, WoodCost) && Inventory->HasResource(EResourceType::Gold, GoldCost))
+	{
+		Inventory->SpendResource(EResourceType::Wood, WoodCost);
+		Inventory->SpendResource(EResourceType::Gold, GoldCost);
+
+		// Лікуємо корабель
+		Ship->HealthComponent->Heal(MissingHP);
+		UE_LOG(LogTemp, Log, TEXT("UpgradeManager: Ship repaired for %d Wood and %d Gold."), WoodCost, GoldCost);
+		return true;
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("UpgradeManager: Not enough resources to repair. Need %d Wood, %d Gold."), WoodCost, GoldCost);
+	return false;
+}
+
 bool AUpgradeManager::CanAffordNextUpgrade(EUpgradeCategory Category, const UPlayerInventory* Inventory) const
 {
 	if (!Inventory) return false;

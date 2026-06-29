@@ -15,7 +15,6 @@
 #include "Kismet/GameplayStatics.h"
 #include "NiagaraFunctionLibrary.h"
 #include "Camera/CameraShakeBase.h"
-#include "DrawDebugHelpers.h"
 
 UCannonComponent::UCannonComponent()
 {
@@ -25,39 +24,26 @@ UCannonComponent::UCannonComponent()
 void UCannonComponent::BeginPlay()
 {
 	Super::BeginPlay();
-
 	LeftReloadTimer = 0.0f;
 	RightReloadTimer = 0.0f;
 	bLeftReady = true;
 	bRightReady = true;
 }
 
-void UCannonComponent::TickComponent(float DeltaTime, ELevelTick TickType,
-	FActorComponentTickFunction* ThisTickFunction)
+void UCannonComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
-	// Tick down reload timers
 	if (!bLeftReady)
 	{
 		LeftReloadTimer -= DeltaTime;
-		if (LeftReloadTimer <= 0.0f)
-		{
-			LeftReloadTimer = 0.0f;
-			bLeftReady = true;
-			UE_LOG(LogTemp, Log, TEXT("CannonComponent: Port (left) cannons reloaded."));
-		}
+		if (LeftReloadTimer <= 0.0f) { LeftReloadTimer = 0.0f; bLeftReady = true; }
 	}
 
 	if (!bRightReady)
 	{
 		RightReloadTimer -= DeltaTime;
-		if (RightReloadTimer <= 0.0f)
-		{
-			RightReloadTimer = 0.0f;
-			bRightReady = true;
-			UE_LOG(LogTemp, Log, TEXT("CannonComponent: Starboard (right) cannons reloaded."));
-		}
+		if (RightReloadTimer <= 0.0f) { RightReloadTimer = 0.0f; bRightReady = true; }
 	}
 }
 
@@ -68,34 +54,74 @@ bool UCannonComponent::CanFire(ECannonSide Side) const
 
 float UCannonComponent::GetReloadProgress(ECannonSide Side) const
 {
-	if (Side == ECannonSide::Left)
+	if (Side == ECannonSide::Left) return bLeftReady ? 1.0f : 1.0f - (LeftReloadTimer / ReloadTime);
+	return bRightReady ? 1.0f : 1.0f - (RightReloadTimer / ReloadTime);
+}
+
+void UCannonComponent::UpdateAimTarget(ECannonSide Side, FVector TargetLoc)
+{
+	AimingSide = Side;
+	AActor* Owner = GetOwner();
+	if (!Owner) return;
+
+	FVector OwnerLoc = Owner->GetActorLocation();
+	FVector BaseDir = (Side == ECannonSide::Left) ? -Owner->GetActorRightVector() : Owner->GetActorRightVector();
+
+	FVector ToTarget = TargetLoc - OwnerLoc;
+	ToTarget.Z = 0.0f; // Працюємо в 2D площині для Азимута
+
+	float Distance = ToTarget.Size();
+
+	// 1. Розрахунок Азимута (Горизонтальний кут)
+	if (Distance < 100.0f)
 	{
-		if (bLeftReady) return 1.0f;
-		return 1.0f - (LeftReloadTimer / ReloadTime);
+		DynamicAzimuthDir = BaseDir;
 	}
 	else
 	{
-		if (bRightReady) return 1.0f;
-		return 1.0f - (RightReloadTimer / ReloadTime);
+		FVector ToTargetDir = ToTarget.GetSafeNormal();
+		// Вираховуємо кут між ідеальним перпендикуляром борту і ціллю
+		float AngleRad = FMath::Acos(FMath::Clamp(FVector::DotProduct(BaseDir, ToTargetDir), -1.0f, 1.0f));
+
+		// Обмежуємо поворот гармат (MaxAzimuthAngle)
+		if (FMath::RadiansToDegrees(AngleRad) > MaxAzimuthAngle)
+		{
+			FVector Cross = FVector::CrossProduct(BaseDir, ToTargetDir);
+			float Sign = (Cross.Z > 0.0f) ? 1.0f : -1.0f;
+			DynamicAzimuthDir = BaseDir.RotateAngleAxis(Sign * MaxAzimuthAngle, FVector::UpVector);
+		}
+		else
+		{
+			DynamicAzimuthDir = ToTargetDir;
+		}
+	}
+
+	// 2. Розрахунок Висоти (Elevation/Pitch)
+	Distance = FMath::Clamp(Distance, 0.0f, MaxRange);
+
+	FCannonballData Data = (ActiveCannonballType == ECannonballType::Chain) ? FCannonballData::MakeChain() : FCannonballData::MakeStandard();
+	float V = Data.InitialSpeed;
+	float g = 980.0f * Data.GravityScale;
+
+	// Зворотня формула балістики: sin(2*theta) = (Distance * g) / V^2
+	float Sin2Theta = (Distance * g) / (V * V);
+	if (Sin2Theta >= 1.0f)
+	{
+		DynamicElevationAngle = 45.0f; // Максимальна дальність
+	}
+	else
+	{
+		DynamicElevationAngle = FMath::RadiansToDegrees(0.5f * FMath::Asin(Sin2Theta));
 	}
 }
 
 void UCannonComponent::FireBroadside(ECannonSide Side)
 {
-	if (!CanFire(Side))
-	{
-		UE_LOG(LogTemp, Log, TEXT("CannonComponent: %s broadside not ready."),
-			Side == ECannonSide::Left ? TEXT("Port") : TEXT("Starboard"));
-		return;
-	}
+	if (!CanFire(Side)) return;
 
 	AActor* Owner = GetOwner();
-	if (!Owner)
-	{
-		return;
-	}
+	if (!Owner) return;
 
-	// If owner is player-controlled, consume ammo. Enemies don't care.
 	if (APawn* OwnerPawn = Cast<APawn>(Owner))
 	{
 		if (AController* Ctrl = OwnerPawn->GetController())
@@ -105,66 +131,44 @@ void UCannonComponent::FireBroadside(ECannonSide Side)
 				UPlayerInventory* Inventory = OwnerPawn->FindComponentByClass<UPlayerInventory>();
 				if (!Inventory) Inventory = Ctrl->FindComponentByClass<UPlayerInventory>();
 
-				if (Inventory && !Inventory->ConsumeAmmo(CannonsPerSide))
-				{
-					UE_LOG(LogTemp, Warning, TEXT("CannonComponent: Out of ammo! (%d needed, %d have)"),
-						CannonsPerSide, Inventory->GetAmmo());
-					if (GEngine)
-					{
-						GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Red,
-							TEXT("Out of cannon ammo! Loot from enemies or buy at docks."));
-					}
-					return;
-				}
+				if (Inventory && !Inventory->ConsumeAmmo(CannonsPerSide)) return;
 			}
 		}
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("CannonComponent: Firing %s broadside (%d cannons)."),
-		Side == ECannonSide::Left ? TEXT("port") : TEXT("starboard"), CannonsPerSide);
+	FCannonballData Data = (ActiveCannonballType == ECannonballType::Chain) ? FCannonballData::MakeChain() : FCannonballData::MakeStandard();
+	Data.BaseDamage = DamagePerCannon;
 
-	// Build cannonball data based on active type
-	FCannonballData Data;
-	if (ActiveCannonballType == ECannonballType::Chain)
+	// Вибираємо динамічний вектор (якщо цілимося), або статичний
+	FVector ElevatedDir;
+	if (bIsAiming && Side == AimingSide)
 	{
-		Data = FCannonballData::MakeChain();
+		float ElevRad = FMath::DegreesToRadians(DynamicElevationAngle);
+		ElevatedDir = DynamicAzimuthDir * FMath::Cos(ElevRad) + FVector::UpVector * FMath::Sin(ElevRad);
 	}
 	else
 	{
-		Data = FCannonballData::MakeStandard();
+		FVector OwnerRight = Owner->GetActorRightVector();
+		FVector FireDirection = (Side == ECannonSide::Left) ? -OwnerRight : OwnerRight;
+		float ElevRad = FMath::DegreesToRadians(ElevationAngle);
+		ElevatedDir = FireDirection * FMath::Cos(ElevRad) + FVector::UpVector * FMath::Sin(ElevRad);
 	}
-	Data.BaseDamage = DamagePerCannon;
-
-	// Determine the lateral direction (+right or +left of ship forward)
-	FVector OwnerRight = Owner->GetActorRightVector();
-	FVector FireDirection = (Side == ECannonSide::Left) ? -OwnerRight : OwnerRight;
-
-	// Apply elevation angle upward
-	FVector Up = FVector::UpVector;
-	float ElevRad = FMath::DegreesToRadians(ElevationAngle);
-	FVector ElevatedDir = FireDirection * FMath::Cos(ElevRad) + Up * FMath::Sin(ElevRad);
 	ElevatedDir.Normalize();
 
-	// Try to find cannon sockets on mesh components
 	FName SocketPrefix = (Side == ECannonSide::Left) ? LeftSocketPrefix : RightSocketPrefix;
 	UMeshComponent* MeshComp = Owner->FindComponentByClass<UStaticMeshComponent>();
-	if (!MeshComp)
-	{
-		MeshComp = Owner->FindComponentByClass<USkeletalMeshComponent>();
-	}
-
-	FRotator SpawnRot = ElevatedDir.Rotation();
+	if (!MeshComp) MeshComp = Owner->FindComponentByClass<USkeletalMeshComponent>();
 
 	bool bFiredFromSocket = false;
 	const float HalfSpread = CannonSpreadAngle * 0.5f;
 
 	auto ApplySpread = [&](FVector BaseDir) -> FVector
-	{
-		float YawJitter   = FMath::FRandRange(-HalfSpread, HalfSpread);
-		float PitchJitter = FMath::FRandRange(-HalfSpread * 0.3f, HalfSpread * 0.3f);
-		FRotator Jitter(PitchJitter, YawJitter, 0.0f);
-		return Jitter.RotateVector(BaseDir).GetSafeNormal();
-	};
+		{
+			float YawJitter = FMath::FRandRange(-HalfSpread, HalfSpread);
+			float PitchJitter = FMath::FRandRange(-HalfSpread * 0.3f, HalfSpread * 0.3f);
+			FRotator Jitter(PitchJitter, YawJitter, 0.0f);
+			return Jitter.RotateVector(BaseDir).GetSafeNormal();
+		};
 
 	if (MeshComp)
 	{
@@ -174,7 +178,7 @@ void UCannonComponent::FireBroadside(ECannonSide Side)
 			if (MeshComp->DoesSocketExist(SocketName))
 			{
 				FVector SpawnLoc = MeshComp->GetSocketLocation(SocketName);
-				FVector ShotDir  = ApplySpread(ElevatedDir);
+				FVector ShotDir = ApplySpread(ElevatedDir);
 				SpawnCannonball(SpawnLoc, ShotDir, Data);
 				PlayFireFX(SpawnLoc, ShotDir.Rotation());
 				bFiredFromSocket = true;
@@ -182,26 +186,24 @@ void UCannonComponent::FireBroadside(ECannonSide Side)
 		}
 	}
 
-	// Fallback: spawn from owner location offset by ship width
 	if (!bFiredFromSocket)
 	{
 		float ShipHalfWidth = 300.0f;
 		float CannonSpacing = 250.0f;
-		FVector BaseOffset = FireDirection * ShipHalfWidth;
+		FVector OwnerRight = Owner->GetActorRightVector();
+		FVector BaseOffset = ((Side == ECannonSide::Left) ? -OwnerRight : OwnerRight) * ShipHalfWidth;
 
 		for (int32 i = 0; i < CannonsPerSide; ++i)
 		{
 			float LengthOffset = (i - (CannonsPerSide - 1) * 0.5f) * CannonSpacing;
 			FVector LengthDir = Owner->GetActorForwardVector();
-			FVector SpawnLoc = Owner->GetActorLocation() + BaseOffset + LengthDir * LengthOffset
-				+ FVector(0.0f, 0.0f, 50.0f);
-			FVector ShotDir  = ApplySpread(ElevatedDir);
+			FVector SpawnLoc = Owner->GetActorLocation() + BaseOffset + LengthDir * LengthOffset + FVector(0.0f, 0.0f, 50.0f);
+			FVector ShotDir = ApplySpread(ElevatedDir);
 			SpawnCannonball(SpawnLoc, ShotDir, Data);
 			PlayFireFX(SpawnLoc, ShotDir.Rotation());
 		}
 	}
 
-	// Camera shake — only once per broadside, played on the instigator PC.
 	if (FireCameraShake)
 	{
 		if (APawn* OwnerPawn = Cast<APawn>(Owner))
@@ -213,17 +215,8 @@ void UCannonComponent::FireBroadside(ECannonSide Side)
 		}
 	}
 
-	// Start reload
-	if (Side == ECannonSide::Left)
-	{
-		bLeftReady = false;
-		LeftReloadTimer = ReloadTime;
-	}
-	else
-	{
-		bRightReady = false;
-		RightReloadTimer = ReloadTime;
-	}
+	if (Side == ECannonSide::Left) { bLeftReady = false; LeftReloadTimer = ReloadTime; }
+	else { bRightReady = false; RightReloadTimer = ReloadTime; }
 }
 
 bool UCannonComponent::BuildVolleyQueue(ECannonSide Side, TArray<FQueuedShot>& OutQueue)
@@ -395,28 +388,22 @@ void UCannonComponent::TickRightVolley()
 void UCannonComponent::SpawnCannonball(FVector SpawnLocation, FVector Direction, const FCannonballData& Data)
 {
 	UWorld* World = GetWorld();
-	if (!World)
-	{
-		return;
-	}
+	if (!World) return;
 
 	FActorSpawnParameters SpawnParams;
 	SpawnParams.Owner = GetOwner();
 	SpawnParams.Instigator = Cast<APawn>(GetOwner());
 	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-	FRotator SpawnRotation = Direction.Rotation();
-
+	// Виправлений безпечний запис замість тернарного оператора:
 	TSubclassOf<ACannonball> ClassToSpawn = CannonballClass;
 	if (!ClassToSpawn)
 	{
 		ClassToSpawn = ACannonball::StaticClass();
 	}
-	ACannonball* Ball = World->SpawnActor<ACannonball>(ClassToSpawn, SpawnLocation, SpawnRotation, SpawnParams);
-	if (Ball)
-	{
-		Ball->InitCannonball(Data, GetOwner());
-	}
+
+	ACannonball* Ball = World->SpawnActor<ACannonball>(ClassToSpawn, SpawnLocation, Direction.Rotation(), SpawnParams);
+	if (Ball) Ball->InitCannonball(Data, GetOwner());
 }
 
 void UCannonComponent::PlayFireFX(const FVector& Location, const FRotator& Rotation)
@@ -424,33 +411,21 @@ void UCannonComponent::PlayFireFX(const FVector& Location, const FRotator& Rotat
 	UWorld* World = GetWorld();
 	if (!World) return;
 
-	if (MuzzleFlashFX)
-	{
-		UNiagaraFunctionLibrary::SpawnSystemAtLocation(World, MuzzleFlashFX, Location, Rotation);
-	}
-	if (FireSound)
-	{
-		UGameplayStatics::PlaySoundAtLocation(World, FireSound, Location, FireSoundVolume);
-	}
+	if (MuzzleFlashFX) UNiagaraFunctionLibrary::SpawnSystemAtLocation(World, MuzzleFlashFX, Location, Rotation);
+	if (FireSound) UGameplayStatics::PlaySoundAtLocation(World, FireSound, Location, FireSoundVolume);
 }
 
 void UCannonComponent::UpgradeCannonCount(int32 NewCountPerSide)
 {
-	// Clamp to 2-8 range matching design specs
 	CannonsPerSide = FMath::Clamp(NewCountPerSide, 2, 8);
-	UE_LOG(LogTemp, Log, TEXT("CannonComponent: Upgraded to %d cannons per side."), CannonsPerSide);
 }
 
-void UCannonComponent::PredictBallisticArc(FVector SpawnLocation, FVector Direction,
-	float SeaLevelZ, int32 MaxSteps, float StepSeconds,
-	TArray<FVector>& OutPoints, FVector& OutImpactPoint) const
+void UCannonComponent::PredictBallisticArc(FVector SpawnLocation, FVector Direction, float SeaLevelZ, int32 MaxSteps, float StepSeconds, TArray<FVector>& OutPoints, FVector& OutImpactPoint) const
 {
 	OutPoints.Reset();
 	OutPoints.Add(SpawnLocation);
 
-	FCannonballData Data = (ActiveCannonballType == ECannonballType::Chain)
-		? FCannonballData::MakeChain()
-		: FCannonballData::MakeStandard();
+	FCannonballData Data = (ActiveCannonballType == ECannonballType::Chain) ? FCannonballData::MakeChain() : FCannonballData::MakeStandard();
 
 	FVector Pos = SpawnLocation;
 	FVector Vel = Direction.GetSafeNormal() * Data.InitialSpeed;
@@ -461,7 +436,7 @@ void UCannonComponent::PredictBallisticArc(FVector SpawnLocation, FVector Direct
 	for (int32 i = 0; i < MaxSteps; ++i)
 	{
 		Vel.Z -= Gravity * StepSeconds;
-		Pos   += Vel * StepSeconds;
+		Pos += Vel * StepSeconds;
 		OutPoints.Add(Pos);
 
 		if (Pos.Z <= SeaLevelZ)
@@ -474,10 +449,7 @@ void UCannonComponent::PredictBallisticArc(FVector SpawnLocation, FVector Direct
 	}
 }
 
-void UCannonComponent::GetAimPrediction(ECannonSide Side, float SeaLevelZ,
-	TArray<FVector>& OutImpactPoints,
-	TArray<FVector>& OutTrajectoryStart,
-	TArray<FVector>& OutTrajectoryEnd) const
+void UCannonComponent::GetAimPrediction(ECannonSide Side, float SeaLevelZ, TArray<FVector>& OutImpactPoints, TArray<FVector>& OutTrajectoryStart, TArray<FVector>& OutTrajectoryEnd) const
 {
 	OutImpactPoints.Reset();
 	OutTrajectoryStart.Reset();
@@ -486,12 +458,20 @@ void UCannonComponent::GetAimPrediction(ECannonSide Side, float SeaLevelZ,
 	AActor* Owner = GetOwner();
 	if (!Owner) return;
 
-	// Base lateral direction + elevation (same math as FireBroadside).
-	const FVector OwnerRight = Owner->GetActorRightVector();
-	FVector FireDirection = (Side == ECannonSide::Left) ? -OwnerRight : OwnerRight;
-
-	const float ElevRad = FMath::DegreesToRadians(ElevationAngle);
-	FVector ElevatedDir = FireDirection * FMath::Cos(ElevRad) + FVector::UpVector * FMath::Sin(ElevRad);
+	// Використовуємо наш новий динамічний вектор прицілювання!
+	FVector ElevatedDir;
+	if (bIsAiming && Side == AimingSide)
+	{
+		float ElevRad = FMath::DegreesToRadians(DynamicElevationAngle);
+		ElevatedDir = DynamicAzimuthDir * FMath::Cos(ElevRad) + FVector::UpVector * FMath::Sin(ElevRad);
+	}
+	else
+	{
+		const FVector OwnerRight = Owner->GetActorRightVector();
+		FVector FireDirection = (Side == ECannonSide::Left) ? -OwnerRight : OwnerRight;
+		const float ElevRad = FMath::DegreesToRadians(ElevationAngle);
+		ElevatedDir = FireDirection * FMath::Cos(ElevRad) + FVector::UpVector * FMath::Sin(ElevRad);
+	}
 	ElevatedDir.Normalize();
 
 	const FName SocketPrefix = (Side == ECannonSide::Left) ? LeftSocketPrefix : RightSocketPrefix;
@@ -504,20 +484,17 @@ void UCannonComponent::GetAimPrediction(ECannonSide Side, float SeaLevelZ,
 		for (int32 i = 0; i < CannonsPerSide; ++i)
 		{
 			const FName SocketName = FName(*FString::Printf(TEXT("%s%d"), *SocketPrefix.ToString(), i));
-			if (MeshComp->DoesSocketExist(SocketName))
-			{
-				SpawnLocations.Add(MeshComp->GetSocketLocation(SocketName));
-			}
+			if (MeshComp->DoesSocketExist(SocketName)) SpawnLocations.Add(MeshComp->GetSocketLocation(SocketName));
 		}
 	}
 
-	// Fallback: fabricate socket positions along ship length as FireBroadside does.
 	if (SpawnLocations.Num() == 0)
 	{
 		const float ShipHalfWidth = 300.0f;
 		const float CannonSpacing = 250.0f;
-		const FVector BaseOffset = FireDirection * ShipHalfWidth;
-		const FVector LengthDir  = Owner->GetActorForwardVector();
+		FVector OwnerRight = Owner->GetActorRightVector();
+		FVector BaseOffset = ((Side == ECannonSide::Left) ? -OwnerRight : OwnerRight) * ShipHalfWidth;
+		const FVector LengthDir = Owner->GetActorForwardVector();
 		for (int32 i = 0; i < CannonsPerSide; ++i)
 		{
 			const float LengthOffset = (i - (CannonsPerSide - 1) * 0.5f) * CannonSpacing;
@@ -525,7 +502,6 @@ void UCannonComponent::GetAimPrediction(ECannonSide Side, float SeaLevelZ,
 		}
 	}
 
-	// Simulate each cannon.  40 steps × 0.1 s = 4 s max flight.
 	for (const FVector& Spawn : SpawnLocations)
 	{
 		TArray<FVector> Pts;
@@ -533,7 +509,6 @@ void UCannonComponent::GetAimPrediction(ECannonSide Side, float SeaLevelZ,
 		PredictBallisticArc(Spawn, ElevatedDir, SeaLevelZ, 40, 0.1f, Pts, Impact);
 		OutImpactPoints.Add(Impact);
 
-		// Build consecutive (start, end) pairs for every segment.
 		for (int32 j = 0; j + 1 < Pts.Num(); ++j)
 		{
 			OutTrajectoryStart.Add(Pts[j]);

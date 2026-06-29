@@ -80,6 +80,9 @@ void ACannonball::OnHit(UPrimitiveComponent* HitComponent, AActor* OtherActor,
 
 	UE_LOG(LogTemp, Log, TEXT("Cannonball hit: %s"), *OtherActor->GetName());
 
+	// СТВОРЮЄМО БЕЗПЕЧНИЙ FVECTOR ОДИН РАЗ ДЛЯ ВСІЄЇ ФУНКЦІЇ
+	const FVector ImpactLoc = Hit.ImpactPoint.IsZero() ? GetActorLocation() : FVector(Hit.ImpactPoint);
+
 	// Apply damage via UE damage system
 	UGameplayStatics::ApplyDamage(
 		OtherActor,
@@ -95,36 +98,26 @@ void ACannonball::OnHit(UPrimitiveComponent* HitComponent, AActor* OtherActor,
 		ApplySlowEffect(OtherActor);
 	}
 
-	// Queue a floating damage number on the HUD вЂ” only for player-originated shots
-	// (instigator is player-controlled) so enemy hits on the player don't spam.
+	// Queue a floating damage number on the HUD
 	const bool bHitShip = OtherActor->IsA(AShipPawn::StaticClass());
 	if (UWorld* W = GetWorld())
 	{
 		if (APlayerController* PC = UGameplayStatics::GetPlayerController(W, 0))
 		{
 			const AActor* Inst = OwnerInstigator;
-			const APawn*  InstPawn = Cast<APawn>(Inst);
+			const APawn* InstPawn = Cast<APawn>(Inst);
 			const bool bPlayerShot = InstPawn && Cast<APlayerController>(InstPawn->GetController());
 			if (bPlayerShot)
 			{
 				if (ACrownsBaneHUD* HUD = Cast<ACrownsBaneHUD>(PC->GetHUD()))
 				{
-					// UE 5.8 made FHitResult::ImpactPoint a FVector_NetQuantize, so the
-					// ternary can no longer auto-convert вЂ” coerce both arms to FVector.
-					const FVector HitLoc = Hit.ImpactPoint.IsZero() ? GetActorLocation() : FVector(Hit.ImpactPoint);
-					HUD->AddFloatingDamage(HitLoc, CannonballData.BaseDamage, bHitShip);
-					// Hit marker: gold "X" for ship hit, plain white for water hit (less satisfying).
-					HUD->TriggerHitMarker(bHitShip);
+					// Використовуємо наш підготовлений ImpactLoc
+					HUD->AddFloatingDamage(ImpactLoc, CannonballData.BaseDamage, bHitShip);
 				}
 			}
 		}
-	}
 
-	// Impact FX
-	UWorld* World = GetWorld();
-	if (World)
-	{
-		const FVector ImpactLoc = Hit.ImpactPoint.IsZero() ? GetActorLocation() : FVector(Hit.ImpactPoint);
+		// Impact FX
 		const FRotator ImpactRot = Hit.ImpactNormal.IsNearlyZero()
 			? FRotator::ZeroRotator
 			: Hit.ImpactNormal.Rotation();
@@ -134,11 +127,13 @@ void ACannonball::OnHit(UPrimitiveComponent* HitComponent, AActor* OtherActor,
 
 		if (FX)
 		{
-			UNiagaraFunctionLibrary::SpawnSystemAtLocation(World, FX, ImpactLoc, ImpactRot);
+			// Використовуємо наш підготовлений ImpactLoc
+			UNiagaraFunctionLibrary::SpawnSystemAtLocation(W, FX, ImpactLoc, ImpactRot);
 		}
 		if (SFX)
 		{
-			UGameplayStatics::PlaySoundAtLocation(World, SFX, ImpactLoc);
+			// Використовуємо наш підготовлений ImpactLoc
+			UGameplayStatics::PlaySoundAtLocation(W, SFX, ImpactLoc);
 		}
 	}
 
