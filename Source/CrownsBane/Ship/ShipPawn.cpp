@@ -419,7 +419,11 @@ void AShipPawn::DoLook(const FVector2D& Delta)
 {
 	const float SensScale = bIsAiming ? AimLookSensitivityScale : 1.0f;
 	LookYawOffset = FRotator::NormalizeAxis(LookYawOffset + Delta.X * LookYawSensitivity * SensScale);
-	LookPitchOffset = FMath::Clamp(LookPitchOffset - Delta.Y * LookPitchSensitivity * SensScale, LookPitchMin, LookPitchMax);
+	// Mouse-up should pitch the camera UP.  UE's Mouse2D delivers positive Y on
+	// mouse-up, so we ADD (not subtract) Delta.Y here.  bInvertMouseY restores
+	// the legacy/inverted behaviour for players who prefer it.
+	const float PitchSign = bInvertMouseY ? -1.0f : 1.0f;
+	LookPitchOffset = FMath::Clamp(LookPitchOffset + PitchSign * Delta.Y * LookPitchSensitivity * SensScale, LookPitchMin, LookPitchMax);
 
 	if (SpringArm)
 	{

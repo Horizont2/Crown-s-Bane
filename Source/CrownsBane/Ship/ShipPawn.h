@@ -208,6 +208,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
 	float LookPitchMax = 10.0f;
 
+	// Mouse-up = camera-up by default.  Flip to invert.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
+	bool bInvertMouseY = false;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Debug")
 	bool bShowDebugOnScreen = true;
 
