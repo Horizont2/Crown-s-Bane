@@ -18,8 +18,16 @@ ACannonball::ACannonball()
 
 	CollisionSphere = CreateDefaultSubobject<USphereComponent>(TEXT("CollisionSphere"));
 	CollisionSphere->InitSphereRadius(15.0f);
-	CollisionSphere->SetCollisionProfileName(TEXT("Projectile"));
+
+	// The project's "Projectile" collision profile is misconfigured (CollisionEnabled=NoCollision).
+	// Override explicitly so cannonballs actually report OnHit against ships and the world.
+	CollisionSphere->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	CollisionSphere->SetCollisionObjectType(ECC_WorldDynamic);
+	CollisionSphere->SetCollisionResponseToAllChannels(ECR_Block);
+	CollisionSphere->SetCollisionResponseToChannel(ECC_Camera,    ECR_Ignore);
+	CollisionSphere->SetCollisionResponseToChannel(ECC_Visibility, ECR_Ignore);
 	CollisionSphere->SetNotifyRigidBodyCollision(true);
+	CollisionSphere->SetGenerateOverlapEvents(false);
 	RootComponent = CollisionSphere;
 
 	MeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MeshComponent"));
