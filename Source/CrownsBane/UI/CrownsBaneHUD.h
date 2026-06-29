@@ -190,6 +190,9 @@ public:
 	UPROPERTY(BlueprintReadWrite, Category = "HUD")
 	bool bShowQuestLog = false;
 
+	UPROPERTY(BlueprintReadWrite, Category = "HUD")
+	bool bShowHelpOverlay = false;
+
 	// Called by Cannonball::OnHit to queue up a floating damage number.
 	UFUNCTION(BlueprintCallable, Category = "HUD|Damage")
 	void AddFloatingDamage(FVector WorldLocation, float Damage, bool bHitShip);
@@ -314,6 +317,7 @@ private:
 	void DrawBanner(float DeltaTime);
 	void DrawMissionComplete(float DeltaTime);
 	void DrawPauseMenu(class ACrownsBanePlayerController* PC);
+	void DrawHelpOverlay();
 
 	// Helpers for minimap
 	void DrawMinimapDot(float CX, float CY, float DotX, float DotY, float DotSize, FLinearColor Color);

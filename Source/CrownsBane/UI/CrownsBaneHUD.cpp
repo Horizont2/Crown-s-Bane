@@ -168,6 +168,8 @@ void ACrownsBaneHUD::DrawHUD()
 			if (CBPC2->IsPauseMenuOpen()) DrawPauseMenu(CBPC2);
 		}
 	}
+
+	if (bShowHelpOverlay) DrawHelpOverlay();
 }
 
 void ACrownsBaneHUD::DrawTextWithShadow(const FString& Text, FColor TextColor, float X, float Y, UFont* Font, float Scale)
@@ -1962,5 +1964,61 @@ void ACrownsBaneHUD::DrawPauseMenu(ACrownsBanePlayerController* PC)
 		DrawText(S.Label, CrownStyle::TextSecondary, SX + CrownStyle::Sp3, SRY,        nullptr, 0.95f, false);
 		DrawText(S.Val,   CrownStyle::TextPrimary,   SX + 140.f,           SRY,        nullptr, 0.95f, false);
 		SRY += 28.f;
+	}
+}
+
+// ============== UI-F: HELP OVERLAY (F1) ==============
+
+void ACrownsBaneHUD::DrawHelpOverlay()
+{
+	if (!Canvas) return;
+	const float SW = Canvas->ClipX;
+	const float SH = Canvas->ClipY;
+
+	DrawFilledRect(0, 0, SW, SH, FLinearColor(0.0f, 0.0f, 0.0f, 0.78f));
+
+	const float PW = 720.f;
+	const float PH = 560.f;
+	const float PX = (SW - PW) * 0.5f;
+	const float PY = (SH - PH) * 0.5f;
+	DrawPanel(PX, PY, PW, PH, (uint8)CrownStyle::EPanelStyle::Highlight);
+
+	DrawText(TEXT("CONTROLS"), CrownStyle::AccentGold.ToFColor(true),
+		PX + 24.f, PY + 18.f, nullptr, CrownStyle::ScaleDisplay, false);
+	DrawCaption(TEXT("Press F1 again to close"), PX + 24.f, PY + 56.f);
+	DrawFilledRect(PX + CrownStyle::Sp3, PY + 80.f, PW - CrownStyle::Sp4, 1.f,
+		CrownStyle::AccentGold * FLinearColor(1,1,1,0.5f));
+
+	struct FRow { const TCHAR* Key; const TCHAR* Desc; };
+	static const FRow Rows[] = {
+		{ TEXT("W / S"),    TEXT("Raise / lower sails (Stop / Half / Full)") },
+		{ TEXT("A / D"),    TEXT("Turn ship port / starboard") },
+		{ TEXT("Mouse"),    TEXT("Look around (camera yaw/pitch)") },
+		{ TEXT("LMB / SPACE"), TEXT("Fire broadside (camera direction picks side)") },
+		{ TEXT("Q / E"),    TEXT("Fire port / starboard broadside directly") },
+		{ TEXT("RMB hold"), TEXT("Aim mode — zoom + slow-mo + fine mouse") },
+		{ TEXT("Tab"),      TEXT("Cycle lock-on target") },
+		{ TEXT("1-5"),      TEXT("Ammo: Round / Chain / Grape / Heavy / Explosive") },
+		{ TEXT("F"),        TEXT("Board crippled enemy (mash SPACE in QTE)") },
+		{ TEXT("B hold"),   TEXT("Brace for impact (-50% incoming, no fire)") },
+		{ TEXT("V"),        TEXT("Drop anchor (hard stop)") },
+		{ TEXT("U"),        TEXT("Upgrade menu (in docks)") },
+		{ TEXT("T"),        TEXT("Trader menu (in docks)") },
+		{ TEXT("J"),        TEXT("Quest log") },
+		{ TEXT("ESC"),      TEXT("Pause menu") },
+		{ TEXT("F1"),       TEXT("This help screen") },
+	};
+
+	float Y = PY + 96.f;
+	for (int32 i = 0; i < UE_ARRAY_COUNT(Rows); ++i)
+	{
+		const FRow& R = Rows[i];
+		const FLinearColor Bg = (i % 2 == 0)
+			? FLinearColor(0.08f, 0.07f, 0.05f, 0.55f)
+			: FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
+		DrawFilledRect(PX + CrownStyle::Sp3, Y, PW - CrownStyle::Sp4, 26.f, Bg);
+		DrawText(R.Key,  CrownStyle::TextGold,    PX + CrownStyle::Sp4, Y + 4.f, nullptr, 1.0f, false);
+		DrawText(R.Desc, CrownStyle::TextPrimary, PX + 160.f,           Y + 4.f, nullptr, 0.95f, false);
+		Y += 28.f;
 	}
 }
