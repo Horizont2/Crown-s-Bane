@@ -115,6 +115,22 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Trade")
 	int32 HealCost = 80;        // gold to fully heal
 
+	// ---- Lifetime stats ----
+	UPROPERTY(BlueprintReadOnly, Category = "Stats")  int32 StatShipsSunk = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "Stats")  int32 StatBoardingsWon = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "Stats")  int32 StatCannonballsFired = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "Stats")  int32 StatDamageDealt = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "Stats")  int32 StatDamageTaken = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "Stats")  int32 StatGoldEarned = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "Stats")  float StatPlayTimeSeconds = 0.0f;
+
+	UFUNCTION(BlueprintCallable, Category = "Stats")  void StatBumpShipsSunk();
+	UFUNCTION(BlueprintCallable, Category = "Stats")  void StatBumpBoardingsWon();
+	UFUNCTION(BlueprintCallable, Category = "Stats")  void StatBumpCannonballsFired(int32 N = 1);
+	UFUNCTION(BlueprintCallable, Category = "Stats")  void StatBumpDamageDealt(float Dmg);
+	UFUNCTION(BlueprintCallable, Category = "Stats")  void StatBumpDamageTaken(float Dmg);
+	UFUNCTION(BlueprintCallable, Category = "Stats")  void StatBumpGoldEarned(int32 Amt);
+
 private:
 
 	bool bUpgradeUIOpen = false;

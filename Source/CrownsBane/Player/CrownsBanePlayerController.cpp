@@ -59,6 +59,8 @@ void ACrownsBanePlayerController::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
+	StatPlayTimeSeconds += DeltaSeconds;
+
 	// Re-claim Slate focus for the first 5 seconds after BeginPlay/possess.
 	// PIE frequently leaves focus on the editor toolbar so the game viewport
 	// never sees a single key press — this is the fix.
@@ -249,3 +251,9 @@ AShipPawn* ACrownsBanePlayerController::GetShipPawn() const
 {
 	return Cast<AShipPawn>(GetPawn());
 }
+void ACrownsBanePlayerController::StatBumpShipsSunk()      { ++StatShipsSunk; }
+void ACrownsBanePlayerController::StatBumpBoardingsWon()   { ++StatBoardingsWon; }
+void ACrownsBanePlayerController::StatBumpCannonballsFired(int32 N) { StatCannonballsFired += N; }
+void ACrownsBanePlayerController::StatBumpDamageDealt(float Dmg)    { StatDamageDealt += FMath::FloorToInt(Dmg); }
+void ACrownsBanePlayerController::StatBumpDamageTaken(float Dmg)    { StatDamageTaken += FMath::FloorToInt(Dmg); }
+void ACrownsBanePlayerController::StatBumpGoldEarned(int32 Amt)     { StatGoldEarned += Amt; }

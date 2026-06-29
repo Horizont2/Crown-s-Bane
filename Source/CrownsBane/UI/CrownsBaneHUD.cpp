@@ -1933,4 +1933,34 @@ void ACrownsBaneHUD::DrawPauseMenu(ACrownsBanePlayerController* PC)
 		DrawText(It.Label, CrownStyle::TextPrimary,  PX + 90.f,            Y + 12.f, nullptr, 1.05f, false);
 		Y += 50.f;
 	}
+
+	// Lifetime stats card to the right.
+	const float SW2 = PW + 260.f;
+	const float SX = PX + PW + CrownStyle::Sp3;
+	const float SY = PY;
+	const float STW = 260.f;
+	const float STH = PH;
+	DrawPanel(SX, SY, STW, STH, (uint8)CrownStyle::EPanelStyle::Primary);
+	DrawText(TEXT("STATS"), CrownStyle::TextGold, SX + CrownStyle::Sp3, SY + 18.f, nullptr, 1.3f, false);
+
+	const int32 Min = FMath::FloorToInt(PC->StatPlayTimeSeconds / 60.f);
+	const int32 Sec = FMath::FloorToInt(FMath::Fmod(PC->StatPlayTimeSeconds, 60.f));
+
+	struct FStat { const TCHAR* Label; FString Val; };
+	const FStat Stats[] = {
+		{ TEXT("Play time"),    FString::Printf(TEXT("%02d:%02d"), Min, Sec) },
+		{ TEXT("Ships sunk"),   FString::FromInt(PC->StatShipsSunk) },
+		{ TEXT("Boardings"),    FString::FromInt(PC->StatBoardingsWon) },
+		{ TEXT("Shots fired"),  FString::FromInt(PC->StatCannonballsFired) },
+		{ TEXT("Damage dealt"), FString::FromInt(PC->StatDamageDealt) },
+		{ TEXT("Damage taken"), FString::FromInt(PC->StatDamageTaken) },
+		{ TEXT("Gold earned"),  FString::FromInt(PC->StatGoldEarned) },
+	};
+	float SRY = SY + 60.f;
+	for (const FStat& S : Stats)
+	{
+		DrawText(S.Label, CrownStyle::TextSecondary, SX + CrownStyle::Sp3, SRY,        nullptr, 0.95f, false);
+		DrawText(S.Val,   CrownStyle::TextPrimary,   SX + 140.f,           SRY,        nullptr, 0.95f, false);
+		SRY += 28.f;
+	}
 }

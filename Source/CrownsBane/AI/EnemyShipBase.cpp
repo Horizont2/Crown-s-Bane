@@ -8,6 +8,7 @@
 #include "Systems/DynamicMusicManager.h"
 #include "Quests/BountyManager.h"
 #include "UI/CrownsBaneHUD.h"
+#include "Player/CrownsBanePlayerController.h"
 #include "GameFramework/PlayerController.h"
 #include "EngineUtils.h"
 #include "Components/StaticMeshComponent.h"
@@ -443,6 +444,10 @@ void AEnemyShipBase::OnDeath()
 	// Kill feed entry on the player's HUD.
 	if (APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0))
 	{
+		if (ACrownsBanePlayerController* CBPC = Cast<ACrownsBanePlayerController>(PC))
+		{
+			CBPC->StatBumpShipsSunk();
+		}
 		if (ACrownsBaneHUD* HUD = Cast<ACrownsBaneHUD>(PC->GetHUD()))
 		{
 			FString TypeName = TEXT("Ship");
