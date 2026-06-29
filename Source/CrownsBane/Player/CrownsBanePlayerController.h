@@ -67,6 +67,12 @@ public:
 	UFUNCTION(BlueprintPure, Category = "UI")
 	bool IsQuestLogOpen() const { return bQuestLogOpen; }
 
+	UFUNCTION(BlueprintCallable, Category = "UI")
+	void TogglePauseMenu();
+
+	UFUNCTION(BlueprintPure, Category = "UI")
+	bool IsPauseMenuOpen() const { return bPauseMenuOpen; }
+
 	UFUNCTION(BlueprintCallable, Category = "Upgrades")
 	bool BuyUpgrade(uint8 CategoryByte);
 
@@ -114,6 +120,7 @@ private:
 	bool bUpgradeUIOpen = false;
 	bool bQuestLogOpen = false;
 	bool bTraderMenuOpen = false;
+	bool bPauseMenuOpen = false;
 
 	AUpgradeManager* GetUpgradeManager() const;
 	AShipPawn* GetShipPawn() const;

@@ -151,6 +151,15 @@ void ACrownsBanePlayerController::ToggleQuestLog()
 	}
 }
 
+void ACrownsBanePlayerController::TogglePauseMenu()
+{
+	bPauseMenuOpen = !bPauseMenuOpen;
+	SetPause(bPauseMenuOpen);
+	bShowMouseCursor = bPauseMenuOpen;
+	if (bPauseMenuOpen) SetInputMode(FInputModeGameAndUI());
+	else                SetInputMode(FInputModeGameOnly());
+}
+
 void ACrownsBanePlayerController::ToggleTraderMenu()
 {
 	// Trader only available while docked.

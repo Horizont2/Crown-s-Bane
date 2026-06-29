@@ -169,6 +169,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	UInputAction* IA_DropAnchor;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	UInputAction* IA_Pause;
+
 	// ---- Brace / Ramming ----
 	UPROPERTY(BlueprintReadOnly, Category = "Combat|Brace")
 	bool bBracing = false;
@@ -395,6 +398,7 @@ protected:
 	void Input_BraceStart(const FInputActionValue& Value);
 	void Input_BraceStop(const FInputActionValue& Value);
 	void Input_DropAnchor(const FInputActionValue& Value);
+	void Input_Pause(const FInputActionValue& Value);
 
 	void UpdateBoardingTarget();
 	void ExecuteBoarding();

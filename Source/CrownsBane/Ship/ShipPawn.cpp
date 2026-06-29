@@ -142,6 +142,7 @@ void AShipPawn::EnsureInputAssetsExist()
 	MakeIA(IA_LockOn,      EInputActionValueType::Boolean, TEXT("IA_LockOn_Auto"));
 	MakeIA(IA_Brace,       EInputActionValueType::Boolean, TEXT("IA_Brace_Auto"));
 	MakeIA(IA_DropAnchor,  EInputActionValueType::Boolean, TEXT("IA_DropAnchor_Auto"));
+	MakeIA(IA_Pause,       EInputActionValueType::Boolean, TEXT("IA_Pause_Auto"));
 
 	if (!ShipMappingContext)
 	{
@@ -164,6 +165,7 @@ void AShipPawn::EnsureInputAssetsExist()
 		ShipMappingContext->MapKey(IA_LockOn,      EKeys::Tab);
 		ShipMappingContext->MapKey(IA_Brace,       EKeys::B);
 		ShipMappingContext->MapKey(IA_DropAnchor,  EKeys::V);
+		ShipMappingContext->MapKey(IA_Pause,       EKeys::Escape);
 	}
 }
 
@@ -201,6 +203,7 @@ void AShipPawn::AddInputMappingContext()
 	if (IA_LockOn)      Overlay->MapKey(IA_LockOn,      EKeys::Tab);
 	if (IA_Brace)       Overlay->MapKey(IA_Brace,       EKeys::B);
 	if (IA_DropAnchor)  Overlay->MapKey(IA_DropAnchor,  EKeys::V);
+	if (IA_Pause)       Overlay->MapKey(IA_Pause,       EKeys::Escape);
 
 	Subsystem->AddMappingContext(Overlay, 0);
 }
@@ -328,6 +331,7 @@ void AShipPawn::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 			EIC->BindAction(IA_Brace, ETriggerEvent::Canceled,  this, &AShipPawn::Input_BraceStop);
 		}
 		if (IA_DropAnchor)  EIC->BindAction(IA_DropAnchor,  ETriggerEvent::Started, this, &AShipPawn::Input_DropAnchor);
+		if (IA_Pause)       EIC->BindAction(IA_Pause,       ETriggerEvent::Started, this, &AShipPawn::Input_Pause);
 
 		bEnhancedInputReady = true;
 	}
@@ -423,6 +427,14 @@ void AShipPawn::Input_DropAnchor(const FInputActionValue&)
 	CurrentSpeed = 0.0f;
 	CurrentSailLevel = ESailLevel::Stop;
 	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.f, FColor::Cyan, TEXT("ANCHOR DROPPED"));
+}
+
+void AShipPawn::Input_Pause(const FInputActionValue&)
+{
+	if (ACrownsBanePlayerController* PC = Cast<ACrownsBanePlayerController>(GetController()))
+	{
+		PC->TogglePauseMenu();
+	}
 }
 
 void AShipPawn::CycleLockOnTarget()

@@ -160,6 +160,14 @@ void ACrownsBaneHUD::DrawHUD()
 	DrawKillFeed(Dt);
 	DrawBanner(Dt);
 	DrawMissionComplete(Dt);
+
+	if (APlayerController* RawPC2 = GetOwningPlayerController())
+	{
+		if (ACrownsBanePlayerController* CBPC2 = Cast<ACrownsBanePlayerController>(RawPC2))
+		{
+			if (CBPC2->IsPauseMenuOpen()) DrawPauseMenu(CBPC2);
+		}
+	}
 }
 
 void ACrownsBaneHUD::DrawTextWithShadow(const FString& Text, FColor TextColor, float X, float Y, UFont* Font, float Scale)
@@ -1880,4 +1888,49 @@ void ACrownsBaneHUD::DrawMissionComplete(float DeltaTime)
 	DrawText(FString::Printf(TEXT("Metal    +%d"),  MShow), Body, X + 24.f, Y + 176.f, nullptr, 1.1f, false);
 
 	DrawText(TEXT("Press SPACE to dismiss"), Dim, X + 24.f, Y + H - 30.f, nullptr, 0.9f, false);
+}
+
+// ============== UI-C: PAUSE MENU ==============
+
+void ACrownsBaneHUD::DrawPauseMenu(ACrownsBanePlayerController* PC)
+{
+	if (!Canvas) return;
+	const float SW = Canvas->ClipX;
+	const float SH = Canvas->ClipY;
+
+	// Heavy darken behind everything.
+	DrawFilledRect(0, 0, SW, SH, FLinearColor(0.0f, 0.0f, 0.0f, 0.78f));
+
+	const float PW = 420.f;
+	const float PH = 380.f;
+	const float PX = (SW - PW) * 0.5f;
+	const float PY = (SH - PH) * 0.5f;
+
+	DrawPanel(PX, PY, PW, PH, (uint8)CrownStyle::EPanelStyle::Highlight);
+
+	DrawText(TEXT("PAUSED"), CrownStyle::AccentGold.ToFColor(true),
+		PX + 24.f, PY + 18.f, nullptr, CrownStyle::ScaleDisplay, false);
+	DrawCaption(TEXT("Crown's Bane"), PX + 24.f, PY + 56.f);
+
+	DrawFilledRect(PX + CrownStyle::Sp3, PY + 80.f, PW - CrownStyle::Sp4, 1.f, CrownStyle::AccentGold * FLinearColor(1,1,1,0.5f));
+
+	// Menu items.  Number keys / mouse later — this is just informative for now.
+	struct FItem { const TCHAR* Key; const TCHAR* Label; };
+	static const FItem Items[] = {
+		{ TEXT("[ESC]"),   TEXT("Resume Game") },
+		{ TEXT("[J]"),     TEXT("Quest Log") },
+		{ TEXT("[U]"),     TEXT("Upgrades (docks only)") },
+		{ TEXT("[T]"),     TEXT("Trader (docks only)") },
+		{ TEXT("[F1]"),    TEXT("Help / Keybinds") },
+	};
+
+	float Y = PY + 100.f;
+	for (int32 i = 0; i < UE_ARRAY_COUNT(Items); ++i)
+	{
+		const FItem& It = Items[i];
+		DrawFilledRect(PX + CrownStyle::Sp3, Y, PW - CrownStyle::Sp4, 42.f, CrownStyle::BgLight);
+		DrawText(It.Key,   CrownStyle::TextGold,     PX + CrownStyle::Sp4, Y + 12.f, nullptr, 1.1f, false);
+		DrawText(It.Label, CrownStyle::TextPrimary,  PX + 90.f,            Y + 12.f, nullptr, 1.05f, false);
+		Y += 50.f;
+	}
 }
