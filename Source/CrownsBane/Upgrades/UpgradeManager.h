@@ -28,6 +28,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Upgrades")
 	bool PurchaseUpgrade(EUpgradeCategory Category, UPlayerInventory* Inventory, AShipPawn* Ship);
 
+	// Repair the ship's hull using resources (Cost scales with missing HP)
+	UFUNCTION(BlueprintCallable, Category = "Upgrades")
+	bool RepairShip(UPlayerInventory* Inventory, AShipPawn* Ship);
+
 	// Get the current tier for a category (0 = not purchased, max 4)
 	UFUNCTION(BlueprintPure, Category = "Upgrades")
 	int32 GetCurrentTier(EUpgradeCategory Category) const;
@@ -51,14 +55,8 @@ public:
 	int32 MaxTier = 4;
 
 private:
-	// Current tier per category
 	TMap<EUpgradeCategory, int32> UpgradeTiers;
-
-	// Build the upgrade tables
 	void InitUpgradeTables();
-
-	// Upgrade data tables per category, 4 tiers each
 	TMap<EUpgradeCategory, TArray<FUpgradeLevel>> UpgradeTables;
-
 	void ApplyUpgradeEffect(EUpgradeCategory Category, int32 Tier, AShipPawn* Ship);
 };

@@ -208,6 +208,15 @@ private:
 	void DrawTimeOfDay();
 	void DrawFloatingDamageNumbers(float DeltaTime);
 
+	// Додайте це до секції private:
+private:
+	// Плавна зміна здоров'я
+	float DisplayedHealthPct = -1.0f;
+
+	// Нові функції для красивого рендеру
+	void DrawTextWithShadow(const FString& Text, FColor TextColor, float X, float Y, UFont* Font = nullptr, float Scale = 1.0f);
+	void DrawMinimalistBar(float X, float Y, float W, float H, float Pct, FLinearColor FillColor);
+
 	// Floating damage queue
 	TArray<FFloatingDamageEntry> FloatingDamageEntries;
 	double LastDrawTime = 0.0;

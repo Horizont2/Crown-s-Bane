@@ -1,3 +1,5 @@
+// Copyright 2024 Crown's Bane. All Rights Reserved.
+
 #pragma once
 
 #include "CoreMinimal.h"
@@ -31,11 +33,9 @@ protected:
 public:
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
-	// Fire the broadside on the given side
 	UFUNCTION(BlueprintCallable, Category = "Cannon")
 	void FireBroadside(ECannonSide Side);
 
-	// Upgrade cannon count (adds cannons per side)
 	UFUNCTION(BlueprintCallable, Category = "Cannon")
 	void UpgradeCannonCount(int32 NewCountPerSide);
 
@@ -48,19 +48,24 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Cannon")
 	int32 GetCannonsPerSide() const { return CannonsPerSide; }
 
-	// Predict the trajectory of a single cannonball fired from SpawnLocation
-	// along Direction using the current projectile physics.  Populates
-	// OutPoints with world-space positions sampled at fixed time steps,
-	// stopping when the ball passes Z = SeaLevelZ (ocean surface) or after
-	// MaxSteps.  Used by the HUD to draw AC4-style aim-prediction arcs.
+	// ---- Dynamic Aiming (AC4 Style) ----
+	UFUNCTION(BlueprintCallable, Category = "Cannon|Aim")
+	void UpdateAimTarget(ECannonSide Side, FVector TargetLoc);
+
+	UFUNCTION(BlueprintCallable, Category = "Cannon|Aim")
+	void SetIsAiming(bool bAim) { bIsAiming = bAim; }
+
+	UFUNCTION(BlueprintPure, Category = "Cannon|Aim")
+	bool IsAiming() const { return bIsAiming; }
+
+	UFUNCTION(BlueprintPure, Category = "Cannon|Aim")
+	ECannonSide GetAimingSide() const { return AimingSide; }
+
 	UFUNCTION(BlueprintCallable, Category = "Cannon|Aim")
 	void PredictBallisticArc(FVector SpawnLocation, FVector Direction,
 		float SeaLevelZ, int32 MaxSteps, float StepSeconds,
 		TArray<FVector>& OutPoints, FVector& OutImpactPoint) const;
 
-	// Gather predicted impact points for every cannon on the given side, taking
-	// socket positions (if available) and elevation into account.  Returns all
-	// sampled trajectories in OutArcs (one entry per cannon).
 	UFUNCTION(BlueprintCallable, Category = "Cannon|Aim")
 	void GetAimPrediction(ECannonSide Side, float SeaLevelZ,
 		TArray<FVector>& OutImpactPoints,
@@ -82,21 +87,26 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cannon")
 	TSubclassOf<ACannonball> CannonballClass;
 
-	// Socket name prefix for cannon spawn points on the mesh
-	// Expects sockets named: CannonLeft_0, CannonLeft_1, etc. / CannonRight_0, etc.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cannon")
 	FName LeftSocketPrefix = TEXT("CannonLeft_");
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cannon")
 	FName RightSocketPrefix = TEXT("CannonRight_");
 
-	// Elevation angle applied to cannon fire direction
+	// Default Elevation (used when NOT aiming)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cannon")
 	float ElevationAngle = 5.0f;
 
-	// Random horizontal spread per cannon — each ball deviates ±half this value
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cannon", meta=(ClampMin="0.0", ClampMax="15.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cannon", meta = (ClampMin = "0.0", ClampMax = "15.0"))
 	float CannonSpreadAngle = 4.0f;
+
+	// Maximum horizontal turning angle for cannons
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cannon|Aim")
+	float MaxAzimuthAngle = 40.0f;
+
+	// Max distance the cannons can aim dynamically
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cannon|Aim")
+	float MaxRange = 9000.0f;
 
 	// ---- FX ----
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cannon|FX")
@@ -119,6 +129,12 @@ private:
 	float RightReloadTimer = 0.0f;
 	bool bLeftReady = true;
 	bool bRightReady = true;
+
+	// Dynamic Aim State
+	bool bIsAiming = false;
+	ECannonSide AimingSide = ECannonSide::Right;
+	float DynamicElevationAngle = 5.0f;
+	FVector DynamicAzimuthDir = FVector::ForwardVector;
 
 	void SpawnCannonball(FVector SpawnLocation, FVector Direction, const FCannonballData& Data);
 	void PlayFireFX(const FVector& Location, const FRotator& Rotation);

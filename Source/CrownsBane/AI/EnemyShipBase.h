@@ -68,10 +68,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FX")
 	USoundBase* DeathSound = nullptr;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FX", meta=(ClampMin="0.0", ClampMax="1.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FX", meta = (ClampMin = "0.0", ClampMax = "1.0"))
 	float SmokeHPThreshold = 0.6f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FX", meta=(ClampMin="0.0", ClampMax="1.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FX", meta = (ClampMin = "0.0", ClampMax = "1.0"))
 	float FireHPThreshold = 0.3f;
 
 	// ---- AI Settings ----
@@ -99,23 +99,29 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI")
 	float TurnRate = 35.0f;
 
-	// HP fraction at which this ship abandons combat and flees (0 = never retreat)
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI", meta=(ClampMin="0.0", ClampMax="1.0"))
+	// AI Physics & Inertia
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Physics")
+	float AccelerationInterpSpeed = 1.2f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Physics")
+	float TurnInterpSpeed = 1.5f;
+
+	// AI Obstacle Avoidance
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Navigation")
+	float AvoidanceRayLength = 2500.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI", meta = (ClampMin = "0.0", ClampMax = "1.0"))
 	float RetreatHealthThreshold = 0.25f;
 
-	// Speed during retreat (usually faster than chase)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI")
 	float RetreatSpeed = 700.0f;
 
-	// Set false in subclasses that should never retreat (e.g. enraged Galleon)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI")
 	bool bCanRetreat = true;
 
-	// If true, this ship attacks on sight regardless of wanted level (e.g. scripted bosses).
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI")
 	bool bIgnoreWantedLevel = false;
 
-	// Turns true when the player damages us: we return fire even without wanted level.
 	UPROPERTY(BlueprintReadOnly, Category = "AI")
 	bool bHasAggro = false;
 
@@ -128,13 +134,12 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "AI")
 	EShipAIState CurrentState = EShipAIState::Patrol;
 
-	// Loot class spawned on death
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Loot")
 	TSubclassOf<AActor> LootSpawnerClass;
 
 	// ---- Movement ----
 	UFUNCTION(BlueprintCallable, Category = "AI")
-	void MoveToward(FVector TargetLocation, float Speed, float DeltaTime);
+	void MoveToward(FVector TargetLocation, float TargetSpeed, float DeltaTime);
 
 	UFUNCTION(BlueprintCallable, Category = "AI")
 	void TurnToward(FVector TargetLocation, float DeltaTime);
@@ -166,6 +171,7 @@ protected:
 	float FireCooldownTimer = 0.0f;
 	float SinkTimer = 0.0f;
 	float CurrentSpeedActual = 0.0f;
+	float CurrentYawSpeed = 0.0f; // Змінна для плавності повороту
 	float PatrolWaitTimer = 0.0f;
 
 	UFUNCTION()

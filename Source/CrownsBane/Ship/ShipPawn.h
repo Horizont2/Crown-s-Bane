@@ -1,7 +1,10 @@
+// Copyright 2024 Crown's Bane. All Rights Reserved.
+
 #pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Pawn.h"
+#include "Combat/CannonComponent.h" // Needed for ECannonSide enum
 #include "ShipPawn.generated.h"
 
 class UStaticMeshComponent;
@@ -64,7 +67,7 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	UHealthComponent* HealthComponent;
 
-	// ---- FX Components (always-on children of ShipMesh) ----
+	// ---- FX Components ----
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "FX")
 	UNiagaraComponent* DamageSmokeFX;
 
@@ -74,7 +77,6 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "FX")
 	UNiagaraComponent* BowWakeFX;
 
-	// Assets (assign in BP_PlayerShip Details, otherwise components stay empty)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FX")
 	UNiagaraSystem* SmokeAsset = nullptr;
 
@@ -90,21 +92,18 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FX")
 	USoundBase* DeathSound = nullptr;
 
-	// Camera shake played on receiving damage
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FX")
 	TSubclassOf<UCameraShakeBase> HitCameraShake;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FX", meta=(ClampMin="0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FX", meta = (ClampMin = "0.0"))
 	float HitCameraShakeScale = 1.5f;
 
-	// HP thresholds for visual damage states (0..1)
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FX", meta=(ClampMin="0.0", ClampMax="1.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FX", meta = (ClampMin = "0.0", ClampMax = "1.0"))
 	float SmokeHPThreshold = 0.6f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FX", meta=(ClampMin="0.0", ClampMax="1.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FX", meta = (ClampMin = "0.0", ClampMax = "1.0"))
 	float FireHPThreshold = 0.3f;
 
-	// Local-space offsets for damage FX (relative to ShipMesh)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FX")
 	FVector SmokeSocketOffset = FVector(0.f, 0.f, 200.f);
 
@@ -114,7 +113,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FX")
 	FVector BowWakeOffset = FVector(400.f, 0.f, -30.f);
 
-	// ---- Enhanced Input (assign in BP_PlayerShip Details) ----
+	// ---- Enhanced Input ----
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	UInputMappingContext* ShipMappingContext;
 
@@ -133,13 +132,24 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	UInputAction* IA_FireRight;
 
-	// Camera-aim fire: automatically picks port/starboard based on camera yaw.
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	UInputAction* IA_Fire;
 
-	// Free camera look (mouse XY).  Rotates the SpringArm around the ship.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	UInputAction* IA_Aim;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	UInputAction* IA_Look;
+
+	// ---- Camera & Aiming ----
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera")
+	float DefaultSpringArmLength = 1800.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera")
+	float AimSpringArmLength = 1000.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera")
+	float AimZoomSpeed = 6.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
 	float LookYawSensitivity = 1.2f;
@@ -153,7 +163,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
 	float LookPitchMax = 10.0f;
 
-	// Show debug text on screen (HUD-like)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Debug")
 	bool bShowDebugOnScreen = true;
 
@@ -176,14 +185,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
 	float HighSpeedTurnFactor = 0.4f;
 
-	// Visual roll when turning (degrees at max turn)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Visual")
 	float MaxVisualRoll = 8.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Visual")
 	float VisualRollInterpSpeed = 2.0f;
 
-	// ---- Wind ----
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wind")
 	float WindInfluenceFactor = 0.2f;
 
@@ -193,6 +200,12 @@ public:
 
 	UPROPERTY(BlueprintReadOnly, Category = "Movement")
 	float CurrentSpeed = 0.0f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Combat|Aim")
+	bool bIsAiming = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Combat|Aim")
+	ECannonSide AimingSide = ECannonSide::Right;
 
 	UFUNCTION(BlueprintCallable, Category = "Movement")
 	void ApplySpeedPenalty(float PenaltyFraction, float Duration);
@@ -209,21 +222,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Movement")
 	void UpgradeTurnRate(float BonusTurnRate);
 
-	// 0..1 fraction of damage absorbed by hull armor (stacks via UpgradeHullArmor)
 	UPROPERTY(BlueprintReadOnly, Category = "Combat")
 	float ArmorReduction = 0.0f;
 
 	UFUNCTION(BlueprintCallable, Category = "Combat")
 	void UpgradeHullArmor(float AdditionalReductionPct);
 
-	// True once Enhanced Input successfully bound the action callbacks.  If
-	// this stays false we fall back to raw key polling inside Tick so the
-	// game is still playable even with a broken EnhancedInput configuration.
 	UPROPERTY(BlueprintReadOnly, Category = "Input")
 	bool bEnhancedInputReady = false;
 
-	// Report which input pathway drove the last sail/turn/fire event
-	// (displayed in on-screen debug to diagnose input problems).
 	UPROPERTY(BlueprintReadOnly, Category = "Input")
 	FString LastInputSource = TEXT("none");
 
@@ -237,8 +244,10 @@ protected:
 	void Input_Fire(const FInputActionValue& Value);
 	void Input_Look(const FInputActionValue& Value);
 
-	// Pathway-agnostic action implementations.  Enhanced Input callbacks and
-	// raw polling both route through these so behaviour is identical.
+	// New Aim Inputs
+	void Input_AimStart(const FInputActionValue& Value);
+	void Input_AimStop(const FInputActionValue& Value);
+
 	void DoIncreaseSail();
 	void DoDecreaseSail();
 	void DoFireLeft();
@@ -247,19 +256,9 @@ protected:
 	void DoSetTurnAxis(float Value);
 	void DoLook(const FVector2D& Delta);
 
-	// Per-action debounce: returns true if action should fire, false if
-	// the same action fired too recently (from any input pathway).
 	bool ConsumeActionCooldown(FName ActionTag, float CooldownSec = 0.25f);
-
-	// Raw key-state polling used when Enhanced Input did not bind.
 	void PollRawInputFallback(float DeltaTime);
-
-	// Registers IMC on the possessing PlayerController's Enhanced Input subsystem.
-	// Called from PawnClientRestart (canonical), NotifyControllerChanged, and BeginPlay (fallback).
 	void AddInputMappingContext();
-
-	// Creates default IMC and Input Actions at runtime if the BP fields are null.
-	// Guarantees input works even without any Blueprint configuration.
 	void EnsureInputAssetsExist();
 
 private:
@@ -267,6 +266,8 @@ private:
 	void UpdateVisualRoll(float DeltaTime);
 	void UpdateDamageFX();
 	void UpdateBowWake();
+	void UpdateAiming(float DeltaTime); // Dynamic AC4 Aim calculation
+
 	float GetTargetSpeed() const;
 	float GetWindMultiplier() const;
 
@@ -282,17 +283,14 @@ private:
 	float SpeedPenaltyTimeRemaining = 0.0f;
 	float CurrentVisualRoll = 0.0f;
 
-	// Raw-poll edge-trigger trackers
 	bool bRawPrevW = false;
 	bool bRawPrevS = false;
 	bool bRawPrevQ = false;
 	bool bRawPrevE = false;
 	bool bRawPrevFire = false;
 
-	// Per-action debounce table.  Key = action tag, Value = last fire time (seconds).
 	TMap<FName, float> ActionFireTimes;
 
-	// Yaw/pitch offsets applied to the SpringArm from mouse-look.
-	float LookYawOffset   = 0.0f;
+	float LookYawOffset = 0.0f;
 	float LookPitchOffset = 0.0f;
 };

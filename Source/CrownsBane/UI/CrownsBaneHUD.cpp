@@ -114,78 +114,76 @@ void ACrownsBaneHUD::DrawHUD()
 	}
 }
 
+void ACrownsBaneHUD::DrawTextWithShadow(const FString& Text, FColor TextColor, float X, float Y, UFont* Font, float Scale)
+{
+	if (!Canvas) return;
+	// Тінь (зміщена на 2 пікселі вниз і вправо)
+	DrawText(Text, FColor(0, 0, 0, 180), X + 2.0f, Y + 2.0f, Font, Scale, false);
+	// Основний текст
+	DrawText(Text, TextColor, X, Y, Font, Scale, false);
+}
+
+void ACrownsBaneHUD::DrawMinimalistBar(float X, float Y, float W, float H, float Pct, FLinearColor FillColor)
+{
+	// Тонка темна основа (стиль KCD2)
+	DrawFilledRect(X, Y, W, H, FLinearColor(0.05f, 0.05f, 0.05f, 0.85f));
+	// Заповнення
+	DrawFilledRect(X + 1.0f, Y + 1.0f, (W - 2.0f) * FMath::Clamp(Pct, 0.0f, 1.0f), H - 2.0f, FillColor);
+	// Тонка золота/срібна рамка
+	DrawBorderedRect(X, Y, W, H, FLinearColor::Transparent, FLinearColor(0.6f, 0.5f, 0.3f, 0.4f), 1.0f);
+}
+
 void ACrownsBaneHUD::DrawHealthBar(AShipPawn* Ship)
 {
 	if (!Ship || !Ship->HealthComponent) return;
 
-	float HealthPct = Ship->HealthComponent->GetHealthPercent();
-	float ScreenW = Canvas->ClipX;
+	float TargetHealthPct = Ship->HealthComponent->GetHealthPercent();
+	float DeltaTime = GetWorld()->GetDeltaSeconds();
+
+	// Ініціалізація або плавна інтерполяція
+	if (DisplayedHealthPct < 0.0f) DisplayedHealthPct = TargetHealthPct;
+	DisplayedHealthPct = FMath::FInterpTo(DisplayedHealthPct, TargetHealthPct, DeltaTime, 5.0f);
+
 	float ScreenH = Canvas->ClipY;
+	float BarX = HUDPaddingX + 10.0f;
+	float BarY = ScreenH - HUDPaddingY - HealthBarHeight - 40.0f;
 
-	float BarX = HUDPaddingX;
-	float BarY = ScreenH - HUDPaddingY - HealthBarHeight - 30.0f;
+	FLinearColor FillColor = FLinearColor::LerpUsingHSV(FLinearColor(0.8f, 0.1f, 0.1f, 1.0f), HealthBarColor, DisplayedHealthPct);
 
-	// Background
-	DrawFilledRect(BarX - 2, BarY - 2, HealthBarWidth + 4, HealthBarHeight + 4, HealthBarBGColor);
+	DrawMinimalistBar(BarX, BarY, HealthBarWidth, HealthBarHeight, DisplayedHealthPct, FillColor);
 
-	// Health fill - color transitions from green to red as health drops
-	FLinearColor FillColor = FLinearColor::LerpUsingHSV(
-		FLinearColor(0.8f, 0.1f, 0.1f, 1.0f),
-		HealthBarColor,
-		HealthPct);
-	DrawFilledRect(BarX, BarY, HealthBarWidth * HealthPct, HealthBarHeight, FillColor);
+	FString HealthText = FString::Printf(TEXT("H U L L   INTEGRITY   %.0f%%"), DisplayedHealthPct * 100.0f);
+	DrawTextWithShadow(HealthText, FColor(240, 240, 230), BarX, BarY - 20.0f, nullptr, 0.9f);
 
-	// Health text
-	FString HealthText = FString::Printf(TEXT("Hull: %.0f / %.0f"),
-		Ship->HealthComponent->GetCurrentHealth(),
-		Ship->HealthComponent->GetMaxHealth());
-	DrawText(HealthText, FColor::White, BarX, BarY - 22.0f, nullptr, 1.0f, false);
-
-	// Speed indicator
-	FString SpeedText = FString::Printf(TEXT("Speed: %.0f  Sail: %s"),
-		Ship->GetCurrentSpeed(),
-		Ship->GetSailLevel() == ESailLevel::Stop ? TEXT("STOP") :
-		Ship->GetSailLevel() == ESailLevel::HalfSail ? TEXT("HALF") : TEXT("FULL"));
-	DrawText(SpeedText, FColor::Cyan, BarX, BarY + HealthBarHeight + 4.0f, nullptr, 0.9f, false);
+	FString SpeedText = FString::Printf(TEXT("KNOTS: %.0f   |   SAIL: %s"), Ship->GetCurrentSpeed() / 50.0f,
+		Ship->GetSailLevel() == ESailLevel::Stop ? TEXT("ANCHORED") : Ship->GetSailLevel() == ESailLevel::HalfSail ? TEXT("HALF") : TEXT("FULL"));
+	DrawTextWithShadow(SpeedText, FColor(180, 200, 220), BarX, BarY + HealthBarHeight + 6.0f, nullptr, 0.85f);
 }
 
 void ACrownsBaneHUD::DrawReloadTimers(UCannonComponent* Cannons)
 {
 	if (!Cannons) return;
+	float CenterX = Canvas->ClipX * 0.5f;
+	float BarY = Canvas->ClipY - HUDPaddingY - ReloadBarHeight - 20.0f;
 
-	float ScreenW = Canvas->ClipX;
-	float ScreenH = Canvas->ClipY;
+	// Пульсація для готових гармат
+	float PulseAlpha = FMath::Sin(GetWorld()->GetTimeSeconds() * 6.0f) * 0.5f + 0.5f;
+	FLinearColor PulsingReadyColor = FLinearColor::LerpUsingHSV(ReloadReadyColor, FLinearColor::White, PulseAlpha * 0.3f);
 
-	float CenterX = ScreenW * 0.5f;
-	float BarY = ScreenH - HUDPaddingY - ReloadBarHeight;
+	auto DrawSide = [&](ECannonSide Side, float XOffset, const FString& LabelKey) {
+		float Progress = Cannons->GetReloadProgress(Side);
+		float BarX = CenterX + XOffset;
+		FLinearColor Color = (Progress >= 1.0f) ? PulsingReadyColor : FLinearColor::LerpUsingHSV(ReloadEmptyColor, ReloadReadyColor, Progress);
 
-	// Left cannon reload (Port)
-	float LeftProgress = Cannons->GetReloadProgress(ECannonSide::Left);
-	float LeftBarX = CenterX - ReloadBarWidth - 20.0f;
+		DrawMinimalistBar(BarX, BarY, ReloadBarWidth, ReloadBarHeight * 0.4f, Progress, Color);
 
-	DrawFilledRect(LeftBarX - 2, BarY - 2, ReloadBarWidth + 4, ReloadBarHeight + 4, FLinearColor(0.1f, 0.1f, 0.1f, 0.8f));
-	FLinearColor LeftColor = (LeftProgress >= 1.0f) ? ReloadReadyColor : FLinearColor::LerpUsingHSV(ReloadEmptyColor, ReloadReadyColor, LeftProgress);
-	DrawFilledRect(LeftBarX, BarY, ReloadBarWidth * LeftProgress, ReloadBarHeight, LeftColor);
+		FString Label = Cannons->CanFire(Side) ? FString::Printf(TEXT("%s READY"), *LabelKey) : FString::Printf(TEXT("RELOADING..."));
+		FColor TextColor = (Progress >= 1.0f) ? FColor(255, 215, 0, 200 + (int)(PulseAlpha * 55)) : FColor(150, 150, 150, 200);
+		DrawTextWithShadow(Label, TextColor, BarX, BarY - 18.0f, nullptr, 0.8f);
+		};
 
-	FString LeftLabel = Cannons->CanFire(ECannonSide::Left) ? TEXT("PORT [LMB] READY") : TEXT("PORT [LMB] RELOADING");
-	DrawText(LeftLabel, LeftProgress >= 1.0f ? FColor::Yellow : FColor::Silver,
-		LeftBarX, BarY - 20.0f, nullptr, 0.85f, false);
-
-	// Right cannon reload (Starboard)
-	float RightBarX = CenterX + 20.0f;
-	float RightProgress = Cannons->GetReloadProgress(ECannonSide::Right);
-
-	DrawFilledRect(RightBarX - 2, BarY - 2, ReloadBarWidth + 4, ReloadBarHeight + 4, FLinearColor(0.1f, 0.1f, 0.1f, 0.8f));
-	FLinearColor RightColor = (RightProgress >= 1.0f) ? ReloadReadyColor : FLinearColor::LerpUsingHSV(ReloadEmptyColor, ReloadReadyColor, RightProgress);
-	DrawFilledRect(RightBarX, BarY, ReloadBarWidth * RightProgress, ReloadBarHeight, RightColor);
-
-	FString RightLabel = Cannons->CanFire(ECannonSide::Right) ? TEXT("STBD [RMB] READY") : TEXT("STBD [RMB] RELOADING");
-	DrawText(RightLabel, RightProgress >= 1.0f ? FColor::Yellow : FColor::Silver,
-		RightBarX, BarY - 20.0f, nullptr, 0.85f, false);
-
-	// Cannon count info
-	FString CannonInfo = FString::Printf(TEXT("%d cannons/side"), Cannons->GetCannonsPerSide());
-	DrawText(CannonInfo, FColor::White, CenterX - 50.0f, BarY + ReloadBarHeight + 4.0f, nullptr, 0.8f, false);
+	DrawSide(ECannonSide::Left, -ReloadBarWidth - 30.0f, TEXT("PORT [Q]"));
+	DrawSide(ECannonSide::Right, 30.0f, TEXT("STBD [E]"));
 }
 
 void ACrownsBaneHUD::DrawWantedStars(AWantedLevelManager* WLM)
@@ -815,64 +813,43 @@ void ACrownsBaneHUD::DrawAimPredictor(AShipPawn* PlayerShip)
 {
 	if (!PlayerShip || !PlayerShip->Camera || !PlayerShip->CannonComponent || !Canvas) return;
 
-	// Decide which side we're aiming toward.
-	const FVector CamFwd   = PlayerShip->Camera->GetForwardVector();
+	const FVector CamFwd = PlayerShip->Camera->GetForwardVector();
 	const FVector ShipRight = PlayerShip->GetActorRightVector();
 	const float DotR = FVector::DotProduct(CamFwd, ShipRight);
-	if (FMath::Abs(DotR) < 0.35f) return; // centered — no prediction
+	if (FMath::Abs(DotR) < 0.35f) return;
 
 	const ECannonSide Side = (DotR > 0.f) ? ECannonSide::Right : ECannonSide::Left;
 	const bool bReady = PlayerShip->CannonComponent->CanFire(Side);
-	const FLinearColor ArcColor = bReady ? AimArcColorReady : AimArcColorReload;
 
-	// Generate trajectories
+	// Пульсація прицілу
+	float Pulse = FMath::Sin(GetWorld()->GetTimeSeconds() * 8.0f) * 0.15f + 0.85f;
+	FLinearColor ArcColor = bReady ? AimArcColorReady : AimArcColorReload;
+	ArcColor.A *= (bReady ? Pulse : 0.5f); // Блимає тільки коли готово
+
 	TArray<FVector> ImpactPoints, Starts, Ends;
 	PlayerShip->CannonComponent->GetAimPrediction(Side, SeaLevelZ, ImpactPoints, Starts, Ends);
 
-	// Draw each trajectory segment in screen space.
 	const int32 N = FMath::Min(Starts.Num(), Ends.Num());
 	for (int32 i = 0; i < N; ++i)
 	{
 		const FVector S3 = Canvas->Project(Starts[i]);
 		const FVector E3 = Canvas->Project(Ends[i]);
-		// Skip segments behind the camera
 		if (S3.Z <= 0.f || E3.Z <= 0.f) continue;
 
+		// Робимо лінії прицілу пунктирними/прозорими ближче до корабля
 		FCanvasLineItem L(FVector2D(S3.X, S3.Y), FVector2D(E3.X, E3.Y));
 		L.SetColor(ArcColor);
-		L.LineThickness = 2.0f;
+		L.LineThickness = 1.5f;
 		Canvas->DrawItem(L);
 	}
 
-	// Draw impact rings (rough ellipses) at landing points.
 	for (const FVector& Impact : ImpactPoints)
 	{
 		const FVector P0 = Canvas->Project(Impact);
 		if (P0.Z <= 0.f) continue;
 
-		// Approximate ellipse by projecting a ring in world space.
-		const int32 Segs = 20;
-		const float R = AimImpactRingRadius;
-		FVector2D PrevScreen;
-		for (int32 s = 0; s <= Segs; ++s)
-		{
-			const float A = (float)s / (float)Segs * 2.0f * PI;
-			const FVector Ring = Impact + FVector(FMath::Cos(A) * R, FMath::Sin(A) * R, 0.0f);
-			const FVector RS = Canvas->Project(Ring);
-			if (RS.Z <= 0.f) { PrevScreen = FVector2D(-1, -1); continue; }
-
-			if (s > 0 && PrevScreen.X >= 0.0f)
-			{
-				FCanvasLineItem Ln(PrevScreen, FVector2D(RS.X, RS.Y));
-				Ln.SetColor(AimImpactRingColor);
-				Ln.LineThickness = 2.0f;
-				Canvas->DrawItem(Ln);
-			}
-			PrevScreen = FVector2D(RS.X, RS.Y);
-		}
-
-		// Small dot at the center
-		DrawFilledRect(P0.X - 3.f, P0.Y - 3.f, 6.f, 6.f, AimImpactRingColor);
+		float CurrentRingRadius = AimImpactRingRadius * (bReady ? Pulse : 1.0f);
+		DrawFilledRect(P0.X - 3.f, P0.Y - 3.f, 6.f, 6.f, AimImpactRingColor); // Точка падіння
 	}
 }
 
@@ -928,19 +905,20 @@ void ACrownsBaneHUD::DrawFloatingDamageNumbers(float DeltaTime)
 			continue;
 		}
 
-		// Rise in world space
 		E.WorldLocation.Z += E.VerticalSpeed * DeltaTime;
-
 		const FVector Screen = Canvas->Project(E.WorldLocation);
 		if (Screen.Z <= 0.f) continue;
 
-		const float Alpha = FMath::Clamp(E.TimeRemaining / 1.4f, 0.f, 1.f);
+		// Ефект "вибуху" (pop-up) в перші 0.2 секунди
+		float LifeTime = 1.4f - E.TimeRemaining;
+		float PopScale = (LifeTime < 0.15f) ? FMath::Lerp(0.5f, 1.5f, LifeTime / 0.15f) : FMath::Lerp(1.5f, 0.9f, (LifeTime - 0.15f) / 1.25f);
+
+		const float Alpha = FMath::Clamp(E.TimeRemaining / 0.8f, 0.f, 1.f);
 		FColor Tint = E.Tint;
 		Tint.A = (uint8)(Alpha * 255.f);
 
 		const FString Text = FString::Printf(TEXT("-%.0f"), E.Damage);
-		const float Scale = 1.1f + (1.0f - Alpha) * 0.4f;
-		DrawText(Text, Tint, Screen.X - 14.f, Screen.Y, nullptr, Scale, false);
+		DrawTextWithShadow(Text, Tint, Screen.X - 14.f, Screen.Y, nullptr, PopScale);
 	}
 }
 
