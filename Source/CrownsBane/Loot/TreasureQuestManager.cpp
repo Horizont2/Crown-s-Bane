@@ -33,7 +33,10 @@ FGuid ATreasureQuestManager::IssueQuest(const FVector& Origin)
 		SeaLevelZ
 	);
 
-	TSubclassOf<ATreasureChest> ClassToSpawn = TreasureChestClass ? TreasureChestClass : ATreasureChest::StaticClass();
+	// UE 5.8 stricter ternary: TSubclassOf<T> vs UClass* arms must be unified explicitly.
+	TSubclassOf<ATreasureChest> ClassToSpawn = TreasureChestClass
+		? TreasureChestClass
+		: TSubclassOf<ATreasureChest>(ATreasureChest::StaticClass());
 
 	FActorSpawnParameters Params;
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;

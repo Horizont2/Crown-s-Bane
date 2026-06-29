@@ -109,8 +109,10 @@ void ACannonball::OnHit(UPrimitiveComponent* HitComponent, AActor* OtherActor,
 			{
 				if (ACrownsBaneHUD* HUD = Cast<ACrownsBaneHUD>(PC->GetHUD()))
 				{
-					HUD->AddFloatingDamage(Hit.ImpactPoint.IsZero() ? GetActorLocation() : Hit.ImpactPoint,
-						CannonballData.BaseDamage, bHitShip);
+					// UE 5.8 made FHitResult::ImpactPoint a FVector_NetQuantize, so the
+					// ternary can no longer auto-convert — coerce both arms to FVector.
+					const FVector HitLoc = Hit.ImpactPoint.IsZero() ? GetActorLocation() : FVector(Hit.ImpactPoint);
+					HUD->AddFloatingDamage(HitLoc, CannonballData.BaseDamage, bHitShip);
 					// Hit marker: gold "X" for ship hit, plain white for water hit (less satisfying).
 					HUD->TriggerHitMarker(bHitShip);
 				}
@@ -122,7 +124,7 @@ void ACannonball::OnHit(UPrimitiveComponent* HitComponent, AActor* OtherActor,
 	UWorld* World = GetWorld();
 	if (World)
 	{
-		const FVector ImpactLoc = Hit.ImpactPoint.IsZero() ? GetActorLocation() : Hit.ImpactPoint;
+		const FVector ImpactLoc = Hit.ImpactPoint.IsZero() ? GetActorLocation() : FVector(Hit.ImpactPoint);
 		const FRotator ImpactRot = Hit.ImpactNormal.IsNearlyZero()
 			? FRotator::ZeroRotator
 			: Hit.ImpactNormal.Rotation();
