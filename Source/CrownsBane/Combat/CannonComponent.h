@@ -35,6 +35,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Cannon")
 	void FireBroadside(ECannonSide Side);
 
+	// Same as FireBroadside, but each cannon fires sequentially with a delay
+	// (VolleyDelaySeconds between guns) for an AC4-style rolling broadside.
+	UFUNCTION(BlueprintCallable, Category = "Cannon")
+	void FireBroadsideVolley(ECannonSide Side);
+
+	// Delay between sequential cannon shots in a volley (seconds).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cannon", meta=(ClampMin="0.02", ClampMax="1.0"))
+	float VolleyDelaySeconds = 0.13f;
+
 	// Upgrade cannon count (adds cannons per side)
 	UFUNCTION(BlueprintCallable, Category = "Cannon")
 	void UpgradeCannonCount(int32 NewCountPerSide);
@@ -122,4 +131,22 @@ private:
 
 	void SpawnCannonball(FVector SpawnLocation, FVector Direction, const FCannonballData& Data);
 	void PlayFireFX(const FVector& Location, const FRotator& Rotation);
+
+	// Queued shots for sequential volley fire — one entry per cannon, popped on timer tick.
+	struct FQueuedShot
+	{
+		FVector SpawnLoc;
+		FVector Direction;
+		FCannonballData Data;
+	};
+	TArray<FQueuedShot> LeftVolleyQueue;
+	TArray<FQueuedShot> RightVolleyQueue;
+	FTimerHandle LeftVolleyTimer;
+	FTimerHandle RightVolleyTimer;
+	void TickLeftVolley();
+	void TickRightVolley();
+
+	// Build the queue of shots for a broadside (computes spawn positions+directions
+	// for every cannon on the given side). Returns true on success.
+	bool BuildVolleyQueue(ECannonSide Side, TArray<FQueuedShot>& OutQueue);
 };

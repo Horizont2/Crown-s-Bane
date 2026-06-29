@@ -141,6 +141,35 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	UInputAction* IA_Look;
 
+	// Toggle docks/upgrade UI (U key).  Only activates when inside a DocksZone.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	UInputAction* IA_ToggleDocks;
+
+	// AC4-style aim mode (RMB hold).  Zooms in, slows time, draws clearer arc.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	UInputAction* IA_Aim;
+
+	// ---- Aim mode tuning ----
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Aim")
+	float DefaultFOV = 90.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Aim")
+	float AimFOV = 55.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Aim")
+	float AimFOVInterpSpeed = 8.0f;
+
+	// Global time dilation when aim is held (0.6 = 40% slower).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Aim", meta=(ClampMin="0.1", ClampMax="1.0"))
+	float AimTimeDilation = 0.6f;
+
+	// Look sensitivity multiplier while aiming (lower = finer control while zoomed).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Aim")
+	float AimLookSensitivityScale = 0.45f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Combat|Aim")
+	bool bAimMode = false;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
 	float LookYawSensitivity = 1.2f;
 
@@ -289,6 +318,8 @@ protected:
 	void Input_Fire(const FInputActionValue& Value);
 	void Input_Look(const FInputActionValue& Value);
 	void Input_ToggleDocks(const FInputActionValue& Value);
+	void Input_AimPressed(const FInputActionValue& Value);
+	void Input_AimReleased(const FInputActionValue& Value);
 
 	// Pathway-agnostic action implementations.  Enhanced Input callbacks and
 	// raw polling both route through these so behaviour is identical.

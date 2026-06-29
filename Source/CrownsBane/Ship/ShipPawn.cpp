@@ -166,6 +166,7 @@ void AShipPawn::EnsureInputAssetsExist()
 	MakeIA(IA_Fire,         EInputActionValueType::Boolean, TEXT("IA_Fire_Auto"));
 	MakeIA(IA_Look,         EInputActionValueType::Axis2D,  TEXT("IA_Look_Auto"));
 	MakeIA(IA_ToggleDocks,  EInputActionValueType::Boolean, TEXT("IA_ToggleDocks_Auto"));
+	MakeIA(IA_Aim,          EInputActionValueType::Boolean, TEXT("IA_Aim_Auto"));
 
 	if (!ShipMappingContext)
 	{
@@ -198,6 +199,7 @@ void AShipPawn::EnsureInputAssetsExist()
 
 		// Docks / upgrade UI
 		ShipMappingContext->MapKey(IA_ToggleDocks, EKeys::U);
+		ShipMappingContext->MapKey(IA_Aim, EKeys::RightMouseButton);
 
 		UE_LOG(LogTemp, Warning, TEXT("[ShipPawn] Auto-created fallback IMC_Ship with default keybinds "
 			"(W/S sails, A/D or arrows turn, Q/LMB port fire, E/RMB starboard fire, mouse look)."));
@@ -277,6 +279,7 @@ void AShipPawn::AddInputMappingContext()
 	}
 	if (IA_Look) Overlay->MapKey(IA_Look, EKeys::Mouse2D);
 	if (IA_ToggleDocks) Overlay->MapKey(IA_ToggleDocks, EKeys::U);
+	if (IA_Aim) Overlay->MapKey(IA_Aim, EKeys::RightMouseButton);
 	Subsystem->AddMappingContext(Overlay, 0);
 
 	if (GEngine && bShowDebugOnScreen)
@@ -323,6 +326,23 @@ void AShipPawn::Tick(float DeltaTime)
 	UpdateWaveMotion(DeltaTime);
 	UpdateVisualRoll(DeltaTime);
 	UpdateBowWake();
+
+	// Aim-mode visuals: interp FOV smoothly, apply global time dilation as a snap.
+	// (Interping dilation would slow its own transition — snap is correct here.)
+	if (Camera)
+	{
+		const float TargetFOV = bAimMode ? AimFOV : DefaultFOV;
+		const float NewFOV = FMath::FInterpTo(Camera->FieldOfView, TargetFOV, DeltaTime, AimFOVInterpSpeed);
+		Camera->SetFieldOfView(NewFOV);
+	}
+	if (UWorld* W = GetWorld())
+	{
+		const float TargetDil = bAimMode ? AimTimeDilation : 1.0f;
+		if (!FMath::IsNearlyEqual(UGameplayStatics::GetGlobalTimeDilation(W), TargetDil, 0.01f))
+		{
+			UGameplayStatics::SetGlobalTimeDilation(W, TargetDil);
+		}
+	}
 
 	if (GEngine && bShowDebugOnScreen)
 	{
@@ -383,6 +403,12 @@ void AShipPawn::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 		if (IA_Fire)      EIC->BindAction(IA_Fire,      ETriggerEvent::Started, this, &AShipPawn::Input_Fire);
 		if (IA_Look)        EIC->BindAction(IA_Look,        ETriggerEvent::Triggered, this, &AShipPawn::Input_Look);
 		if (IA_ToggleDocks) EIC->BindAction(IA_ToggleDocks, ETriggerEvent::Started,   this, &AShipPawn::Input_ToggleDocks);
+		if (IA_Aim)
+		{
+			EIC->BindAction(IA_Aim, ETriggerEvent::Started,   this, &AShipPawn::Input_AimPressed);
+			EIC->BindAction(IA_Aim, ETriggerEvent::Completed, this, &AShipPawn::Input_AimReleased);
+			EIC->BindAction(IA_Aim, ETriggerEvent::Canceled,  this, &AShipPawn::Input_AimReleased);
+		}
 
 		bEnhancedInputReady = true;
 		UE_LOG(LogTemp, Log, TEXT("[ShipPawn] Enhanced Input bound successfully."));
@@ -482,6 +508,18 @@ void AShipPawn::Input_ToggleDocks(const FInputActionValue& /*Value*/)
 	}
 }
 
+void AShipPawn::Input_AimPressed(const FInputActionValue& /*Value*/)
+{
+	bAimMode = true;
+	LastInputSource = TEXT("Aim+");
+}
+
+void AShipPawn::Input_AimReleased(const FInputActionValue& /*Value*/)
+{
+	bAimMode = false;
+	LastInputSource = TEXT("Aim-");
+}
+
 bool AShipPawn::ConsumeActionCooldown(FName ActionTag, float CooldownSec)
 {
 	UWorld* W = GetWorld();
@@ -527,19 +565,24 @@ void AShipPawn::DoSetTurnAxis(float Value)
 
 void AShipPawn::DoFireLeft()
 {
-	if (CannonComponent) CannonComponent->FireBroadside(ECannonSide::Left);
+	if (CannonComponent) CannonComponent->FireBroadsideVolley(ECannonSide::Left);
 }
 
 void AShipPawn::DoFireRight()
 {
-	if (CannonComponent) CannonComponent->FireBroadside(ECannonSide::Right);
+	if (CannonComponent) CannonComponent->FireBroadsideVolley(ECannonSide::Right);
 }
 
 void AShipPawn::DoLook(const FVector2D& Delta)
 {
+	// Aim mode = finer control while zoomed in.
+	const float SensScale = bAimMode ? AimLookSensitivityScale : 1.0f;
+	const float YawSens   = LookYawSensitivity   * SensScale;
+	const float PitchSens = LookPitchSensitivity * SensScale;
+
 	// Mouse delta is typically already normalized (pixels × sensitivity from input config)
-	LookYawOffset   = FRotator::NormalizeAxis(LookYawOffset + Delta.X * LookYawSensitivity);
-	LookPitchOffset = FMath::Clamp(LookPitchOffset - Delta.Y * LookPitchSensitivity, LookPitchMin, LookPitchMax);
+	LookYawOffset   = FRotator::NormalizeAxis(LookYawOffset + Delta.X * YawSens);
+	LookPitchOffset = FMath::Clamp(LookPitchOffset - Delta.Y * PitchSens, LookPitchMin, LookPitchMax);
 
 	// Apply to SpringArm.  Yaw inherits ship yaw (SpringArm.bInheritYaw=true), so
 	// we only add the RELATIVE yaw offset; pitch we set directly since the arm
@@ -560,13 +603,15 @@ void AShipPawn::DoCameraAimFire()
 	const FVector CamFwd = Camera->GetForwardVector();
 	const float DotRight = FVector::DotProduct(CamFwd, GetActorRightVector());
 
+	// Rolling broadside always — that's just how cannons fire in real life,
+	// and it gives the combat impact instead of a single thud.
 	if (DotRight > 0.35f)
 	{
-		CannonComponent->FireBroadside(ECannonSide::Right);
+		CannonComponent->FireBroadsideVolley(ECannonSide::Right);
 	}
 	else if (DotRight < -0.35f)
 	{
-		CannonComponent->FireBroadside(ECannonSide::Left);
+		CannonComponent->FireBroadsideVolley(ECannonSide::Left);
 	}
 	else if (GEngine)
 	{
@@ -806,4 +851,12 @@ void AShipPawn::HandleDeath()
 	if (DamageSmokeFX) DamageSmokeFX->Deactivate();
 	if (DamageFireFX)  DamageFireFX->Deactivate();
 	if (BowWakeFX)     BowWakeFX->Deactivate();
+
+	// Safety: ensure time dilation/aim mode are reset so a stuck slo-mo doesn't
+	// outlive the player.
+	bAimMode = false;
+	if (UWorld* W = GetWorld())
+	{
+		UGameplayStatics::SetGlobalTimeDilation(W, 1.0f);
+	}
 }

@@ -226,6 +226,172 @@ void UCannonComponent::FireBroadside(ECannonSide Side)
 	}
 }
 
+bool UCannonComponent::BuildVolleyQueue(ECannonSide Side, TArray<FQueuedShot>& OutQueue)
+{
+	OutQueue.Reset();
+	AActor* Owner = GetOwner();
+	if (!Owner) return false;
+
+	FCannonballData Data;
+	if (ActiveCannonballType == ECannonballType::Chain) Data = FCannonballData::MakeChain();
+	else                                                Data = FCannonballData::MakeStandard();
+	Data.BaseDamage = DamagePerCannon;
+
+	FVector OwnerRight = Owner->GetActorRightVector();
+	FVector FireDirection = (Side == ECannonSide::Left) ? -OwnerRight : OwnerRight;
+
+	const float ElevRad = FMath::DegreesToRadians(ElevationAngle);
+	FVector ElevatedDir = FireDirection * FMath::Cos(ElevRad) + FVector::UpVector * FMath::Sin(ElevRad);
+	ElevatedDir.Normalize();
+
+	const float HalfSpread = CannonSpreadAngle * 0.5f;
+	auto ApplySpread = [&](FVector BaseDir) -> FVector
+	{
+		float YawJitter   = FMath::FRandRange(-HalfSpread, HalfSpread);
+		float PitchJitter = FMath::FRandRange(-HalfSpread * 0.3f, HalfSpread * 0.3f);
+		FRotator Jitter(PitchJitter, YawJitter, 0.0f);
+		return Jitter.RotateVector(BaseDir).GetSafeNormal();
+	};
+
+	FName SocketPrefix = (Side == ECannonSide::Left) ? LeftSocketPrefix : RightSocketPrefix;
+	UMeshComponent* MeshComp = Owner->FindComponentByClass<UStaticMeshComponent>();
+	if (!MeshComp) MeshComp = Owner->FindComponentByClass<USkeletalMeshComponent>();
+
+	bool bUsedSockets = false;
+	if (MeshComp)
+	{
+		for (int32 i = 0; i < CannonsPerSide; ++i)
+		{
+			FName SocketName = FName(*FString::Printf(TEXT("%s%d"), *SocketPrefix.ToString(), i));
+			if (MeshComp->DoesSocketExist(SocketName))
+			{
+				FQueuedShot Shot;
+				Shot.SpawnLoc  = MeshComp->GetSocketLocation(SocketName);
+				Shot.Direction = ApplySpread(ElevatedDir);
+				Shot.Data      = Data;
+				OutQueue.Add(Shot);
+				bUsedSockets = true;
+			}
+		}
+	}
+
+	if (!bUsedSockets)
+	{
+		const float ShipHalfWidth = 300.0f;
+		const float CannonSpacing = 250.0f;
+		FVector BaseOffset = FireDirection * ShipHalfWidth;
+		FVector LengthDir  = Owner->GetActorForwardVector();
+
+		for (int32 i = 0; i < CannonsPerSide; ++i)
+		{
+			float LengthOffset = (i - (CannonsPerSide - 1) * 0.5f) * CannonSpacing;
+			FQueuedShot Shot;
+			Shot.SpawnLoc  = Owner->GetActorLocation() + BaseOffset + LengthDir * LengthOffset + FVector(0, 0, 50);
+			Shot.Direction = ApplySpread(ElevatedDir);
+			Shot.Data      = Data;
+			OutQueue.Add(Shot);
+		}
+	}
+
+	return OutQueue.Num() > 0;
+}
+
+void UCannonComponent::FireBroadsideVolley(ECannonSide Side)
+{
+	if (!CanFire(Side)) return;
+
+	AActor* Owner = GetOwner();
+	if (!Owner) return;
+
+	// Ammo consume (player only) — same logic as FireBroadside.
+	if (APawn* OwnerPawn = Cast<APawn>(Owner))
+	{
+		if (AController* Ctrl = OwnerPawn->GetController())
+		{
+			if (Cast<APlayerController>(Ctrl))
+			{
+				UPlayerInventory* Inventory = OwnerPawn->FindComponentByClass<UPlayerInventory>();
+				if (!Inventory) Inventory = Ctrl->FindComponentByClass<UPlayerInventory>();
+				if (Inventory && !Inventory->ConsumeAmmo(CannonsPerSide))
+				{
+					if (GEngine)
+						GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Red, TEXT("Out of cannon ammo!"));
+					return;
+				}
+			}
+		}
+	}
+
+	TArray<FQueuedShot>& Queue   = (Side == ECannonSide::Left) ? LeftVolleyQueue : RightVolleyQueue;
+	FTimerHandle&        Handle  = (Side == ECannonSide::Left) ? LeftVolleyTimer : RightVolleyTimer;
+	if (!BuildVolleyQueue(Side, Queue)) return;
+
+	// Reload starts immediately so the player can't cheese by spamming the volley input.
+	if (Side == ECannonSide::Left)
+	{
+		bLeftReady = false;
+		LeftReloadTimer = ReloadTime;
+	}
+	else
+	{
+		bRightReady = false;
+		RightReloadTimer = ReloadTime;
+	}
+
+	// Single camera shake on volley start — kicks the camera so the player feels the broadside begin.
+	if (FireCameraShake)
+	{
+		if (APawn* OwnerPawn = Cast<APawn>(Owner))
+			if (APlayerController* PC = Cast<APlayerController>(OwnerPawn->GetController()))
+				PC->ClientStartCameraShake(FireCameraShake, FireCameraShakeScale);
+	}
+
+	if (UWorld* W = GetWorld())
+	{
+		FTimerDelegate Del;
+		if (Side == ECannonSide::Left)
+			Del.BindUObject(this, &UCannonComponent::TickLeftVolley);
+		else
+			Del.BindUObject(this, &UCannonComponent::TickRightVolley);
+		// First shot fires immediately, then VolleyDelaySeconds between subsequent shots.
+		W->GetTimerManager().SetTimer(Handle, Del, FMath::Max(0.02f, VolleyDelaySeconds), true, 0.0f);
+	}
+}
+
+void UCannonComponent::TickLeftVolley()
+{
+	if (LeftVolleyQueue.Num() == 0)
+	{
+		if (UWorld* W = GetWorld()) W->GetTimerManager().ClearTimer(LeftVolleyTimer);
+		return;
+	}
+	const FQueuedShot Shot = LeftVolleyQueue[0];
+	LeftVolleyQueue.RemoveAt(0);
+	SpawnCannonball(Shot.SpawnLoc, Shot.Direction, Shot.Data);
+	PlayFireFX(Shot.SpawnLoc, Shot.Direction.Rotation());
+	if (LeftVolleyQueue.Num() == 0)
+	{
+		if (UWorld* W = GetWorld()) W->GetTimerManager().ClearTimer(LeftVolleyTimer);
+	}
+}
+
+void UCannonComponent::TickRightVolley()
+{
+	if (RightVolleyQueue.Num() == 0)
+	{
+		if (UWorld* W = GetWorld()) W->GetTimerManager().ClearTimer(RightVolleyTimer);
+		return;
+	}
+	const FQueuedShot Shot = RightVolleyQueue[0];
+	RightVolleyQueue.RemoveAt(0);
+	SpawnCannonball(Shot.SpawnLoc, Shot.Direction, Shot.Data);
+	PlayFireFX(Shot.SpawnLoc, Shot.Direction.Rotation());
+	if (RightVolleyQueue.Num() == 0)
+	{
+		if (UWorld* W = GetWorld()) W->GetTimerManager().ClearTimer(RightVolleyTimer);
+	}
+}
+
 void UCannonComponent::SpawnCannonball(FVector SpawnLocation, FVector Direction, const FCannonballData& Data)
 {
 	UWorld* World = GetWorld();
