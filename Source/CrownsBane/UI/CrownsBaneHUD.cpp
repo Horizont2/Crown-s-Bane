@@ -153,7 +153,11 @@ void ACrownsBaneHUD::DrawHUD()
 		DrawBoardingPrompt(Ship);
 		DrawLockOnReticle(Ship);
 		DrawLeadIndicator(Ship);
+		DrawEnemyInfoCard(Ship);
 	}
+	DrawDamageDirection(Dt);
+	DrawComboCounter(Dt);
+	DrawKillFeed(Dt);
 }
 
 void ACrownsBaneHUD::DrawTextWithShadow(const FString& Text, FColor TextColor, float X, float Y, UFont* Font, float Scale)
@@ -1634,4 +1638,153 @@ void ACrownsBaneHUD::DrawLowHealthFlash(AShipPawn* Ship)
 	DrawFilledRect(0, SH - T * 0.7f, SW, T * 0.7f, Edge);
 	DrawFilledRect(0, 0, T * 0.9f, SH, FLinearColor(Edge.R, Edge.G, Edge.B, A * 1.1f));
 	DrawFilledRect(SW - T * 0.9f, 0, T * 0.9f, SH, FLinearColor(Edge.R, Edge.G, Edge.B, A * 1.1f));
+}
+
+// ============== UI-D: COMBAT HUD ==============
+
+void ACrownsBaneHUD::RegisterPlayerDamageFrom(float WorldYawDegrees)
+{
+	FDamageMarker M;
+	M.WorldYaw = WorldYawDegrees;
+	M.TimeRemaining = 0.7f;
+	DamageMarkers.Add(M);
+	if (DamageMarkers.Num() > 4) DamageMarkers.RemoveAt(0);
+}
+
+void ACrownsBaneHUD::RegisterPlayerHit()
+{
+	CurrentCombo++;
+	ComboTimeRemaining = 3.0f; // 3s window between hits to keep combo alive
+}
+
+void ACrownsBaneHUD::PushKillFeed(const FString& Text)
+{
+	FKillFeedEntry E;
+	E.Text = Text;
+	E.TimeRemaining = 5.0f;
+	KillFeed.Insert(E, 0);
+	if (KillFeed.Num() > 5) KillFeed.SetNum(5);
+}
+
+void ACrownsBaneHUD::DrawEnemyInfoCard(AShipPawn* Ship)
+{
+	if (!Ship || !Ship->LockedTarget || !Canvas) return;
+	AEnemyShipBase* T = Ship->LockedTarget;
+	if (!T->HealthComponent || !T->HealthComponent->IsAlive()) return;
+
+	// Identify type from class name (Sloop/Brig/Galleon).
+	const FString ClassName = T->GetClass()->GetName();
+	FString TypeName = TEXT("Vessel");
+	int32 Threat = 1;
+	if (ClassName.Contains(TEXT("Sloop")))   { TypeName = TEXT("Sloop");   Threat = 1; }
+	else if (ClassName.Contains(TEXT("Brig"))) { TypeName = TEXT("Brig");    Threat = 3; }
+	else if (ClassName.Contains(TEXT("Galleon"))) { TypeName = TEXT("Galleon"); Threat = 5; }
+
+	const float W = 260.f;
+	const float H = 110.f;
+	const float X = Canvas->ClipX - W - CrownStyle::Sp3;
+	const float Y = Canvas->ClipY * 0.30f;
+
+	DrawPanel(X, Y, W, H, (uint8)CrownStyle::EPanelStyle::Danger);
+
+	DrawHeading(TypeName, X + CrownStyle::Sp3, Y + CrownStyle::Sp2);
+
+	// HP bar.
+	const float HP = T->HealthComponent->GetHealthPercent();
+	const FLinearColor HpCol = FLinearColor::LerpUsingHSV(CrownStyle::Danger, CrownStyle::Success, HP);
+	DrawSmoothBar(X + CrownStyle::Sp3, Y + CrownStyle::Sp5 + 4.f, W - CrownStyle::Sp4, 10.f, HP, HpCol);
+	DrawCaption(FString::Printf(TEXT("HP %.0f / %.0f"), T->HealthComponent->GetCurrentHealth(), T->HealthComponent->GetMaxHealth()),
+		X + CrownStyle::Sp3, Y + CrownStyle::Sp5 + 16.f);
+
+	// Threat stars.
+	for (int32 i = 0; i < 5; ++i)
+	{
+		const float StarX = X + W - CrownStyle::Sp3 - (5 - i) * 14.f;
+		const float StarY = Y + CrownStyle::Sp2 + 4.f;
+		DrawFilledRect(StarX, StarY, 10.f, 10.f,
+			(i < Threat) ? CrownStyle::Danger : FLinearColor(0.25f, 0.25f, 0.25f, 0.7f));
+	}
+
+	// Distance & bearing.
+	const FVector ToTarget = T->GetActorLocation() - Ship->GetActorLocation();
+	const float Dist = ToTarget.Size() * 0.01f;
+	const float Bearing = FMath::RadiansToDegrees(FMath::Atan2(ToTarget.Y, ToTarget.X));
+	const FString B = FString::Printf(TEXT("%.0fm   bearing %.0f°"), Dist, Bearing);
+	DrawCaption(B, X + CrownStyle::Sp3, Y + H - CrownStyle::Sp4);
+}
+
+void ACrownsBaneHUD::DrawDamageDirection(float DeltaTime)
+{
+	if (!Canvas || DamageMarkers.Num() == 0) return;
+
+	AShipPawn* Ship = GetPlayerShip();
+	if (!Ship) return;
+
+	const float CX = Canvas->ClipX * 0.5f;
+	const float CY = Canvas->ClipY * 0.5f;
+	const float R  = FMath::Min(Canvas->ClipX, Canvas->ClipY) * 0.4f;
+
+	const float PlayerYaw = Ship->GetActorRotation().Yaw;
+
+	for (int32 i = DamageMarkers.Num() - 1; i >= 0; --i)
+	{
+		FDamageMarker& M = DamageMarkers[i];
+		M.TimeRemaining -= DeltaTime;
+		if (M.TimeRemaining <= 0.0f) { DamageMarkers.RemoveAt(i); continue; }
+
+		// Yaw of damage source relative to player forward.
+		float Rel = FRotator::NormalizeAxis(M.WorldYaw - PlayerYaw);
+		const float Rad = FMath::DegreesToRadians(Rel - 90.f);  // -90 so right=0, up=-90
+		const float MX = CX + FMath::Cos(Rad) * R;
+		const float MY = CY + FMath::Sin(Rad) * R;
+
+		const float A = FMath::Clamp(M.TimeRemaining / 0.7f, 0.f, 1.f);
+		const FLinearColor Tint(0.95f, 0.15f, 0.15f, A * 0.9f);
+		// Arc-like triangle: 3 stacked rectangles approximating an arrow head.
+		DrawFilledRect(MX - 18.f, MY - 4.f, 36.f, 8.f, Tint);
+		DrawFilledRect(MX - 12.f, MY - 8.f, 24.f, 4.f, Tint);
+		DrawFilledRect(MX - 6.f,  MY - 12.f, 12.f, 4.f, Tint);
+	}
+}
+
+void ACrownsBaneHUD::DrawComboCounter(float DeltaTime)
+{
+	if (!Canvas) return;
+	ComboTimeRemaining -= DeltaTime;
+	if (ComboTimeRemaining <= 0.0f)
+	{
+		CurrentCombo = 0;
+		return;
+	}
+	if (CurrentCombo < 2) return; // hide for 1-hit shots
+
+	const float Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
+	const float Pulse = 1.0f + 0.08f * CrownStyle::Pulse(Now, 2.0f);
+
+	const FString Txt = FString::Printf(TEXT("%d  HITS"), CurrentCombo);
+	const FColor C = (CurrentCombo >= 8) ? FColor(255, 80, 60) :
+	                 (CurrentCombo >= 5) ? FColor(255, 180, 60) :
+	                                       FColor(255, 230, 140);
+	const float X = Canvas->ClipX * 0.5f - 60.f;
+	const float Y = Canvas->ClipY * 0.30f;
+	DrawText(Txt, C, X, Y, nullptr, 1.6f * Pulse, false);
+}
+
+void ACrownsBaneHUD::DrawKillFeed(float DeltaTime)
+{
+	if (!Canvas) return;
+
+	const float X = Canvas->ClipX - 360.f;
+	const float Y0 = 120.f;
+	for (int32 i = KillFeed.Num() - 1; i >= 0; --i)
+	{
+		FKillFeedEntry& E = KillFeed[i];
+		E.TimeRemaining -= DeltaTime;
+		if (E.TimeRemaining <= 0.0f) { KillFeed.RemoveAt(i); continue; }
+		const float A = FMath::Clamp(E.TimeRemaining / 5.0f, 0.f, 1.f);
+		FColor Col = CrownStyle::TextGold;
+		Col.A = (uint8)(A * 255);
+		DrawFilledRect(X, Y0 + i * 28.f, 340.f, 24.f, FLinearColor(0.04f, 0.04f, 0.06f, A * 0.6f));
+		DrawText(E.Text, Col, X + CrownStyle::Sp2, Y0 + i * 28.f + 4.f, nullptr, 1.0f, false);
+	}
 }

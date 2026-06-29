@@ -343,6 +343,20 @@ float AShipPawn::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent,
 	const float MitigatedDamage = DamageAmount * (1.0f - ArmorReduction) * BraceMul;
 	float Actual = Super::TakeDamage(MitigatedDamage, DamageEvent, EventInstigator, DamageCauser);
 
+	// Damage-direction marker for HUD.
+	if (MitigatedDamage > 0.0f && DamageCauser)
+	{
+		if (APlayerController* PC = Cast<APlayerController>(GetController()))
+		{
+			if (ACrownsBaneHUD* HUD = Cast<ACrownsBaneHUD>(PC->GetHUD()))
+			{
+				const FVector Dir = (DamageCauser->GetActorLocation() - GetActorLocation()).GetSafeNormal2D();
+				const float Yaw = FMath::RadiansToDegrees(FMath::Atan2(Dir.Y, Dir.X));
+				HUD->RegisterPlayerDamageFrom(Yaw);
+			}
+		}
+	}
+
 	if (MitigatedDamage > 0.0f && HitCameraShake)
 	{
 		if (APlayerController* PC = Cast<APlayerController>(GetController()))

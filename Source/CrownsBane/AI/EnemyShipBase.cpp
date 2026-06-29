@@ -7,6 +7,8 @@
 #include "Systems/WantedLevelManager.h"
 #include "Systems/DynamicMusicManager.h"
 #include "Quests/BountyManager.h"
+#include "UI/CrownsBaneHUD.h"
+#include "GameFramework/PlayerController.h"
 #include "EngineUtils.h"
 #include "Components/StaticMeshComponent.h"
 #include "NiagaraComponent.h"
@@ -437,6 +439,20 @@ void AEnemyShipBase::OnDeath()
 
 	if (DamageSmokeFX) DamageSmokeFX->Deactivate();
 	if (DamageFireFX)  DamageFireFX->Deactivate();
+
+	// Kill feed entry on the player's HUD.
+	if (APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0))
+	{
+		if (ACrownsBaneHUD* HUD = Cast<ACrownsBaneHUD>(PC->GetHUD()))
+		{
+			FString TypeName = TEXT("Ship");
+			const FString N = GetClass()->GetName();
+			if      (N.Contains(TEXT("Sloop")))   TypeName = TEXT("Sloop");
+			else if (N.Contains(TEXT("Brig")))    TypeName = TEXT("Brig");
+			else if (N.Contains(TEXT("Galleon"))) TypeName = TEXT("Galleon");
+			HUD->PushKillFeed(FString::Printf(TEXT("You sunk a %s"), *TypeName));
+		}
+	}
 
 	// Bounty / music tracking — both managers are optional so this is opt-in
 	// (drop one in the level to enable).

@@ -164,6 +164,7 @@ void ACannonball::OnHit(UPrimitiveComponent* HitComponent, AActor* OtherActor,
 				{
 					HUD->AddFloatingDamage(ImpactLoc, FinalDamage, bHitShip);
 					HUD->TriggerHitMarker(bHitShip && bCrit ? true : bHitShip);
+					if (bHitShip) HUD->RegisterPlayerHit();
 				}
 				// Hit-stop on confirmed ship hits only (skip water hits).
 				if (bHitShip)

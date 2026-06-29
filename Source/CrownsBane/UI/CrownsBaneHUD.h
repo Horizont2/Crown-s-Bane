@@ -266,6 +266,36 @@ private:
 	void DrawResourceToasts(float DeltaTime);
 	void DrawLowHealthFlash(AShipPawn* Ship);
 
+	// ---- UI-D Combat HUD ----
+	void DrawEnemyInfoCard(AShipPawn* Ship);
+	void DrawDamageDirection(float DeltaTime);
+	void DrawComboCounter(float DeltaTime);
+	void DrawKillFeed(float DeltaTime);
+
+	// Damage-direction state — Cannonball/ShipPawn poke this on player taking damage.
+	struct FDamageMarker { float WorldYaw = 0.0f; float TimeRemaining = 0.0f; };
+	TArray<FDamageMarker> DamageMarkers;
+
+	// Combo / hit chain
+	int32 CurrentCombo = 0;
+	float ComboTimeRemaining = 0.0f;
+
+	// Kill feed entries
+	struct FKillFeedEntry { FString Text; float TimeRemaining = 0.0f; };
+	TArray<FKillFeedEntry> KillFeed;
+
+public:
+	UFUNCTION(BlueprintCallable, Category = "HUD|Combat")
+	void RegisterPlayerDamageFrom(float WorldYawDegrees);
+
+	UFUNCTION(BlueprintCallable, Category = "HUD|Combat")
+	void RegisterPlayerHit();
+
+	UFUNCTION(BlueprintCallable, Category = "HUD|Combat")
+	void PushKillFeed(const FString& Text);
+
+private:
+
 	// Helpers for minimap
 	void DrawMinimapDot(float CX, float CY, float DotX, float DotY, float DotSize, FLinearColor Color);
 	void DrawMinimapTriangle(float CX, float CY, float AngleDeg, float Size, FLinearColor Color);
