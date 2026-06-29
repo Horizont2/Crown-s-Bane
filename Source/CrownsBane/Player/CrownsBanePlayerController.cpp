@@ -5,6 +5,8 @@
 #include "Docks/DocksZone.h"
 #include "Upgrades/UpgradeManager.h"
 #include "Ship/ShipPawn.h"
+#include "Components/HealthComponent.h"
+#include "Loot/ResourceTypes.h"
 #include "UI/CrownsBaneHUD.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/World.h"
@@ -147,6 +149,73 @@ void ACrownsBanePlayerController::ToggleQuestLog()
 	{
 		HUD->bShowQuestLog = bQuestLogOpen;
 	}
+}
+
+void ACrownsBanePlayerController::ToggleTraderMenu()
+{
+	// Trader only available while docked.
+	if (!bTraderMenuOpen && !bIsInDocks) return;
+	bTraderMenuOpen = !bTraderMenuOpen;
+	bShowMouseCursor = bTraderMenuOpen;
+	if (bTraderMenuOpen)
+	{
+		SetInputMode(FInputModeGameAndUI());
+	}
+	else
+	{
+		SetInputMode(FInputModeGameOnly());
+	}
+}
+
+bool ACrownsBanePlayerController::BuyAmmo(int32 Amount)
+{
+	if (!bIsInDocks || !PlayerInventory) return false;
+	if (!PlayerInventory->SpendResource(EResourceType::Gold, BuyAmmoPrice)) return false;
+	PlayerInventory->AddAmmo(Amount);
+	return true;
+}
+
+bool ACrownsBanePlayerController::BuyWood(int32 Amount)
+{
+	if (!bIsInDocks || !PlayerInventory) return false;
+	if (!PlayerInventory->SpendResource(EResourceType::Gold, BuyWoodPrice)) return false;
+	PlayerInventory->AddResource(EResourceType::Wood, Amount);
+	return true;
+}
+
+bool ACrownsBanePlayerController::BuyMetal(int32 Amount)
+{
+	if (!bIsInDocks || !PlayerInventory) return false;
+	if (!PlayerInventory->SpendResource(EResourceType::Gold, BuyMetalPrice)) return false;
+	PlayerInventory->AddResource(EResourceType::Metal, Amount);
+	return true;
+}
+
+bool ACrownsBanePlayerController::SellWood(int32 Amount)
+{
+	if (!bIsInDocks || !PlayerInventory) return false;
+	if (!PlayerInventory->SpendResource(EResourceType::Wood, Amount)) return false;
+	PlayerInventory->AddResource(EResourceType::Gold, SellWoodPrice);
+	return true;
+}
+
+bool ACrownsBanePlayerController::SellMetal(int32 Amount)
+{
+	if (!bIsInDocks || !PlayerInventory) return false;
+	if (!PlayerInventory->SpendResource(EResourceType::Metal, Amount)) return false;
+	PlayerInventory->AddResource(EResourceType::Gold, SellMetalPrice);
+	return true;
+}
+
+bool ACrownsBanePlayerController::PayForHeal()
+{
+	if (!bIsInDocks || !PlayerInventory) return false;
+	AShipPawn* Ship = GetShipPawn();
+	if (!Ship || !Ship->HealthComponent) return false;
+	if (Ship->HealthComponent->GetHealthPercent() >= 0.999f) return false; // already full
+	if (!PlayerInventory->SpendResource(EResourceType::Gold, HealCost)) return false;
+	Ship->HealthComponent->Heal(Ship->HealthComponent->GetMaxHealth());
+	return true;
 }
 
 bool ACrownsBanePlayerController::BuyUpgrade(uint8 CategoryByte)

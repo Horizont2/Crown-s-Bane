@@ -153,6 +153,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	UInputAction* IA_Board;
 
+	// Open the docks trader menu (T key).
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	UInputAction* IA_Trader;
+
 	// ---- Boarding ----
 	// Enemy HP fraction at or below which the ship becomes boardable.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Boarding", meta=(ClampMin="0.05", ClampMax="0.5"))
@@ -293,6 +297,7 @@ protected:
 	void Input_ToggleDocks(const FInputActionValue& Value);
 	void Input_ToggleQuestLog(const FInputActionValue& Value);
 	void Input_Board(const FInputActionValue& Value);
+	void Input_Trader(const FInputActionValue& Value);
 
 	void UpdateBoardingTarget();
 	void ExecuteBoarding();

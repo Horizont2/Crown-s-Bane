@@ -223,6 +223,7 @@ private:
 	void DrawDamageFlash(float DeltaTime);
 	void DrawHitMarker(float DeltaTime);
 	void DrawBoardingPrompt(AShipPawn* Ship);
+	void DrawTraderMenu(class ACrownsBanePlayerController* PC, class UPlayerInventory* Inv);
 	void DrawQuestLog(ATreasureQuestManager* Mgr, AShipPawn* Ship);
 	void DrawActiveQuestTracker(ATreasureQuestManager* Mgr, AShipPawn* Ship);
 	void DrawUpgradeMenu(class ACrownsBanePlayerController* PC, class AUpgradeManager* Mgr, class UPlayerInventory* Inv);

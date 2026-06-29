@@ -133,6 +133,10 @@ void ACrownsBaneHUD::DrawHUD()
 				if (Found.Num() > 0) UM = Cast<AUpgradeManager>(Found[0]);
 				DrawUpgradeMenu(CBPC, UM, Inventory);
 			}
+			if (CBPC->IsTraderMenuOpen())
+			{
+				DrawTraderMenu(CBPC, Inventory);
+			}
 		}
 	}
 
@@ -1334,4 +1338,63 @@ void ACrownsBaneHUD::DrawBoardingPrompt(AShipPawn* Ship)
 	DrawText(TEXT("[F] BOARD"), FColor(255, 200, 80), X + 22.f, Y + 8.f,  nullptr, 1.4f, false);
 	DrawText(TEXT("Enemy is crippled — board for bonus loot"),
 		FColor(220, 220, 220), X + 22.f, Y + 38.f, nullptr, 0.9f, false);
+}
+
+// -------- TRADER MENU OVERLAY (T key while docked) --------
+
+void ACrownsBaneHUD::DrawTraderMenu(ACrownsBanePlayerController* PC, UPlayerInventory* Inv)
+{
+	if (!PC || !Canvas) return;
+
+	const float SW = Canvas->ClipX;
+	const float SH = Canvas->ClipY;
+	DrawFilledRect(0, 0, SW, SH, FLinearColor(0.0f, 0.0f, 0.0f, 0.55f));
+
+	const float PW = FMath::Min(680.f, SW * 0.6f);
+	const float PH = FMath::Min(500.f, SH * 0.7f);
+	const float PX = (SW - PW) * 0.5f;
+	const float PY = (SH - PH) * 0.5f;
+
+	DrawFilledRect(PX, PY, PW, PH, FLinearColor(0.06f, 0.05f, 0.04f, 0.95f));
+	DrawBorderedRect(PX, PY, PW, PH, FLinearColor(0,0,0,0), FLinearColor(0.6f, 0.85f, 0.4f, 1.0f), 2.5f);
+
+	DrawText(TEXT("⚓  TRADER  ⚓"), FColor(180, 255, 160), PX + 18.f, PY + 12.f, nullptr, 1.4f, false);
+	DrawText(TEXT("Press T to close   |   Number keys 1-6 to trade"),
+		FColor(180, 180, 180), PX + 18.f, PY + 44.f, nullptr, 0.95f, false);
+
+	const FString InvLine = Inv
+		? FString::Printf(TEXT("Gold %d   Wood %d   Metal %d   Ammo %d/%d"),
+				Inv->GetGold(), Inv->GetWood(), Inv->GetMetal(),
+				Inv->GetAmmo(), Inv->GetMaxAmmo())
+		: TEXT("");
+	DrawText(InvLine, FColor(255, 215, 90), PX + PW - 380.f, PY + 44.f, nullptr, 0.9f, false);
+
+	DrawFilledRect(PX + 16.f, PY + 72.f, PW - 32.f, 1.f, FLinearColor(0.6f, 0.5f, 0.25f, 0.7f));
+
+	struct FRow { const TCHAR* Key; const TCHAR* Label; int32 Price; FColor PriceTint; };
+	const FRow Rows[] = {
+		{ TEXT("[1]"), TEXT("Buy +10 ammo"),  PC->BuyAmmoPrice,   FColor(230, 230, 160) },
+		{ TEXT("[2]"), TEXT("Buy +10 wood"),  PC->BuyWoodPrice,   FColor(230, 230, 160) },
+		{ TEXT("[3]"), TEXT("Buy +5 metal"),  PC->BuyMetalPrice,  FColor(230, 230, 160) },
+		{ TEXT("[4]"), TEXT("Sell 10 wood"),  PC->SellWoodPrice,  FColor(160, 230, 160) },
+		{ TEXT("[5]"), TEXT("Sell 5 metal"),  PC->SellMetalPrice, FColor(160, 230, 160) },
+		{ TEXT("[6]"), TEXT("Full repair"),   PC->HealCost,       FColor(160, 200, 255) },
+	};
+
+	float Y = PY + 88.f;
+	const float RowH = 52.f;
+	for (int32 i = 0; i < UE_ARRAY_COUNT(Rows); ++i)
+	{
+		const FRow& R = Rows[i];
+		DrawFilledRect(PX + 16.f, Y, PW - 32.f, RowH - 6.f, FLinearColor(0.10f, 0.10f, 0.05f, 0.55f));
+		DrawText(R.Key,   FColor(255, 220, 100), PX + 26.f, Y + 8.f, nullptr, 1.15f, false);
+		DrawText(R.Label, FColor(240, 240, 240), PX + 70.f, Y + 8.f, nullptr, 1.1f,  false);
+		const FString CostStr = FString::Printf(TEXT("%s%d g"),
+			(i < 3 || i == 5) ? TEXT("") : TEXT("+"), R.Price);
+		DrawText(CostStr, R.PriceTint, PX + PW - 110.f, Y + 8.f, nullptr, 1.05f, false);
+		Y += RowH;
+	}
+
+	DrawText(TEXT("Trader operates only while inside a Docks Zone."),
+		FColor(160, 160, 160), PX + 18.f, PY + PH - 28.f, nullptr, 0.9f, false);
 }

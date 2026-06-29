@@ -70,10 +70,50 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Upgrades")
 	bool BuyUpgrade(uint8 CategoryByte);
 
+	// ---- Trader (docks-only) ----
+	UFUNCTION(BlueprintCallable, Category = "UI")
+	void ToggleTraderMenu();
+
+	UFUNCTION(BlueprintPure, Category = "UI")
+	bool IsTraderMenuOpen() const { return bTraderMenuOpen; }
+
+	UFUNCTION(BlueprintCallable, Category = "Trade")
+	bool BuyAmmo(int32 Amount = 10);
+
+	UFUNCTION(BlueprintCallable, Category = "Trade")
+	bool BuyWood(int32 Amount = 10);
+
+	UFUNCTION(BlueprintCallable, Category = "Trade")
+	bool BuyMetal(int32 Amount = 5);
+
+	UFUNCTION(BlueprintCallable, Category = "Trade")
+	bool SellWood(int32 Amount = 10);
+
+	UFUNCTION(BlueprintCallable, Category = "Trade")
+	bool SellMetal(int32 Amount = 5);
+
+	UFUNCTION(BlueprintCallable, Category = "Trade")
+	bool PayForHeal();
+
+	// Trader prices (gold per N units)
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Trade")
+	int32 BuyAmmoPrice  = 30;   // per 10 rounds
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Trade")
+	int32 BuyWoodPrice  = 25;   // per 10 wood
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Trade")
+	int32 BuyMetalPrice = 40;   // per 5 metal
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Trade")
+	int32 SellWoodPrice = 12;   // gold gained per 10 wood
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Trade")
+	int32 SellMetalPrice = 25;  // gold per 5 metal
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Trade")
+	int32 HealCost = 80;        // gold to fully heal
+
 private:
 
 	bool bUpgradeUIOpen = false;
 	bool bQuestLogOpen = false;
+	bool bTraderMenuOpen = false;
 
 	AUpgradeManager* GetUpgradeManager() const;
 	AShipPawn* GetShipPawn() const;

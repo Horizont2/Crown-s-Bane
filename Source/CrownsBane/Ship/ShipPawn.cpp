@@ -137,6 +137,7 @@ void AShipPawn::EnsureInputAssetsExist()
 	MakeIA(IA_ToggleDocks, EInputActionValueType::Boolean, TEXT("IA_ToggleDocks_Auto"));
 	MakeIA(IA_QuestLog,    EInputActionValueType::Boolean, TEXT("IA_QuestLog_Auto"));
 	MakeIA(IA_Board,       EInputActionValueType::Boolean, TEXT("IA_Board_Auto"));
+	MakeIA(IA_Trader,      EInputActionValueType::Boolean, TEXT("IA_Trader_Auto"));
 
 	if (!ShipMappingContext)
 	{
@@ -155,6 +156,7 @@ void AShipPawn::EnsureInputAssetsExist()
 		ShipMappingContext->MapKey(IA_ToggleDocks, EKeys::U);
 		ShipMappingContext->MapKey(IA_QuestLog,    EKeys::J);
 		ShipMappingContext->MapKey(IA_Board,       EKeys::F);
+		ShipMappingContext->MapKey(IA_Trader,      EKeys::T);
 	}
 }
 
@@ -188,6 +190,7 @@ void AShipPawn::AddInputMappingContext()
 	if (IA_ToggleDocks) Overlay->MapKey(IA_ToggleDocks, EKeys::U);
 	if (IA_QuestLog)    Overlay->MapKey(IA_QuestLog,    EKeys::J);
 	if (IA_Board)       Overlay->MapKey(IA_Board,       EKeys::F);
+	if (IA_Trader)      Overlay->MapKey(IA_Trader,      EKeys::T);
 
 	Subsystem->AddMappingContext(Overlay, 0);
 }
@@ -253,6 +256,7 @@ void AShipPawn::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 		if (IA_ToggleDocks) EIC->BindAction(IA_ToggleDocks, ETriggerEvent::Started, this, &AShipPawn::Input_ToggleDocks);
 		if (IA_QuestLog)    EIC->BindAction(IA_QuestLog,    ETriggerEvent::Started, this, &AShipPawn::Input_ToggleQuestLog);
 		if (IA_Board)       EIC->BindAction(IA_Board,       ETriggerEvent::Started, this, &AShipPawn::Input_Board);
+		if (IA_Trader)      EIC->BindAction(IA_Trader,      ETriggerEvent::Started, this, &AShipPawn::Input_Trader);
 
 		bEnhancedInputReady = true;
 	}
@@ -309,6 +313,14 @@ void AShipPawn::Input_ToggleQuestLog(const FInputActionValue&)
 void AShipPawn::Input_Board(const FInputActionValue&)
 {
 	ExecuteBoarding();
+}
+
+void AShipPawn::Input_Trader(const FInputActionValue&)
+{
+	if (ACrownsBanePlayerController* PC = Cast<ACrownsBanePlayerController>(GetController()))
+	{
+		PC->ToggleTraderMenu();
+	}
 }
 
 void AShipPawn::UpdateBoardingTarget()
@@ -433,6 +445,36 @@ void AShipPawn::PollRawInputFallback(float DeltaTime)
 {
 	APlayerController* PC = Cast<APlayerController>(GetController());
 	if (!PC) return;
+
+	// Menu hotkeys (number row 1-7).  Active only while the relevant menu is
+	// open, so they never accidentally fire during sailing.
+	if (ACrownsBanePlayerController* CBPC = Cast<ACrownsBanePlayerController>(PC))
+	{
+		static const FKey NumKeys[] = {
+			EKeys::One, EKeys::Two, EKeys::Three, EKeys::Four,
+			EKeys::Five, EKeys::Six, EKeys::Seven
+		};
+		if (CBPC->IsUpgradeUIOpen())
+		{
+			for (int32 i = 0; i < UE_ARRAY_COUNT(NumKeys); ++i)
+			{
+				if (PC->IsInputKeyDown(NumKeys[i]) &&
+				    ConsumeActionCooldown(FName(*FString::Printf(TEXT("Upg%d"), i)), 0.30f))
+				{
+					CBPC->BuyUpgrade((uint8)i);
+				}
+			}
+		}
+		if (CBPC->IsTraderMenuOpen())
+		{
+			if (PC->IsInputKeyDown(NumKeys[0]) && ConsumeActionCooldown(TEXT("TrBuy1"), 0.30f)) CBPC->BuyAmmo();
+			if (PC->IsInputKeyDown(NumKeys[1]) && ConsumeActionCooldown(TEXT("TrBuy2"), 0.30f)) CBPC->BuyWood();
+			if (PC->IsInputKeyDown(NumKeys[2]) && ConsumeActionCooldown(TEXT("TrBuy3"), 0.30f)) CBPC->BuyMetal();
+			if (PC->IsInputKeyDown(NumKeys[3]) && ConsumeActionCooldown(TEXT("TrSel4"), 0.30f)) CBPC->SellWood();
+			if (PC->IsInputKeyDown(NumKeys[4]) && ConsumeActionCooldown(TEXT("TrSel5"), 0.30f)) CBPC->SellMetal();
+			if (PC->IsInputKeyDown(NumKeys[5]) && ConsumeActionCooldown(TEXT("TrHeal6"), 0.30f)) CBPC->PayForHeal();
+		}
+	}
 
 	if (!bEnhancedInputReady)
 	{
