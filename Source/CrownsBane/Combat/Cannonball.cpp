@@ -111,6 +111,8 @@ void ACannonball::OnHit(UPrimitiveComponent* HitComponent, AActor* OtherActor,
 				{
 					HUD->AddFloatingDamage(Hit.ImpactPoint.IsZero() ? GetActorLocation() : Hit.ImpactPoint,
 						CannonballData.BaseDamage, bHitShip);
+					// Hit marker: gold "X" for ship hit, plain white for water hit (less satisfying).
+					HUD->TriggerHitMarker(bHitShip);
 				}
 			}
 		}

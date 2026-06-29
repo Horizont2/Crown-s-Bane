@@ -21,6 +21,7 @@
 #include "NiagaraFunctionLibrary.h"
 #include "Camera/CameraShakeBase.h"
 #include "Player/CrownsBanePlayerController.h"
+#include "UI/CrownsBaneHUD.h"
 
 AShipPawn::AShipPawn()
 {
@@ -825,9 +826,24 @@ void AShipPawn::UpdateBowWake()
 	}
 }
 
-void AShipPawn::HandleHealthChanged(float /*CurrentHealth*/, float /*MaxHealth*/)
+void AShipPawn::HandleHealthChanged(float CurrentHealth, float MaxHealth)
 {
 	UpdateDamageFX();
+
+	// Trigger red screen flash when WE take damage (only for the player pawn).
+	if (CurrentHealth < LastSeenHealth - 0.01f)
+	{
+		if (APlayerController* PC = Cast<APlayerController>(GetController()))
+		{
+			if (ACrownsBaneHUD* HUD = Cast<ACrownsBaneHUD>(PC->GetHUD()))
+			{
+				const float DamageDealt = LastSeenHealth - CurrentHealth;
+				const float Intensity = FMath::Clamp(DamageDealt / FMath::Max(1.0f, MaxHealth * 0.25f), 0.25f, 1.0f);
+				HUD->TriggerDamageFlash(Intensity);
+			}
+		}
+	}
+	LastSeenHealth = CurrentHealth;
 }
 
 void AShipPawn::HandleDeath()

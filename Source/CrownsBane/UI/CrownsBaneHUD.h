@@ -190,6 +190,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "HUD|Damage")
 	void AddFloatingDamage(FVector WorldLocation, float Damage, bool bHitShip);
 
+	// Trigger red full-screen vignette flash when the player takes damage.
+	// Intensity = 0..1 scales the alpha (e.g. damage% of max HP).
+	UFUNCTION(BlueprintCallable, Category = "HUD|Damage")
+	void TriggerDamageFlash(float Intensity = 1.0f);
+
+	// Trigger a brief hit marker at screen center when the player damages an enemy.
+	UFUNCTION(BlueprintCallable, Category = "HUD|Damage")
+	void TriggerHitMarker(bool bCritical = false);
+
 private:
 	void DrawHealthBar(AShipPawn* Ship);
 	void DrawReloadTimers(UCannonComponent* Cannons);
@@ -207,10 +216,21 @@ private:
 	void DrawCrosshair();
 	void DrawTimeOfDay();
 	void DrawFloatingDamageNumbers(float DeltaTime);
+	void DrawDamageFlash(float DeltaTime);
+	void DrawHitMarker(float DeltaTime);
 
 	// Floating damage queue
 	TArray<FFloatingDamageEntry> FloatingDamageEntries;
 	double LastDrawTime = 0.0;
+
+	// Damage flash + hit marker timers (seconds remaining)
+	float DamageFlashTimer = 0.0f;
+	float DamageFlashIntensity = 0.0f;
+	static constexpr float DamageFlashDuration = 0.55f;
+
+	float HitMarkerTimer = 0.0f;
+	bool  bHitMarkerCritical = false;
+	static constexpr float HitMarkerDuration = 0.32f;
 
 	// Helpers for minimap
 	void DrawMinimapDot(float CX, float CY, float DotX, float DotY, float DotSize, FLinearColor Color);

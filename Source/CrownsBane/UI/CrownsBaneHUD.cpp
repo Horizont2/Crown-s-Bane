@@ -107,6 +107,8 @@ void ACrownsBaneHUD::DrawHUD()
 	const float Dt = (LastDrawTime > 0.0) ? (float)(Now - LastDrawTime) : 0.016f;
 	LastDrawTime = Now;
 	DrawFloatingDamageNumbers(Dt);
+	DrawDamageFlash(Dt);
+	DrawHitMarker(Dt);
 
 	if (bShowDocksPrompt)
 	{
@@ -891,6 +893,89 @@ void ACrownsBaneHUD::DrawCrosshair()
 	DrawFilledRect(CX - 1.f, CY + CrosshairSize * 0.45f, 2.f, CrosshairSize * 0.55f, CrosshairColor);
 	// Centre dot
 	DrawFilledRect(CX - 1.5f, CY - 1.5f, 3.f, 3.f, CrosshairColor);
+}
+
+// -------- DAMAGE FLASH (player took hit) --------
+
+void ACrownsBaneHUD::TriggerDamageFlash(float Intensity)
+{
+	DamageFlashIntensity = FMath::Max(DamageFlashIntensity, FMath::Clamp(Intensity, 0.0f, 1.0f));
+	DamageFlashTimer = DamageFlashDuration;
+}
+
+void ACrownsBaneHUD::DrawDamageFlash(float DeltaTime)
+{
+	if (DamageFlashTimer <= 0.0f || !Canvas) return;
+
+	DamageFlashTimer -= DeltaTime;
+	if (DamageFlashTimer <= 0.0f)
+	{
+		DamageFlashTimer = 0.0f;
+		DamageFlashIntensity = 0.0f;
+		return;
+	}
+
+	const float Alpha = (DamageFlashTimer / DamageFlashDuration) * DamageFlashIntensity * 0.65f;
+	const float SW = Canvas->SizeX;
+	const float SH = Canvas->SizeY;
+
+	// Edge vignette — heavy on the borders, transparent in the center.
+	// Implement as four trapezoidal rectangles on the screen edges.
+	const float BorderThickness = SH * 0.18f;
+	const FLinearColor Edge(0.85f, 0.05f, 0.05f, Alpha);
+
+	// Top
+	DrawFilledRect(0, 0, SW, BorderThickness * 0.7f,         FLinearColor(Edge.R, Edge.G, Edge.B, Alpha * 0.55f));
+	// Bottom
+	DrawFilledRect(0, SH - BorderThickness * 0.7f, SW, BorderThickness * 0.7f, FLinearColor(Edge.R, Edge.G, Edge.B, Alpha * 0.55f));
+	// Left
+	DrawFilledRect(0, 0, BorderThickness, SH,                FLinearColor(Edge.R, Edge.G, Edge.B, Alpha * 0.75f));
+	// Right
+	DrawFilledRect(SW - BorderThickness, 0, BorderThickness, SH, FLinearColor(Edge.R, Edge.G, Edge.B, Alpha * 0.75f));
+}
+
+// -------- HIT MARKER (player damaged enemy) --------
+
+void ACrownsBaneHUD::TriggerHitMarker(bool bCritical)
+{
+	HitMarkerTimer = HitMarkerDuration;
+	bHitMarkerCritical = bCritical;
+}
+
+void ACrownsBaneHUD::DrawHitMarker(float DeltaTime)
+{
+	if (HitMarkerTimer <= 0.0f || !Canvas) return;
+
+	HitMarkerTimer -= DeltaTime;
+	if (HitMarkerTimer <= 0.0f) { HitMarkerTimer = 0.0f; return; }
+
+	const float Frac  = HitMarkerTimer / HitMarkerDuration;
+	const float Alpha = FMath::Clamp(Frac * 1.5f, 0.0f, 1.0f);
+
+	const float CX = Canvas->SizeX * 0.5f;
+	const float CY = Canvas->SizeY * 0.5f;
+
+	const FLinearColor Tint = bHitMarkerCritical
+		? FLinearColor(1.0f, 0.85f, 0.1f, Alpha)        // gold for critical
+		: FLinearColor(1.0f, 1.0f, 1.0f, Alpha);        // white for normal
+
+	// "X" mark drawn as four short rects offset diagonally from center.
+	const float Inner = 8.0f;
+	const float Len   = 14.0f;
+	const float Thick = 2.0f;
+
+	// Top-left diagonal
+	DrawFilledRect(CX - Inner - Len, CY - Inner - Len, Len, Thick, Tint);
+	DrawFilledRect(CX - Inner - Len, CY - Inner - Len, Thick, Len, Tint);
+	// Top-right
+	DrawFilledRect(CX + Inner,        CY - Inner - Len, Len, Thick, Tint);
+	DrawFilledRect(CX + Inner + Len - Thick, CY - Inner - Len, Thick, Len, Tint);
+	// Bottom-left
+	DrawFilledRect(CX - Inner - Len, CY + Inner + Len - Thick, Len, Thick, Tint);
+	DrawFilledRect(CX - Inner - Len, CY + Inner, Thick, Len, Tint);
+	// Bottom-right
+	DrawFilledRect(CX + Inner,        CY + Inner + Len - Thick, Len, Thick, Tint);
+	DrawFilledRect(CX + Inner + Len - Thick, CY + Inner, Thick, Len, Tint);
 }
 
 // -------- FLOATING DAMAGE NUMBERS --------

@@ -387,4 +387,7 @@ private:
 	// Yaw/pitch offsets applied to the SpringArm from mouse-look.
 	float LookYawOffset   = 0.0f;
 	float LookPitchOffset = 0.0f;
+
+	// Tracks previous-frame health for damage-flash detection.
+	float LastSeenHealth = -1.0f;
 };
