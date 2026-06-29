@@ -1253,7 +1253,7 @@ void ACrownsBaneHUD::DrawUpgradeMenu(ACrownsBanePlayerController* PC, AUpgradeMa
 	for (const FRow& R : Rows)
 	{
 		const int32 Tier = Mgr ? Mgr->GetCurrentTier(R.Cat) : 0;
-		const int32 MaxT = Mgr ? Mgr->GetMaxTier() : 4;
+		const int32 MaxT = Mgr ? Mgr->GetMaxTier(R.Cat)    : 4;
 
 		FUpgradeLevel Next;
 		const bool bHasNext = Mgr ? Mgr->GetNextUpgradeData(R.Cat, Next) : false;
