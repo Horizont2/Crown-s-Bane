@@ -476,6 +476,21 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "Combat|Sails")
 	float SailIntegrity = 1.0f;
 
+	// ---- Sharks (low HP hazard) ----
+	UPROPERTY(BlueprintReadOnly, Category = "Combat|Hazards")
+	bool bSharksAttached = false;
+
+	// HP threshold below which sharks start circling.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Hazards", meta=(ClampMin="0.0", ClampMax="1.0"))
+	float SharkHPThreshold = 0.30f;
+
+	// Damage per second from sharks while attached.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Hazards")
+	float SharkDPS = 4.0f;
+
+	float SharkDamageAccum = 0.0f;
+	void UpdateSharkHazard(float DeltaTime);
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Sails")
 	float SailDamagePerHeavyHit = 0.15f;
 

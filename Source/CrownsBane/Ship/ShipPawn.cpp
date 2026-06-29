@@ -239,6 +239,7 @@ void AShipPawn::Tick(float DeltaTime)
 	UpdateAiming(DeltaTime);
 	UpdateMovement(DeltaTime);
 	UpdateBoardingTarget();
+	UpdateSharkHazard(DeltaTime);
 
 	// While bracing, ship cannot fire (handled by gating in DoCameraAimFire below).
 
@@ -1014,6 +1015,46 @@ void AShipPawn::TickSinking(float DeltaTime)
 			UGameplayStatics::SetGlobalTimeDilation(W, 1.0f);
 		}
 		RespawnAtLastDock();
+	}
+}
+
+void AShipPawn::UpdateSharkHazard(float DeltaTime)
+{
+	if (!HealthComponent || !HealthComponent->IsAlive())
+	{
+		bSharksAttached = false;
+		return;
+	}
+	const float HPpct = HealthComponent->GetHealthPercent();
+	const bool bShouldAttach = HPpct <= SharkHPThreshold;
+
+	// Toast on first attach.
+	if (bShouldAttach && !bSharksAttached)
+	{
+		bSharksAttached = true;
+		if (APlayerController* PC = Cast<APlayerController>(GetController()))
+		{
+			if (ACrownsBaneHUD* HUD = Cast<ACrownsBaneHUD>(PC->GetHUD()))
+			{
+				HUD->PushResourceToast(TEXT("⚠ Sharks circling — repair soon!"),
+					FLinearColor(1.0f, 0.4f, 0.4f, 1.0f));
+			}
+		}
+	}
+	else if (!bShouldAttach && bSharksAttached)
+	{
+		bSharksAttached = false;
+	}
+
+	if (!bSharksAttached) return;
+
+	// Apply DPS in 1s chunks so the damage event fires cleanly.
+	SharkDamageAccum += SharkDPS * DeltaTime;
+	if (SharkDamageAccum >= 1.0f)
+	{
+		const float Apply = FMath::FloorToFloat(SharkDamageAccum);
+		SharkDamageAccum -= Apply;
+		HealthComponent->TakeDamage(Apply);
 	}
 }
 
