@@ -577,10 +577,30 @@ void ACrownsBaneHUD::DrawMinimap(AShipPawn* PlayerShip, ATreasureQuestManager* T
 	// Player triangle at center pointing up (ship forward)
 	DrawMinimapTriangle(CX, CY, -90.0f, 10.0f, MinimapPlayerColor);
 
+	// Cardinal directions (N/S/E/W) at the minimap rim, rotated with ship heading.
+	// World "N" is +X, rotated -ShipYaw so it sits at the correct map angle.
+	auto DrawCardinal = [&](const TCHAR* L, float WorldAngleDeg, FColor Tint)
+	{
+		const float Ang = FMath::DegreesToRadians(WorldAngleDeg - ShipYawDeg - 90.f);
+		const float Rim = MinimapRadius - 12.f;
+		const float LX = CX + FMath::Cos(Ang) * Rim - 5.f;
+		const float LY = CY + FMath::Sin(Ang) * Rim - 7.f;
+		DrawText(L, Tint, LX, LY, nullptr, 0.9f, false);
+	};
+	DrawCardinal(TEXT("N"), 90.f,  FColor(255, 200, 80));  // N highlighted
+	DrawCardinal(TEXT("E"),  0.f,  FColor(180, 180, 180));
+	DrawCardinal(TEXT("S"), -90.f, FColor(180, 180, 180));
+	DrawCardinal(TEXT("W"), 180.f, FColor(180, 180, 180));
+
 	// Label
 	DrawText(TEXT("MINIMAP"), FColor::White, CX - 28.f, CY - MinimapRadius - 16.f, nullptr, 0.75f, false);
 	const FString ScaleLabel = FString::Printf(TEXT("%.0fm"), MinimapWorldRadius / 100.f);
 	DrawText(ScaleLabel, FColor::Silver, CX - 12.f, CY + MinimapRadius + 4.f, nullptr, 0.7f, false);
+
+	// Heading degrees (ship yaw in compass form: 0=N, 90=E, etc.)
+	const float CompassYaw = FMath::Fmod(450.f - ShipYawDeg, 360.f);
+	const FString Heading = FString::Printf(TEXT("HDG  %.0f°"), CompassYaw);
+	DrawText(Heading, FColor(220, 220, 220), CX - 30.f, CY + MinimapRadius + 16.f, nullptr, 0.85f, false);
 }
 
 void ACrownsBaneHUD::DrawMinimapDot(float CX, float CY, float DotX, float DotY, float DotSize, FLinearColor Color)
@@ -671,37 +691,20 @@ void ACrownsBaneHUD::DrawFiringArcs(AShipPawn* PlayerShip)
 	const FVector ShipRight = PlayerShip->GetActorRightVector();
 	const float DotR = FVector::DotProduct(CamFwd, ShipRight);
 
-	FString AimLabel;
-	FColor AimColor = FColor::Silver;
-	if (DotR > 0.35f)       { AimLabel = TEXT("AIM: STARBOARD"); AimColor = FColor::Green; }
-	else if (DotR < -0.35f) { AimLabel = TEXT("AIM: PORT");      AimColor = FColor::Green; }
-	else                    { AimLabel = TEXT("AIM: CENTER (turn camera)"); AimColor = FColor::Orange; }
+	// Show a compact AIM-side label only when actually aimed at a broadside (so
+	// it doesn't clutter the centre when the player is just sailing).  Spammy
+	// "Turn camera..." hint removed — F1 documents it once.
+	if (FMath::Abs(DotR) < 0.35f) return;
+
+	const FString AimLabel = (DotR > 0.f) ? TEXT("AIM ▶ STARBOARD") : TEXT("◀ AIM PORT");
+	const FColor  AimColor = FColor(120, 220, 120);
 
 	const float ScreenW = Canvas->ClipX;
 	const float ScreenH = Canvas->ClipY;
 	DrawText(AimLabel, AimColor,
-		ScreenW * 0.5f - 80.0f,
+		ScreenW * 0.5f - 70.0f,
 		ScreenH - HUDPaddingY - 80.0f,
-		nullptr, 0.95f, false);
-
-	// Reload-readiness pill per side
-	const bool bPortReady = PlayerShip->CannonComponent->CanFire(ECannonSide::Left);
-	const bool bStbdReady = PlayerShip->CannonComponent->CanFire(ECannonSide::Right);
-
-	FString HintsLine;
-	if (DotR > 0.35f)
-		HintsLine = FString::Printf(TEXT("SPACE / LMB to fire STARBOARD broadside [%s]"),
-			bStbdReady ? TEXT("READY") : TEXT("reloading..."));
-	else if (DotR < -0.35f)
-		HintsLine = FString::Printf(TEXT("SPACE / LMB to fire PORT broadside [%s]"),
-			bPortReady ? TEXT("READY") : TEXT("reloading..."));
-	else
-		HintsLine = TEXT("Turn camera left/right to aim broadside");
-
-	DrawText(HintsLine, FColor(220, 220, 220),
-		ScreenW * 0.5f - 160.0f,
-		ScreenH - HUDPaddingY - 62.0f,
-		nullptr, 0.8f, false);
+		nullptr, 1.0f, false);
 }
 
 void ACrownsBaneHUD::DrawAmmoCounter(UPlayerInventory* Inventory)
@@ -1085,11 +1088,12 @@ void ACrownsBaneHUD::DrawTimeOfDay()
 
 	const FString Clock = FString::Printf(TEXT("%s  %02d:%02d"), Icon, Hours, Mins);
 
-	// Position: top center, slightly below wanted stars
-	const float X = Canvas->ClipX * 0.5f - 55.f;
-	const float Y = HUDPaddingY + StarSize + 56.f;
-	DrawFilledRect(X - 6.f, Y - 4.f, 120.f, 22.f, FLinearColor(0.f, 0.f, 0.f, 0.55f));
-	DrawText(Clock, Tint, X, Y, nullptr, 1.0f, false);
+	// Moved to top-left so it doesn't fight the wanted stars + treasure compass for the
+	// top-center band.  Sits above the gold/wood/metal resource panel.
+	const float X = HUDPaddingX;
+	const float Y = HUDPaddingY;
+	DrawPanel(X, Y, 130.f, 28.f, (uint8)CrownStyle::EPanelStyle::Subtle);
+	DrawText(Clock, Tint, X + CrownStyle::Sp2, Y + 6.f, nullptr, 1.05f, false);
 }
 
 // -------- QUEST LOG OVERLAY (J key) --------
@@ -1113,30 +1117,40 @@ void ACrownsBaneHUD::DrawActiveQuestTracker(ATreasureQuestManager* Mgr, AShipPaw
 		if (D < Best) { Best = D; QuestName = Q.QuestName.IsEmpty() ? TEXT("Treasure Hunt") : Q.QuestName.ToString(); }
 	}
 
-	const float W = 280.f;
-	const float H = 56.f;
+	const float W = 320.f;
+	const float H = 78.f;
 	const float X = HUDPaddingX;
-	const float Y = Canvas->ClipY - H - 200.f; // sits above the wind/storm panels
+	const float Y = Canvas->ClipY - H - 220.f; // sits above the wind/storm panels
 
-	DrawFilledRect(X, Y, W, H, FLinearColor(0.05f, 0.05f, 0.08f, 0.72f));
-	DrawBorderedRect(X, Y, W, H, FLinearColor(0,0,0,0), FLinearColor(1.0f, 0.85f, 0.3f, 0.9f), 1.5f);
+	// Solid styled panel using UI-A helpers — opaque background so text is always legible.
+	DrawFilledRect(X, Y, W, H, FLinearColor(0.04f, 0.05f, 0.08f, 0.92f));
+	DrawBorderedRect(X, Y, W, H, FLinearColor(0,0,0,0), CrownStyle::AccentGold, 2.0f);
+	// Left accent stripe — gold band as a visual anchor.
+	DrawFilledRect(X, Y, 4.f, H, CrownStyle::AccentGold);
 
-	const FColor Title(255, 220, 110);
-	const FColor Body(220, 220, 220);
-	const FString DistStr = FString::Printf(TEXT("%.0f m"), Dist * 0.01f); // cm -> m
+	// Bearing arrow indicator on the right.
+	const FVector ToTarget = (Closest - Ship->GetActorLocation()).GetSafeNormal2D();
+	const FVector ShipFwd = Ship->GetActorForwardVector();
+	float RelYaw = FMath::RadiansToDegrees(FMath::Atan2(
+		FVector::CrossProduct(ShipFwd, ToTarget).Z,
+		FVector::DotProduct(ShipFwd, ToTarget)));
+	DrawArrow(X + W - 30.f, Y + 28.f, 14.f, RelYaw - 90.f, CrownStyle::AccentGold);
 
-	DrawText(TEXT("ACTIVE QUEST"), Title, X + 10.f, Y + 5.f, nullptr, 0.85f, false);
-	DrawText(QuestName,            Body,  X + 10.f, Y + 22.f, nullptr, 1.0f,  false);
-	DrawText(DistStr,              Body,  X + W - 80.f, Y + 22.f, nullptr, 1.0f, false);
+	const FString DistStr = FString::Printf(TEXT("%.0f m"), Dist * 0.01f);
+
+	// Header label with subtle dim, then big quest name, then distance + counter row.
+	DrawText(TEXT("ACTIVE QUEST"), CrownStyle::TextDim,
+		X + 14.f, Y + 8.f, nullptr, CrownStyle::ScaleCaption, false);
+	DrawText(QuestName, CrownStyle::AccentGold.ToFColor(true),
+		X + 14.f, Y + 26.f, nullptr, CrownStyle::ScaleHeading, false);
+
+	DrawText(DistStr, CrownStyle::TextPrimary,
+		X + 14.f, Y + 54.f, nullptr, CrownStyle::ScaleBody, false);
 
 	if (Quests.Num() > 1)
 	{
-		const FString More = FString::Printf(TEXT("+%d more — press J for log"), Quests.Num() - 1);
-		DrawText(More, FColor(180, 180, 180), X + 10.f, Y + 38.f, nullptr, 0.85f, false);
-	}
-	else
-	{
-		DrawText(TEXT("Press J for full quest log"), FColor(160, 160, 160), X + 10.f, Y + 38.f, nullptr, 0.85f, false);
+		const FString More = FString::Printf(TEXT("+%d more — J"), Quests.Num() - 1);
+		DrawText(More, CrownStyle::TextSecondary, X + 100.f, Y + 56.f, nullptr, CrownStyle::ScaleCaption, false);
 	}
 }
 

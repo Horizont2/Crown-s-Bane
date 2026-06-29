@@ -8,6 +8,8 @@
 #include "Ship/ShipPawn.h"
 #include "AI/EnemyShipBase.h"
 #include "UI/CrownsBaneHUD.h"
+#include "Systems/WindSystem.h"
+#include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "NiagaraFunctionLibrary.h"
@@ -59,6 +61,23 @@ void ACannonball::BeginPlay()
 void ACannonball::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+
+	// Wind drift — apply a small lateral velocity nudge based on world wind direction.
+	// Looks up the level's AWindSystem once-ish (cached null check) so we don't search every tick.
+	if (!ProjectileMovement) return;
+	static const FName WindClassName = TEXT("WindSystem");
+	UWorld* W = GetWorld();
+	if (!W) return;
+	AWindSystem* Wind = nullptr;
+	for (TActorIterator<AWindSystem> It(W); It; ++It) { Wind = *It; break; }
+	if (Wind)
+	{
+		const FVector WindDir   = Wind->GetWindDirection();
+		const float   WindMag   = Wind->GetWindStrength();
+		// 80 cm/s^2 max lateral push at full wind — perceptible across long shots, not silly at close range.
+		const FVector LateralAccel = WindDir * 80.0f * WindMag;
+		ProjectileMovement->Velocity += LateralAccel * DeltaTime;
+	}
 }
 
 void ACannonball::InitCannonball(const FCannonballData& InData, AActor* InInstigator)
