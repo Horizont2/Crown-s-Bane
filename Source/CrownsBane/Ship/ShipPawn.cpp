@@ -640,6 +640,29 @@ void AShipPawn::PollRawInputFallback(float DeltaTime)
 	APlayerController* PC = Cast<APlayerController>(GetController());
 	if (!PC) return;
 
+	// Upgrade-menu hotkeys 1-7 — only honored when the menu is actually open.
+	if (ACrownsBanePlayerController* CBPC = Cast<ACrownsBanePlayerController>(PC))
+	{
+		if (CBPC->IsUpgradeUIOpen())
+		{
+			static const FKey BuyKeys[] = {
+				EKeys::One, EKeys::Two, EKeys::Three, EKeys::Four,
+				EKeys::Five, EKeys::Six, EKeys::Seven
+			};
+			for (int32 i = 0; i < UE_ARRAY_COUNT(BuyKeys); ++i)
+			{
+				if (PC->IsInputKeyDown(BuyKeys[i]))
+				{
+					const FName Tag = FName(*FString::Printf(TEXT("BuyUpg%d"), i));
+					if (ConsumeActionCooldown(Tag, 0.30f))
+					{
+						CBPC->BuyUpgrade(static_cast<uint8>(i));
+					}
+				}
+			}
+		}
+	}
+
 	// --- Edge-triggered actions: debounced via ConsumeActionCooldown so if
 	// Enhanced Input already fired the action, the raw poll is swallowed.
 	const bool bW = PC->IsInputKeyDown(EKeys::W) || PC->IsInputKeyDown(EKeys::Up);

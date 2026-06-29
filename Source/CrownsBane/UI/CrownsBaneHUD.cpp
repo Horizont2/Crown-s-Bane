@@ -15,6 +15,9 @@
 #include "Loot/TreasureMapPickup.h"
 #include "Docks/DocksZone.h"
 #include "AI/EnemyShipBase.h"
+#include "Upgrades/UpgradeManager.h"
+#include "Upgrades/UpgradeTypes.h"
+#include "Player/CrownsBanePlayerController.h"
 #include "Components/HealthComponent.h"
 #include "EngineUtils.h"
 #include "Camera/CameraComponent.h"
@@ -114,6 +117,22 @@ void ACrownsBaneHUD::DrawHUD()
 	{
 		DrawActiveQuestTracker(TreasureMgr, Ship);
 		if (bShowQuestLog) DrawQuestLog(TreasureMgr, Ship);
+	}
+
+	// Upgrade menu — drawn when PlayerController says it is open.
+	if (APlayerController* RawPC = GetOwningPlayerController())
+	{
+		if (ACrownsBanePlayerController* CBPC = Cast<ACrownsBanePlayerController>(RawPC))
+		{
+			if (CBPC->IsUpgradeUIOpen())
+			{
+				AUpgradeManager* UM = nullptr;
+				TArray<AActor*> Found;
+				UGameplayStatics::GetAllActorsOfClass(GetWorld(), AUpgradeManager::StaticClass(), Found);
+				if (Found.Num() > 0) UM = Cast<AUpgradeManager>(Found[0]);
+				DrawUpgradeMenu(CBPC, UM, Inventory);
+			}
+		}
 	}
 
 	if (bShowDocksPrompt)
@@ -1182,4 +1201,108 @@ void ACrownsBaneHUD::DrawQuestLog(ATreasureQuestManager* Mgr, AShipPawn* Ship)
 
 	DrawText(FString::Printf(TEXT("%d / %d active"), Quests.Num(), Mgr->MaxActiveQuests),
 		FColor(180, 180, 180), PanelX + 16.f, PanelY + PanelH - 24.f, nullptr, 0.9f, false);
+}
+
+// -------- UPGRADE MENU OVERLAY (U key while docked) --------
+
+void ACrownsBaneHUD::DrawUpgradeMenu(ACrownsBanePlayerController* PC, AUpgradeManager* Mgr, UPlayerInventory* Inv)
+{
+	if (!PC || !Canvas) return;
+
+	const float SW = Canvas->ClipX;
+	const float SH = Canvas->ClipY;
+
+	// Dim background
+	DrawFilledRect(0, 0, SW, SH, FLinearColor(0.0f, 0.0f, 0.0f, 0.55f));
+
+	const float PanelW = FMath::Min(720.f, SW * 0.65f);
+	const float PanelH = FMath::Min(540.f, SH * 0.78f);
+	const float PanelX = (SW - PanelW) * 0.5f;
+	const float PanelY = (SH - PanelH) * 0.5f;
+
+	DrawFilledRect(PanelX, PanelY, PanelW, PanelH, FLinearColor(0.05f, 0.06f, 0.08f, 0.95f));
+	DrawBorderedRect(PanelX, PanelY, PanelW, PanelH, FLinearColor::Transparent,
+		FLinearColor(0.8f, 0.6f, 0.2f, 1.0f), 2.5f);
+
+	DrawText(TEXT("⚒  SHIPWRIGHT  ⚒"), FColor(255, 220, 100), PanelX + 18.f, PanelY + 12.f, nullptr, 1.5f, false);
+	DrawText(TEXT("Press U to close   |   Number keys 1-7 to purchase"),
+		FColor(180, 180, 180), PanelX + 18.f, PanelY + 44.f, nullptr, 0.95f, false);
+
+	// Inventory readout
+	const FString InvLine = Inv
+		? FString::Printf(TEXT("Gold %d   Wood %d   Metal %d"), Inv->GetGold(), Inv->GetWood(), Inv->GetMetal())
+		: TEXT("Gold 0   Wood 0   Metal 0");
+	DrawText(InvLine, FColor(255, 215, 90), PanelX + PanelW - 320.f, PanelY + 44.f, nullptr, 0.95f, false);
+
+	DrawFilledRect(PanelX + 16.f, PanelY + 72.f, PanelW - 32.f, 1.f, FLinearColor(0.6f, 0.5f, 0.25f, 0.7f));
+
+	struct FRow { EUpgradeCategory Cat; const TCHAR* Label; const TCHAR* Hotkey; };
+	static const FRow Rows[] = {
+		{ EUpgradeCategory::Hull,          TEXT("Hull (Health)"),     TEXT("[1]") },
+		{ EUpgradeCategory::Sails,         TEXT("Sails (Speed)"),     TEXT("[2]") },
+		{ EUpgradeCategory::Weapons,       TEXT("Weapons (Damage)"),  TEXT("[3]") },
+		{ EUpgradeCategory::CannonCount,   TEXT("Cannon Count"),      TEXT("[4]") },
+		{ EUpgradeCategory::CargoHold,     TEXT("Cargo Hold"),        TEXT("[5]") },
+		{ EUpgradeCategory::AmmoCapacity,  TEXT("Ammo Capacity"),     TEXT("[6]") },
+		{ EUpgradeCategory::HullArmor,     TEXT("Hull Armor"),        TEXT("[7]") }
+	};
+
+	const float RowH = 56.f;
+	float Y = PanelY + 86.f;
+
+	for (const FRow& R : Rows)
+	{
+		const int32 Tier = Mgr ? Mgr->GetCurrentTier(R.Cat) : 0;
+		const int32 MaxT = Mgr ? Mgr->GetMaxTier() : 4;
+
+		FUpgradeLevel Next;
+		const bool bHasNext = Mgr ? Mgr->GetNextUpgradeData(R.Cat, Next) : false;
+		const bool bAfford  = (Mgr && Inv) ? Mgr->CanAffordNextUpgrade(R.Cat, Inv) : false;
+		const bool bMaxed   = Tier >= MaxT;
+
+		FLinearColor RowBg = bMaxed
+			? FLinearColor(0.06f, 0.14f, 0.06f, 0.6f)
+			: (bAfford ? FLinearColor(0.10f, 0.10f, 0.05f, 0.55f) : FLinearColor(0.14f, 0.06f, 0.06f, 0.55f));
+		DrawFilledRect(PanelX + 16.f, Y, PanelW - 32.f, RowH - 6.f, RowBg);
+
+		DrawText(R.Hotkey, FColor(255, 220, 100), PanelX + 24.f, Y + 6.f, nullptr, 1.1f, false);
+		DrawText(R.Label,  FColor(240, 240, 240), PanelX + 70.f, Y + 6.f, nullptr, 1.1f, false);
+
+		// Tier dots — filled = purchased, empty = locked
+		for (int32 t = 0; t < MaxT; ++t)
+		{
+			const float DotX = PanelX + 70.f + 280.f + t * 22.f;
+			const float DotY = Y + 12.f;
+			const FLinearColor Col = (t < Tier)
+				? FLinearColor(1.0f, 0.85f, 0.2f, 1.0f)
+				: FLinearColor(0.3f, 0.3f, 0.3f, 0.85f);
+			DrawFilledRect(DotX, DotY, 14.f, 14.f, Col);
+		}
+
+		if (bMaxed)
+		{
+			DrawText(TEXT("MAX"), FColor(120, 230, 120), PanelX + 70.f, Y + 30.f, nullptr, 0.95f, false);
+		}
+		else if (bHasNext)
+		{
+			FString CostStr;
+			if (Next.GoldCost  > 0) CostStr += FString::Printf(TEXT("%dg "),   Next.GoldCost);
+			if (Next.WoodCost  > 0) CostStr += FString::Printf(TEXT("%dw "),  Next.WoodCost);
+			if (Next.MetalCost > 0) CostStr += FString::Printf(TEXT("%dm "),  Next.MetalCost);
+
+			const FColor CostColor = bAfford ? FColor(230, 220, 160) : FColor(220, 140, 140);
+			DrawText(CostStr, CostColor, PanelX + 70.f, Y + 30.f, nullptr, 0.95f, false);
+
+			if (!Next.Description.IsEmpty())
+			{
+				DrawText(Next.Description, FColor(180, 180, 180),
+					PanelX + 70.f + 150.f, Y + 30.f, nullptr, 0.9f, false);
+			}
+		}
+
+		Y += RowH;
+	}
+
+	DrawText(TEXT("(Must be docked to purchase)"), FColor(160, 160, 160),
+		PanelX + 18.f, PanelY + PanelH - 30.f, nullptr, 0.9f, false);
 }

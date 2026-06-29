@@ -224,6 +224,7 @@ private:
 	void DrawHitMarker(float DeltaTime);
 	void DrawQuestLog(ATreasureQuestManager* Mgr, AShipPawn* Ship);
 	void DrawActiveQuestTracker(ATreasureQuestManager* Mgr, AShipPawn* Ship);
+	void DrawUpgradeMenu(class ACrownsBanePlayerController* PC, class AUpgradeManager* Mgr, class UPlayerInventory* Inv);
 
 	// Floating damage queue
 	TArray<FFloatingDamageEntry> FloatingDamageEntries;
