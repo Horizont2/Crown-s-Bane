@@ -24,6 +24,8 @@
 #include "Camera/CameraShakeBase.h"
 #include "Player/CrownsBanePlayerController.h"
 #include "UI/CrownsBaneHUD.h"
+#include "AI/EnemyShipBase.h"
+#include "EngineUtils.h"
 
 AShipPawn::AShipPawn()
 {
@@ -134,6 +136,7 @@ void AShipPawn::EnsureInputAssetsExist()
 	MakeIA(IA_Look, EInputActionValueType::Axis2D, TEXT("IA_Look_Auto"));
 	MakeIA(IA_ToggleDocks, EInputActionValueType::Boolean, TEXT("IA_ToggleDocks_Auto"));
 	MakeIA(IA_QuestLog,    EInputActionValueType::Boolean, TEXT("IA_QuestLog_Auto"));
+	MakeIA(IA_Board,       EInputActionValueType::Boolean, TEXT("IA_Board_Auto"));
 
 	if (!ShipMappingContext)
 	{
@@ -151,6 +154,7 @@ void AShipPawn::EnsureInputAssetsExist()
 		ShipMappingContext->MapKey(IA_Look, EKeys::Mouse2D);
 		ShipMappingContext->MapKey(IA_ToggleDocks, EKeys::U);
 		ShipMappingContext->MapKey(IA_QuestLog,    EKeys::J);
+		ShipMappingContext->MapKey(IA_Board,       EKeys::F);
 	}
 }
 
@@ -183,6 +187,7 @@ void AShipPawn::AddInputMappingContext()
 	if (IA_Look) Overlay->MapKey(IA_Look, EKeys::Mouse2D);
 	if (IA_ToggleDocks) Overlay->MapKey(IA_ToggleDocks, EKeys::U);
 	if (IA_QuestLog)    Overlay->MapKey(IA_QuestLog,    EKeys::J);
+	if (IA_Board)       Overlay->MapKey(IA_Board,       EKeys::F);
 
 	Subsystem->AddMappingContext(Overlay, 0);
 }
@@ -204,6 +209,7 @@ void AShipPawn::Tick(float DeltaTime)
 	PollRawInputFallback(DeltaTime);
 	UpdateAiming(DeltaTime);
 	UpdateMovement(DeltaTime);
+	UpdateBoardingTarget();
 
 	if (!FMath::IsNearlyZero(TurnInputValue))
 	{
@@ -246,6 +252,7 @@ void AShipPawn::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 		if (IA_Look) EIC->BindAction(IA_Look, ETriggerEvent::Triggered, this, &AShipPawn::Input_Look);
 		if (IA_ToggleDocks) EIC->BindAction(IA_ToggleDocks, ETriggerEvent::Started, this, &AShipPawn::Input_ToggleDocks);
 		if (IA_QuestLog)    EIC->BindAction(IA_QuestLog,    ETriggerEvent::Started, this, &AShipPawn::Input_ToggleQuestLog);
+		if (IA_Board)       EIC->BindAction(IA_Board,       ETriggerEvent::Started, this, &AShipPawn::Input_Board);
 
 		bEnhancedInputReady = true;
 	}
@@ -297,6 +304,55 @@ void AShipPawn::Input_ToggleQuestLog(const FInputActionValue&)
 	{
 		PC->ToggleQuestLog();
 	}
+}
+
+void AShipPawn::Input_Board(const FInputActionValue&)
+{
+	ExecuteBoarding();
+}
+
+void AShipPawn::UpdateBoardingTarget()
+{
+	UWorld* W = GetWorld();
+	if (!W) { CurrentBoardingTarget = nullptr; return; }
+
+	const FVector MyLoc = GetActorLocation();
+	AEnemyShipBase* Best = nullptr;
+	float BestDist2 = BoardingDistance * BoardingDistance;
+
+	for (TActorIterator<AEnemyShipBase> It(W); It; ++It)
+	{
+		AEnemyShipBase* E = *It;
+		if (!E || !E->HealthComponent) continue;
+		if (!E->HealthComponent->IsAlive()) continue;
+		if (E->HealthComponent->GetHealthPercent() > BoardableHealthThreshold) continue;
+
+		const float D2 = FVector::DistSquared(MyLoc, E->GetActorLocation());
+		if (D2 < BestDist2)
+		{
+			BestDist2 = D2;
+			Best = E;
+		}
+	}
+	CurrentBoardingTarget = Best;
+}
+
+void AShipPawn::ExecuteBoarding()
+{
+	if (!CurrentBoardingTarget || !CurrentBoardingTarget->HealthComponent) return;
+
+	// Sink the target immediately — boarding instantly subdues a crippled crew.
+	const float Damage = CurrentBoardingTarget->HealthComponent->GetCurrentHealth() + 1.0f;
+	FDamageEvent DmgEvent;
+	CurrentBoardingTarget->TakeDamage(Damage, DmgEvent, GetController(), this);
+
+	if (GEngine && bShowDebugOnScreen)
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 2.5f, FColor::Yellow,
+			FString::Printf(TEXT("BOARDED %s — loot x%.1f"), *CurrentBoardingTarget->GetName(), BoardingLootMultiplier));
+	}
+
+	CurrentBoardingTarget = nullptr;
 }
 
 bool AShipPawn::ConsumeActionCooldown(FName ActionTag, float CooldownSec)

@@ -139,6 +139,8 @@ void ACrownsBaneHUD::DrawHUD()
 	{
 		DrawDocksPrompt();
 	}
+
+	if (Ship) DrawBoardingPrompt(Ship);
 }
 
 void ACrownsBaneHUD::DrawTextWithShadow(const FString& Text, FColor TextColor, float X, float Y, UFont* Font, float Scale)
@@ -1283,4 +1285,25 @@ void ACrownsBaneHUD::DrawUpgradeMenu(ACrownsBanePlayerController* PC, AUpgradeMa
 
 	DrawText(TEXT("(Must be docked to purchase)"), FColor(160, 160, 160),
 		PanelX + 18.f, PanelY + PanelH - 30.f, nullptr, 0.9f, false);
+}
+
+// -------- BOARDING PROMPT --------
+void ACrownsBaneHUD::DrawBoardingPrompt(AShipPawn* Ship)
+{
+	if (!Ship || !Ship->CurrentBoardingTarget || !Canvas) return;
+
+	const float SW = Canvas->ClipX;
+	const float SH = Canvas->ClipY;
+
+	const float W = 320.f;
+	const float H = 64.f;
+	const float X = (SW - W) * 0.5f;
+	const float Y = SH * 0.62f;
+
+	DrawFilledRect(X, Y, W, H, FLinearColor(0.10f, 0.04f, 0.04f, 0.85f));
+	DrawBorderedRect(X, Y, W, H, FLinearColor(0,0,0,0), FLinearColor(1.0f, 0.55f, 0.1f, 1.0f), 2.0f);
+
+	DrawText(TEXT("[F] BOARD"), FColor(255, 200, 80), X + 22.f, Y + 8.f,  nullptr, 1.4f, false);
+	DrawText(TEXT("Enemy is crippled — board for bonus loot"),
+		FColor(220, 220, 220), X + 22.f, Y + 38.f, nullptr, 0.9f, false);
 }

@@ -222,16 +222,17 @@ private:
 	void DrawFloatingDamageNumbers(float DeltaTime);
 	void DrawDamageFlash(float DeltaTime);
 	void DrawHitMarker(float DeltaTime);
+	void DrawBoardingPrompt(AShipPawn* Ship);
 	void DrawQuestLog(ATreasureQuestManager* Mgr, AShipPawn* Ship);
 	void DrawActiveQuestTracker(ATreasureQuestManager* Mgr, AShipPawn* Ship);
 	void DrawUpgradeMenu(class ACrownsBanePlayerController* PC, class AUpgradeManager* Mgr, class UPlayerInventory* Inv);
 
-	// Додайте це до секції private:
+	// пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ private:
 private:
-	// Плавна зміна здоров'я
+	// пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ'пїЅ
 	float DisplayedHealthPct = -1.0f;
 
-	// Нові функції для красивого рендеру
+	// пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
 	void DrawTextWithShadow(const FString& Text, FColor TextColor, float X, float Y, UFont* Font = nullptr, float Scale = 1.0f);
 	void DrawMinimalistBar(float X, float Y, float W, float H, float Pct, FLinearColor FillColor);
 

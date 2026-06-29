@@ -149,6 +149,27 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	UInputAction* IA_QuestLog;
 
+	// Board nearest crippled enemy (F key).
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	UInputAction* IA_Board;
+
+	// ---- Boarding ----
+	// Enemy HP fraction at or below which the ship becomes boardable.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Boarding", meta=(ClampMin="0.05", ClampMax="0.5"))
+	float BoardableHealthThreshold = 0.15f;
+
+	// Max distance from player to enemy for boarding to be allowed (cm).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Boarding")
+	float BoardingDistance = 800.0f;
+
+	// Loot multiplier applied to enemy's drop table when boarded (vs. sunk).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Boarding")
+	float BoardingLootMultiplier = 2.5f;
+
+	// Cached: the enemy currently in boarding range, or null.  HUD reads this to draw the prompt.
+	UPROPERTY(BlueprintReadOnly, Category = "Combat|Boarding")
+	class AEnemyShipBase* CurrentBoardingTarget = nullptr;
+
 	// ---- Camera & Aiming ----
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera")
 	float DefaultSpringArmLength = 1800.0f;
@@ -271,6 +292,10 @@ protected:
 	// UI hotkeys
 	void Input_ToggleDocks(const FInputActionValue& Value);
 	void Input_ToggleQuestLog(const FInputActionValue& Value);
+	void Input_Board(const FInputActionValue& Value);
+
+	void UpdateBoardingTarget();
+	void ExecuteBoarding();
 
 	void DoIncreaseSail();
 	void DoDecreaseSail();
