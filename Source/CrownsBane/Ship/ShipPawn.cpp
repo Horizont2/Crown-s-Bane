@@ -342,8 +342,9 @@ void AShipPawn::DoFireRight() { if (CannonComponent) CannonComponent->FireBroads
 
 void AShipPawn::DoLook(const FVector2D& Delta)
 {
-	LookYawOffset = FRotator::NormalizeAxis(LookYawOffset + Delta.X * LookYawSensitivity);
-	LookPitchOffset = FMath::Clamp(LookPitchOffset - Delta.Y * LookPitchSensitivity, LookPitchMin, LookPitchMax);
+	const float SensScale = bIsAiming ? AimLookSensitivityScale : 1.0f;
+	LookYawOffset = FRotator::NormalizeAxis(LookYawOffset + Delta.X * LookYawSensitivity * SensScale);
+	LookPitchOffset = FMath::Clamp(LookPitchOffset - Delta.Y * LookPitchSensitivity * SensScale, LookPitchMin, LookPitchMax);
 
 	if (SpringArm)
 	{
@@ -420,6 +421,21 @@ void AShipPawn::UpdateAiming(float DeltaTime)
 	if (!CannonComponent || !Camera || !SpringArm) return;
 
 	CannonComponent->SetIsAiming(bIsAiming);
+
+	// FOV zoom — interp current camera FOV toward target (snappy and cinematic).
+	const float TargetFOV = bIsAiming ? AimFOV : DefaultFOV;
+	Camera->SetFieldOfView(FMath::FInterpTo(Camera->FieldOfView, TargetFOV, DeltaTime, AimZoomSpeed));
+
+	// Global time dilation while aiming — snap is fine because the dilation
+	// itself slows everything else.  Skip if already correct.
+	if (UWorld* W = GetWorld())
+	{
+		const float WantDil = bIsAiming ? AimTimeDilation : 1.0f;
+		if (!FMath::IsNearlyEqual(UGameplayStatics::GetGlobalTimeDilation(W), WantDil, 0.01f))
+		{
+			UGameplayStatics::SetGlobalTimeDilation(W, WantDil);
+		}
+	}
 
 	if (bIsAiming)
 	{
@@ -576,4 +592,11 @@ void AShipPawn::HandleDeath()
 	if (DamageSmokeFX) DamageSmokeFX->Deactivate();
 	if (DamageFireFX)  DamageFireFX->Deactivate();
 	if (BowWakeFX)     BowWakeFX->Deactivate();
+
+	// Safety: reset aim/dilation so a death mid-aim doesn't leave the world in slo-mo.
+	bIsAiming = false;
+	if (UWorld* W = GetWorld())
+	{
+		UGameplayStatics::SetGlobalTimeDilation(W, 1.0f);
+	}
 }

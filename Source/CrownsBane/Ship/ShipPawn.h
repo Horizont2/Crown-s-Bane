@@ -159,6 +159,18 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera")
 	float AimZoomSpeed = 6.0f;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Aim")
+	float DefaultFOV = 90.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Aim")
+	float AimFOV = 65.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Aim", meta=(ClampMin="0.2", ClampMax="1.0"))
+	float AimTimeDilation = 0.65f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Aim", meta=(ClampMin="0.1", ClampMax="1.0"))
+	float AimLookSensitivityScale = 0.5f;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
 	float LookYawSensitivity = 1.2f;
 
