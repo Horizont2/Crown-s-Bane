@@ -1459,8 +1459,9 @@ void ACrownsBaneHUD::DrawLockOnReticle(AShipPawn* Ship)
 	AEnemyShipBase* T = Ship->LockedTarget;
 	if (!T->HealthComponent || !T->HealthComponent->IsAlive()) return;
 
-	FVector2D ScreenPos;
-	if (!Project(T->GetActorLocation(), ScreenPos)) return;
+	const FVector ProjVec = Project(T->GetActorLocation());
+	if (ProjVec.Z <= 0.0f) return; // behind camera
+	const FVector2D ScreenPos(ProjVec.X, ProjVec.Y);
 
 	const float R = 40.f;
 	const FLinearColor Tint(1.0f, 0.25f, 0.25f, 0.95f);
@@ -1507,8 +1508,9 @@ void ACrownsBaneHUD::DrawLeadIndicator(AShipPawn* Ship)
 	const FVector TargetVel = T->GetVelocity();
 	const FVector PredictedLoc = TargetLoc + TargetVel * TOF;
 
-	FVector2D ScreenPos;
-	if (!Project(PredictedLoc, ScreenPos)) return;
+	const FVector ProjVec = Project(PredictedLoc);
+	if (ProjVec.Z <= 0.0f) return; // behind camera
+	const FVector2D ScreenPos(ProjVec.X, ProjVec.Y);
 
 	// Crosshair color reflects whether the predicted impact is within cannon range.
 	const float Range  = Ship->CannonComponent->MaxRange;
