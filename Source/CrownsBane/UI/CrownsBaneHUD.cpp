@@ -1515,20 +1515,27 @@ void ACrownsBaneHUD::DrawUpgradeMenu(ACrownsBanePlayerController* PC, AUpgradeMa
 	const float SH = Canvas->ClipY;
 
 	// Dim background
-	DrawFilledRect(0, 0, SW, SH, FLinearColor(0.0f, 0.0f, 0.0f, 0.55f));
+	DrawFilledRect(0, 0, SW, SH, CrownStyle::BgOverlay);
 
 	const float PanelW = FMath::Min(720.f, SW * 0.65f);
 	const float PanelH = FMath::Min(540.f, SH * 0.78f);
 	const float PanelX = (SW - PanelW) * 0.5f;
 	const float PanelY = (SH - PanelH) * 0.5f;
 
-	DrawFilledRect(PanelX, PanelY, PanelW, PanelH, FLinearColor(0.05f, 0.06f, 0.08f, 0.95f));
-	DrawBorderedRect(PanelX, PanelY, PanelW, PanelH, FLinearColor(0,0,0,0),
-		FLinearColor(0.8f, 0.6f, 0.2f, 1.0f), 2.5f);
+	// Highlight style — gold border + rivets + gradient + drop shadow.
+	DrawPanel(PanelX, PanelY, PanelW, PanelH, (uint8)CrownStyle::EPanelStyle::Highlight);
 
-	DrawText(TEXT("⚒  SHIPWRIGHT  ⚒"), FColor(255, 220, 100), PanelX + 18.f, PanelY + 12.f, nullptr, 1.5f, false);
-	DrawText(TEXT("Press U to close   |   Number keys 1-7 to purchase"),
-		FColor(180, 180, 180), PanelX + 18.f, PanelY + 44.f, nullptr, 0.95f, false);
+	// Title with shadow + glow.
+	const FColor TitleShadow(0, 0, 0, 220);
+	DrawText(TEXT("⚒  SHIPWRIGHT"), TitleShadow,
+		PanelX + 26.f, PanelY + 18.f, nullptr, CrownStyle::ScaleDisplay, false);
+	DrawText(TEXT("⚒  SHIPWRIGHT"), CrownStyle::AccentGoldBright.ToFColor(true),
+		PanelX + 24.f, PanelY + 16.f, nullptr, CrownStyle::ScaleDisplay, false);
+
+	DrawText(TEXT("U to close   |   1-7 to purchase"), CrownStyle::TextShadow,
+		PanelX + 25.f, PanelY + 52.f, nullptr, 0.95f, false);
+	DrawText(TEXT("U to close   |   1-7 to purchase"), CrownStyle::TextDim,
+		PanelX + 24.f, PanelY + 51.f, nullptr, 0.95f, false);
 
 	// Inventory readout
 	const FString InvLine = Inv
@@ -1570,15 +1577,28 @@ void ACrownsBaneHUD::DrawUpgradeMenu(ACrownsBanePlayerController* PC, AUpgradeMa
 		DrawText(R.Hotkey, FColor(255, 220, 100), PanelX + 24.f, Y + 6.f, nullptr, 1.1f, false);
 		DrawText(R.Label,  FColor(240, 240, 240), PanelX + 70.f, Y + 6.f, nullptr, 1.1f, false);
 
-		// Tier dots — filled = purchased, empty = locked
+		// Tier gems — diamond-shape, gold filled when earned, dark socket when locked.
 		for (int32 t = 0; t < MaxT; ++t)
 		{
-			const float DotX = PanelX + 70.f + 280.f + t * 22.f;
-			const float DotY = Y + 12.f;
-			const FLinearColor Col = (t < Tier)
-				? FLinearColor(1.0f, 0.85f, 0.2f, 1.0f)
-				: FLinearColor(0.3f, 0.3f, 0.3f, 0.85f);
-			DrawFilledRect(DotX, DotY, 14.f, 14.f, Col);
+			const float GX = PanelX + 70.f + 280.f + t * 22.f + 7.f;
+			const float GY = Y + 12.f + 7.f;
+			// Dark socket back.
+			DrawFilledRect(GX - 8.f, GY - 8.f, 16.f, 16.f, FLinearColor(0.05f, 0.04f, 0.02f, 1.f));
+			if (t < Tier)
+			{
+				// Filled gold gem — 3-rect approximation of diamond.
+				const FLinearColor C  = CrownStyle::AccentGoldBright;
+				const FLinearColor C2 = FLinearColor(C.R * 1.05f, C.G * 1.05f, C.B * 0.8f, 1.f);
+				DrawFilledRect(GX - 5.f, GY - 5.f, 10.f, 10.f, C);
+				DrawFilledRect(GX - 7.f, GY - 1.f, 14.f, 2.f,  C);
+				DrawFilledRect(GX - 1.f, GY - 7.f, 2.f,  14.f, C);
+				// Highlight sparkle.
+				DrawFilledRect(GX - 3.f, GY - 3.f, 3.f, 3.f, C2);
+			}
+			else
+			{
+				DrawFilledRect(GX - 4.f, GY - 4.f, 8.f, 8.f, FLinearColor(0.15f, 0.13f, 0.10f, 1.f));
+			}
 		}
 
 		if (bMaxed)
