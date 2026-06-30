@@ -320,6 +320,17 @@ private:
 	void DrawHelpOverlay();
 	void DrawSettingsPanel(class ACrownsBanePlayerController* PC);
 
+	// ---- Tutorial tips (Г.4) ----
+public:
+	UFUNCTION(BlueprintCallable, Category = "HUD|Tutorial")
+	void ShowTipOnce(const FString& Key, const FString& Text);
+
+private:
+	TSet<FString> ShownTips;
+	FString  CurrentTipText;
+	float    CurrentTipTimer = 0.0f;
+	void DrawTutorialTip(float DeltaTime);
+
 	// Pause menu sub-tab.  0 = main, 1 = settings.
 	int32 PauseSubTab = 0;
 	void DrawXPBar(class ACrownsBanePlayerController* PC);

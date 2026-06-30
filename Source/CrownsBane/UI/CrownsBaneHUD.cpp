@@ -185,6 +185,7 @@ void ACrownsBaneHUD::DrawHUD()
 		}
 	}
 	DrawDeathScreen(Dt);
+	DrawTutorialTip(Dt);
 }
 
 void ACrownsBaneHUD::DrawTextWithShadow(const FString& Text, FColor TextColor, float X, float Y, UFont* Font, float Scale)
@@ -2467,4 +2468,35 @@ void ACrownsBaneHUD::DrawSettingsPanel(ACrownsBanePlayerController* PC)
 		DrawText(R.Hint,  CrownStyle::TextDim,     PX + PW - 130.f,      Y + 8.f, nullptr, 0.85f, false);
 		Y += 44.f;
 	}
+}
+
+// ============== TUTORIAL TIPS (Г.4) ==============
+
+void ACrownsBaneHUD::ShowTipOnce(const FString& Key, const FString& Text)
+{
+	if (ShownTips.Contains(Key)) return;
+	ShownTips.Add(Key);
+	CurrentTipText = Text;
+	CurrentTipTimer = 5.0f;
+}
+
+void ACrownsBaneHUD::DrawTutorialTip(float DeltaTime)
+{
+	if (CurrentTipTimer <= 0.0f || !Canvas) return;
+	CurrentTipTimer -= DeltaTime;
+	const float A = FMath::Clamp(CurrentTipTimer / 5.0f, 0.f, 1.f);
+	const float FA = FMath::Min(A * 2.5f, 1.0f);
+
+	const float W = 460.f;
+	const float H = 60.f;
+	const float X = (Canvas->ClipX - W) * 0.5f;
+	const float Y = Canvas->ClipY * 0.78f;
+
+	DrawFilledRect(X, Y, W, H, FLinearColor(0.05f, 0.05f, 0.08f, FA * 0.9f));
+	DrawBorderedRect(X, Y, W, H, CrownStyle::BgTransparent,
+		FLinearColor(CrownStyle::AccentGold.R, CrownStyle::AccentGold.G, CrownStyle::AccentGold.B, FA), 1.5f);
+	DrawText(TEXT("TIP"), CrownStyle::AccentGold.ToFColor(true),
+		X + 14.f, Y + 8.f, nullptr, 0.85f, false);
+	FColor Body = CrownStyle::TextPrimary; Body.A = (uint8)(FA * 255);
+	DrawText(CurrentTipText, Body, X + 14.f, Y + 28.f, nullptr, 1.0f, false);
 }

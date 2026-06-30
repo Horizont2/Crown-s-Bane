@@ -246,6 +246,25 @@ void AShipPawn::Tick(float DeltaTime)
 	UpdateBoardingTarget();
 	UpdateSharkHazard(DeltaTime);
 
+	// First-time tutorial tip: ANY enemy within 3000cm.
+	{
+		bool bAnyEnemyClose = false;
+		const FVector MyLoc = GetActorLocation();
+		for (TActorIterator<AEnemyShipBase> It(GetWorld()); It; ++It)
+		{
+			if (*It && (*It)->HealthComponent && (*It)->HealthComponent->IsAlive() &&
+			    FVector::DistSquared(MyLoc, (*It)->GetActorLocation()) < 3000.f * 3000.f)
+			{
+				bAnyEnemyClose = true; break;
+			}
+		}
+		if (bAnyEnemyClose)
+		{
+			TryShowTip(this, TEXT("FirstLockOn"),
+				TEXT("Enemy in range. Press [TAB] to lock on, [RMB] to aim."));
+		}
+	}
+
 	// While bracing, ship cannot fire (handled by gating in DoCameraAimFire below).
 
 	// Ramming check: if any enemy is within 500cm AND we're moving fast enough,
@@ -515,6 +534,18 @@ void AShipPawn::CycleLockOnTarget()
 	LockedTarget = Candidates[(Idx + 1) % Candidates.Num()];
 }
 
+static void TryShowTip(AShipPawn* Ship, const FString& Key, const FString& Text)
+{
+	if (!Ship) return;
+	if (APlayerController* PC = Cast<APlayerController>(Ship->GetController()))
+	{
+		if (ACrownsBaneHUD* HUD = Cast<ACrownsBaneHUD>(PC->GetHUD()))
+		{
+			HUD->ShowTipOnce(Key, Text);
+		}
+	}
+}
+
 void AShipPawn::UpdateBoardingTarget()
 {
 	UWorld* W = GetWorld();
@@ -539,6 +570,13 @@ void AShipPawn::UpdateBoardingTarget()
 		}
 	}
 	CurrentBoardingTarget = Best;
+
+	// Tutorial: first time a boardable target shows up.
+	if (Best)
+	{
+		TryShowTip(this, TEXT("FirstBoard"),
+			TEXT("Press [F] to board crippled enemies for bonus loot."));
+	}
 }
 
 void AShipPawn::ExecuteBoarding()
