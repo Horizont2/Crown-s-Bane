@@ -8,13 +8,15 @@
 #include "Player/CrownsBanePlayerController.h"
 #include "Ship/ShipPawn.h"
 #include "UI/CrownsBaneHUD.h"
+#include "AI/EnemyShipBase.h"
+#include "EngineUtils.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
 
 ADocksZone::ADocksZone()
 {
-	PrimaryActorTick.bCanEverTick = false;
+	PrimaryActorTick.bCanEverTick = true;
 
 	DocksVolume = CreateDefaultSubobject<UBoxComponent>(TEXT("DocksVolume"));
 	DocksVolume->SetBoxExtent(FVector(2000.0f, 2000.0f, 500.0f));
@@ -163,6 +165,58 @@ void ADocksZone::NotifyPlayerController(bool bEntering)
 		else
 		{
 			CrownPC->OnExitDocks();
+		}
+	}
+}
+
+void ADocksZone::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+	PatrolCooldownTimer = FMath::Max(0.0f, PatrolCooldownTimer - DeltaTime);
+
+	if (DockType != EDockType::Naval) return;
+	if (PatrolCooldownTimer > 0.0f) return;
+	if (!NavalPatrolShipClass) return;
+
+	UWorld* W = GetWorld();
+	if (!W) return;
+
+	APawn* Player = UGameplayStatics::GetPlayerPawn(W, 0);
+	if (!Player) return;
+
+	// Read wanted level from the manager.
+	int32 Wanted = 0;
+	for (TActorIterator<AWantedLevelManager> It(W); It; ++It)
+	{
+		if (*It) { Wanted = (*It)->GetWantedLevel(); break; }
+	}
+	if (Wanted < 1) return;
+
+	const float D2 = FVector::DistSquared(Player->GetActorLocation(), GetActorLocation());
+	if (D2 > NavalPatrolRange * NavalPatrolRange) return;
+
+	// Spawn patrol ships in a small arc between the dock and the player.
+	const FVector DirToPlayer = (Player->GetActorLocation() - GetActorLocation()).GetSafeNormal2D();
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+	for (int32 i = 0; i < PatrolShipsToSpawn; ++i)
+	{
+		const float Offset = (i - (PatrolShipsToSpawn - 1) * 0.5f) * 600.0f;
+		const FVector SpawnLoc = GetActorLocation() + DirToPlayer * 2200.0f + FVector(0, Offset, 0);
+		W->SpawnActor<AEnemyShipBase>(NavalPatrolShipClass, SpawnLoc, DirToPlayer.Rotation(), Params);
+	}
+
+	PatrolCooldownTimer = PatrolSpawnCooldown;
+
+	// HUD banner.
+	if (APlayerController* PC = UGameplayStatics::GetPlayerController(W, 0))
+	{
+		if (ACrownsBaneHUD* HUD = Cast<ACrownsBaneHUD>(PC->GetHUD()))
+		{
+			HUD->ShowBanner(
+				FString::Printf(TEXT("⚠ NAVAL PATROL — %s"), *DockName),
+				TEXT("Lay low or fight your way out."),
+				FLinearColor(0.5f, 0.7f, 1.0f, 1.0f), 3.5f);
 		}
 	}
 }

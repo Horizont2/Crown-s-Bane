@@ -31,6 +31,9 @@ protected:
 	virtual void BeginPlay() override;
 
 public:
+	virtual void Tick(float DeltaTime) override;
+
+public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	UBoxComponent* DocksVolume;
 
@@ -45,6 +48,22 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Docks")
 	FString DockName = TEXT("Port");
+
+	// Range around a Naval port within which patrol ships will spawn to chase
+	// wanted players.  Only used when DockType == Naval.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Docks|Naval")
+	float NavalPatrolRange = 8000.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Docks|Naval")
+	TSubclassOf<class AEnemyShipBase> NavalPatrolShipClass;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Docks|Naval")
+	int32 PatrolShipsToSpawn = 2;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Docks|Naval")
+	float PatrolSpawnCooldown = 45.0f;
+
+	float PatrolCooldownTimer = 0.0f;
 
 	// Fraction of health to restore on docking (1.0 = full heal)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Docks")
