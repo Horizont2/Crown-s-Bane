@@ -319,6 +319,10 @@ private:
 	void DrawPauseMenu(class ACrownsBanePlayerController* PC);
 	void DrawHelpOverlay();
 	void DrawXPBar(class ACrownsBanePlayerController* PC);
+	void DrawPerkChoiceOverlay(class ACrownsBanePlayerController* PC);
+	// Rotating set of 3 perk offers — randomised once per pending choice.
+	TArray<uint8> PendingPerkChoices;
+	void RefreshPerkChoices(class ACrownsBanePlayerController* PC);
 
 	// Helpers for minimap
 	void DrawMinimapDot(float CX, float CY, float DotX, float DotY, float DotSize, FLinearColor Color);

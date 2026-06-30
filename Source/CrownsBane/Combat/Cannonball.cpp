@@ -76,7 +76,21 @@ void ACannonball::Tick(float DeltaTime)
 	if (Wind)
 	{
 		const FVector WindDir   = Wind->GetWindDirection();
-		const float   WindMag   = Wind->GetWindStrength();
+		float WindMag   = Wind->GetWindStrength();
+		// WindReader perk halves drift on player shots.
+		if (OwnerInstigator)
+		{
+			if (APawn* IP = Cast<APawn>(OwnerInstigator))
+			{
+				if (ACrownsBanePlayerController* CBPC = Cast<ACrownsBanePlayerController>(IP->GetController()))
+				{
+					if (CBPC->Progression && CBPC->Progression->HasPerk(EShipPerk::WindReader))
+					{
+						WindMag *= 0.5f;
+					}
+				}
+			}
+		}
 		// 80 cm/s^2 max lateral push at full wind — perceptible across long shots, not silly at close range.
 		const FVector LateralAccel = WindDir * 80.0f * WindMag;
 		ProjectileMovement->Velocity += LateralAccel * DeltaTime;
@@ -120,7 +134,23 @@ void ACannonball::OnHit(UPrimitiveComponent* HitComponent, AActor* OtherActor,
 	// (a high impact = mast/rigging hit, more likely to dismount something).
 	const FVector OtherCenter = OtherActor->GetActorLocation();
 	const bool bHighHit = (ImpactLoc.Z - OtherCenter.Z) > 50.0f;
-	const float CritChance = bHighHit ? 0.20f : 0.15f;
+	float CritChance = bHighHit ? 0.20f : 0.15f;
+
+	// Marksman perk: +10% crit chance on player shots.
+	if (OwnerInstigator)
+	{
+		if (APawn* IP = Cast<APawn>(OwnerInstigator))
+		{
+			if (ACrownsBanePlayerController* CBPC = Cast<ACrownsBanePlayerController>(IP->GetController()))
+			{
+				if (CBPC->Progression && CBPC->Progression->HasPerk(EShipPerk::Marksman))
+				{
+					CritChance += 0.10f;
+				}
+			}
+		}
+	}
+
 	const bool bCrit = FMath::FRand() < CritChance;
 	const float FinalDamage = CannonballData.BaseDamage * (bCrit ? 2.0f : 1.0f);
 

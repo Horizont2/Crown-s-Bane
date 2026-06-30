@@ -1,6 +1,9 @@
 // Copyright 2024 Crown's Bane. All Rights Reserved.
 
 #include "Player/PlayerInventory.h"
+#include "Player/CrownsBanePlayerController.h"
+#include "Player/ShipProgressionComponent.h"
+#include "Kismet/GameplayStatics.h"
 
 UPlayerInventory::UPlayerInventory()
 {
@@ -19,6 +22,21 @@ void UPlayerInventory::BeginPlay()
 void UPlayerInventory::AddResource(EResourceType ResourceType, int32 Amount)
 {
 	if (Amount <= 0) return;
+
+	// Buccaneer perk: +25% to all gold gains.
+	if (ResourceType == EResourceType::Gold)
+	{
+		if (APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0))
+		{
+			if (ACrownsBanePlayerController* CBPC = Cast<ACrownsBanePlayerController>(PC))
+			{
+				if (CBPC->Progression && CBPC->Progression->HasPerk(EShipPerk::Buccaneer))
+				{
+					Amount = FMath::CeilToInt(Amount * 1.25f);
+				}
+			}
+		}
+	}
 
 	// Clamp to cargo cap (0 = unlimited)
 	auto Clamp = [this](int32 Current, int32 Add) -> int32

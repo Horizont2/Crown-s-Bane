@@ -143,6 +143,17 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Save")
 	bool LoadGameFromSlot();
 
+	// Recompute and apply ship stat bonuses from unlocked perks.  Called on
+	// possess, on perk unlock, and after loading a save.
+	UFUNCTION(BlueprintCallable, Category = "Progression")
+	void ApplyPerkBonuses();
+
+	UFUNCTION()
+	void HandleLevelUp(int32 NewLevel, int32 NewXP);
+
+	UFUNCTION()
+	void HandlePerkUnlocked(enum EShipPerk Perk);
+
 private:
 
 	bool bUpgradeUIOpen = false;

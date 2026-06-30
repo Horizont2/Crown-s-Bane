@@ -24,6 +24,8 @@
 #include "Camera/CameraShakeBase.h"
 #include "Player/CrownsBanePlayerController.h"
 #include "UI/CrownsBaneHUD.h"
+#include "Player/ShipProgressionComponent.h"
+#include "Audio/SoundManager.h"
 #include "AI/EnemyShipBase.h"
 #include "EngineUtils.h"
 #include "Docks/DocksZone.h"
@@ -689,6 +691,28 @@ void AShipPawn::PollRawInputFallback(float DeltaTime)
 			if (PC->IsInputKeyDown(NumKeys[3]) && ConsumeActionCooldown(TEXT("TrSel4"), 0.30f)) CBPC->SellWood();
 			if (PC->IsInputKeyDown(NumKeys[4]) && ConsumeActionCooldown(TEXT("TrSel5"), 0.30f)) CBPC->SellMetal();
 			if (PC->IsInputKeyDown(NumKeys[5]) && ConsumeActionCooldown(TEXT("TrHeal6"), 0.30f)) CBPC->PayForHeal();
+		}
+
+		// Perk choice hotkeys 1/2/3 — only when overlay is active.
+		if (CBPC->Progression && CBPC->Progression->bPerkChoicePending)
+		{
+			if (ACrownsBaneHUD* HUD = Cast<ACrownsBaneHUD>(CBPC->GetHUD()))
+			{
+				for (int32 i = 0; i < FMath::Min(3, HUD->PendingPerkChoices.Num()); ++i)
+				{
+					const FKey K = (i == 0) ? EKeys::One : (i == 1) ? EKeys::Two : EKeys::Three;
+					if (PC->IsInputKeyDown(K) && ConsumeActionCooldown(FName(*FString::Printf(TEXT("PerkChoose%d"), i)), 0.30f))
+					{
+						CBPC->Progression->ChoosePerk((EShipPerk)HUD->PendingPerkChoices[i]);
+						HUD->PendingPerkChoices.Reset();
+						CBPC->ApplyPerkBonuses();
+						if (CBPC->SoundManager) CBPC->SoundManager->Play(ESoundCue::PerkUnlock);
+						break;
+					}
+				}
+			}
+			// Don't fall through to other 1-5 bindings while overlay open.
+			return;
 		}
 
 		// Ammo switching 1-5 — only when no menu is open and we have a CannonComponent.

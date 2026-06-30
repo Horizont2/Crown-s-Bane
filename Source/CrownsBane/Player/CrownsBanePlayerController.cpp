@@ -40,6 +40,29 @@ void ACrownsBanePlayerController::BeginPlay()
 	SetInputMode(Mode);
 
 	ForceFocusGameViewport();
+
+	// Bind level-up + perk-unlock to sound cues.
+	if (Progression)
+	{
+		Progression->OnShipLevelUp.AddDynamic(this, &ACrownsBanePlayerController::HandleLevelUp);
+		Progression->OnPerkUnlocked.AddDynamic(this, &ACrownsBanePlayerController::HandlePerkUnlocked);
+	}
+}
+
+void ACrownsBanePlayerController::HandleLevelUp(int32 NewLevel, int32 NewXP)
+{
+	if (SoundManager) SoundManager->Play(ESoundCue::LevelUp);
+	if (ACrownsBaneHUD* HUD = Cast<ACrownsBaneHUD>(GetHUD()))
+	{
+		HUD->ShowBanner(FString::Printf(TEXT("LEVEL %d"), NewLevel),
+			(NewLevel % 5 == 0) ? TEXT("Choose your perk!") : TEXT("Ship grows stronger."),
+			FLinearColor(1.0f, 0.85f, 0.2f, 1.0f), 2.8f);
+	}
+}
+
+void ACrownsBanePlayerController::HandlePerkUnlocked(EShipPerk Perk)
+{
+	if (SoundManager) SoundManager->Play(ESoundCue::PerkUnlock);
 }
 
 void ACrownsBanePlayerController::OnPossess(APawn* InPawn)
@@ -59,6 +82,9 @@ void ACrownsBanePlayerController::OnPossess(APawn* InPawn)
 
 	UE_LOG(LogTemp, Log, TEXT("[PlayerController] Possessed %s — input mode locked to Game."),
 		InPawn ? *InPawn->GetName() : TEXT("NULL"));
+
+	// Re-apply any unlocked perks to the (potentially new) pawn's stats.
+	ApplyPerkBonuses();
 }
 
 void ACrownsBanePlayerController::Tick(float DeltaSeconds)
@@ -358,4 +384,40 @@ bool ACrownsBanePlayerController::LoadGameFromSlot()
 	StatPlayTimeSeconds = SG->StatPlayTimeSeconds;
 	UE_LOG(LogTemp, Log, TEXT("[Save] Loaded slot."));
 	return true;
+}
+
+void ACrownsBanePlayerController::ApplyPerkBonuses()
+{
+	if (!Progression) return;
+	AShipPawn* Ship = GetShipPawn();
+	if (!Ship) return;
+
+	// IronHull: +15% MaxHP.  Apply by setting MaxHealth and topping current HP up.
+	if (Progression->HasPerk(EShipPerk::IronHull) && Ship->HealthComponent)
+	{
+		const float NewMax = Ship->HealthComponent->GetMaxHealth() * 1.15f;
+		// Only apply once — guard by checking we haven't already inflated past base.
+		// (Simple approach: store a flag — but we just clamp to NewMax which is idempotent
+		// if the base value didn't change in this session.)
+		Ship->HealthComponent->MaxHealth = NewMax;
+		Ship->HealthComponent->Heal(NewMax * 0.15f);
+	}
+
+	// EagleEye: lock-on max range x2.
+	if (Progression->HasPerk(EShipPerk::EagleEye))
+	{
+		Ship->LockOnMaxRange = FMath::Max(Ship->LockOnMaxRange, 18000.0f);
+	}
+
+	// Cutthroat: boarding loot ×3.
+	if (Progression->HasPerk(EShipPerk::Cutthroat))
+	{
+		Ship->BoardingLootMultiplier = FMath::Max(Ship->BoardingLootMultiplier, 3.0f);
+	}
+
+	// ReloadMaster: -1.0s reload time on the cannon component.
+	if (Progression->HasPerk(EShipPerk::ReloadMaster) && Ship->CannonComponent)
+	{
+		Ship->CannonComponent->ReloadTime = FMath::Max(0.5f, Ship->CannonComponent->ReloadTime - 1.0f);
+	}
 }

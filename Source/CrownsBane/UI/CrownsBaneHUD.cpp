@@ -177,6 +177,7 @@ void ACrownsBaneHUD::DrawHUD()
 		if (ACrownsBanePlayerController* CBPC3 = Cast<ACrownsBanePlayerController>(RawPC3))
 		{
 			DrawXPBar(CBPC3);
+			DrawPerkChoiceOverlay(CBPC3);
 		}
 	}
 }
@@ -2258,4 +2259,98 @@ void ACrownsBaneHUD::DrawXPBar(ACrownsBanePlayerController* PC)
 	DrawSmoothBar(X, Y, W, H, Frac, CrownStyle::AccentGold, false);
 	DrawText(FString::Printf(TEXT("%d / %d XP"), P->XP, P->GetXPForNextLevel()),
 		CrownStyle::TextSecondary, X + W * 0.5f - 30.f, Y - 1.f, nullptr, 0.7f, false);
+}
+
+// ============== PERK CHOICE OVERLAY (Гр.1B) ==============
+
+void ACrownsBaneHUD::RefreshPerkChoices(ACrownsBanePlayerController* PC)
+{
+	if (!PC || !PC->Progression) { PendingPerkChoices.Reset(); return; }
+	// Build pool of locked perks; pick up to 3 distinct.
+	TArray<uint8> Pool;
+	for (uint8 i = (uint8)EShipPerk::EagleEye; i <= (uint8)EShipPerk::Buccaneer; ++i)
+	{
+		if (!PC->Progression->HasPerk((EShipPerk)i)) Pool.Add(i);
+	}
+	PendingPerkChoices.Reset();
+	while (PendingPerkChoices.Num() < 3 && Pool.Num() > 0)
+	{
+		const int32 Idx = FMath::RandRange(0, Pool.Num() - 1);
+		PendingPerkChoices.Add(Pool[Idx]);
+		Pool.RemoveAt(Idx);
+	}
+}
+
+void ACrownsBaneHUD::DrawPerkChoiceOverlay(ACrownsBanePlayerController* PC)
+{
+	if (!PC || !PC->Progression || !Canvas) return;
+	if (!PC->Progression->bPerkChoicePending) { PendingPerkChoices.Reset(); return; }
+	if (PendingPerkChoices.Num() == 0) RefreshPerkChoices(PC);
+	if (PendingPerkChoices.Num() == 0) return;
+
+	const float SW = Canvas->ClipX;
+	const float SH = Canvas->ClipY;
+	DrawFilledRect(0, 0, SW, SH, FLinearColor(0.0f, 0.0f, 0.0f, 0.7f));
+
+	const float PW = 700.f;
+	const float PH = 360.f;
+	const float PX = (SW - PW) * 0.5f;
+	const float PY = (SH - PH) * 0.5f;
+	DrawPanel(PX, PY, PW, PH, (uint8)CrownStyle::EPanelStyle::Highlight);
+
+	DrawText(TEXT("⚓ LEVEL UP — CHOOSE PERK"), CrownStyle::AccentGold.ToFColor(true),
+		PX + 24.f, PY + 16.f, nullptr, 1.6f, false);
+	DrawCaption(TEXT("Press 1 / 2 / 3 to select"), PX + 24.f, PY + 54.f);
+
+	// Perk row card.
+	auto PerkInfo = [](EShipPerk P, FString& OutName, FString& OutDesc)
+	{
+		switch (P)
+		{
+		case EShipPerk::EagleEye:     OutName = TEXT("EAGLE EYE");      OutDesc = TEXT("Lock-on range doubled (9k → 18k cm)"); break;
+		case EShipPerk::IronHull:     OutName = TEXT("IRON HULL");      OutDesc = TEXT("+15% max hull health"); break;
+		case EShipPerk::Cutthroat:    OutName = TEXT("CUTTHROAT");      OutDesc = TEXT("Boarding loot multiplier ×3"); break;
+		case EShipPerk::StormCaptain: OutName = TEXT("STORM CAPTAIN");  OutDesc = TEXT("Immune to storm wind chaos"); break;
+		case EShipPerk::Marksman:     OutName = TEXT("MARKSMAN");       OutDesc = TEXT("+10% critical hit chance"); break;
+		case EShipPerk::ReloadMaster: OutName = TEXT("RELOAD MASTER");  OutDesc = TEXT("Cannon reload −1.0 seconds"); break;
+		case EShipPerk::WindReader:   OutName = TEXT("WIND READER");    OutDesc = TEXT("Wind drift on your shots halved"); break;
+		case EShipPerk::Buccaneer:    OutName = TEXT("BUCCANEER");      OutDesc = TEXT("+25% to all gold gains"); break;
+		default:                      OutName = TEXT("???");            OutDesc = TEXT(""); break;
+		}
+	};
+
+	const float CardW = (PW - 80.f) / 3.f;
+	const float CardH = PH - 110.f;
+	const float CardY = PY + 86.f;
+	for (int32 i = 0; i < PendingPerkChoices.Num(); ++i)
+	{
+		const EShipPerk P = (EShipPerk)PendingPerkChoices[i];
+		FString Name, Desc;
+		PerkInfo(P, Name, Desc);
+		const float CardX = PX + 20.f + i * (CardW + 10.f);
+		DrawFilledRect(CardX, CardY, CardW, CardH, FLinearColor(0.10f, 0.08f, 0.04f, 0.85f));
+		DrawBorderedRect(CardX, CardY, CardW, CardH, CrownStyle::BgTransparent, CrownStyle::AccentGold, 1.5f);
+
+		// Number badge
+		DrawFilledRect(CardX + 12.f, CardY + 12.f, 28.f, 28.f, CrownStyle::AccentGold);
+		DrawText(FString::FromInt(i + 1), FColor(20, 20, 10), CardX + 20.f, CardY + 14.f, nullptr, 1.25f, false);
+
+		DrawText(Name, CrownStyle::TextGold, CardX + 50.f, CardY + 16.f, nullptr, 1.1f, false);
+
+		// Wrap desc across multiple lines (rough — split on space at ~24 chars).
+		// For simplicity show on two lines.
+		const int32 Cut = 26;
+		FString Line1 = Desc.Left(Cut);
+		FString Line2 = (Desc.Len() > Cut) ? Desc.Mid(Cut) : TEXT("");
+		// Try to break on word boundary
+		int32 LastSpace = Line1.Find(TEXT(" "), ESearchCase::IgnoreCase, ESearchDir::FromEnd);
+		if (Line2.Len() > 0 && LastSpace != INDEX_NONE && LastSpace > Cut - 8)
+		{
+			Line2 = Desc.Mid(LastSpace + 1);
+			Line1 = Desc.Left(LastSpace);
+		}
+		DrawText(Line1, CrownStyle::TextPrimary, CardX + 12.f, CardY + 80.f,  nullptr, 0.95f, false);
+		if (!Line2.IsEmpty())
+			DrawText(Line2, CrownStyle::TextPrimary, CardX + 12.f, CardY + 102.f, nullptr, 0.95f, false);
+	}
 }
