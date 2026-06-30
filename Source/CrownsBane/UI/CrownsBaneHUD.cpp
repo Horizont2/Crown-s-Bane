@@ -1957,20 +1957,31 @@ void ACrownsBaneHUD::DrawResourceToasts(float DeltaTime)
 		LastGold = G; LastWood = W; LastMetal = M;
 	}
 
-	// Render stack, bottom-right, oldest fading first.
-	const float BaseX = Canvas->ClipX - 220.f;
-	const float BaseY = Canvas->ClipY - 220.f;
+	// Render stack, bottom-right, oldest fading first; new toasts slide in from right.
+	const float BaseX = Canvas->ClipX - 230.f;
+	const float BaseY = Canvas->ClipY - 230.f;
 	for (int32 i = ResourceToasts.Num() - 1; i >= 0; --i)
 	{
 		FResourceToast& T = ResourceToasts[i];
 		T.TimeRemaining -= DeltaTime;
 		if (T.TimeRemaining <= 0.0f) { ResourceToasts.RemoveAt(i); continue; }
 
-		const float Alpha = FMath::Clamp(T.TimeRemaining / 1.8f, 0.0f, 1.0f);
-		FLinearColor Tint = T.Tint; Tint.A = Alpha;
+		const float Life01 = T.TimeRemaining / 1.8f;             // 1 → 0
+		// Slide-in: first 0.2s of life starts 80px to the right.
+		const float SlideT = CrownStyle::EaseOutCubic(FMath::Clamp((1.0f - Life01) * 8.0f, 0.f, 1.f));
+		const float Xoff   = (1.0f - SlideT) * 80.f;
+		const float A      = FMath::Min(1.0f, Life01 * 2.0f);
+
+		FLinearColor Tint = T.Tint; Tint.A = A;
+		const float X = BaseX + Xoff;
 		const float Y = BaseY + i * 26.f;
-		DrawFilledRect(BaseX, Y, 200.f, 22.f, FLinearColor(0.04f, 0.04f, 0.06f, 0.55f * Alpha));
-		DrawText(T.Text, Tint.ToFColor(true), BaseX + 12.f, Y + 4.f, nullptr, 0.95f, false);
+
+		// Bg + left accent stripe in toast colour.
+		DrawFilledRect(X, Y, 200.f, 22.f, FLinearColor(0.04f, 0.04f, 0.06f, 0.85f * A));
+		DrawFilledRect(X, Y, 3.f, 22.f, Tint);
+		// Text with shadow.
+		DrawText(T.Text, FColor(0,0,0, (uint8)(A * 200)), X + 11.f, Y + 5.f, nullptr, 0.95f, false);
+		DrawText(T.Text, Tint.ToFColor(true),             X + 10.f, Y + 4.f, nullptr, 0.95f, false);
 	}
 }
 
