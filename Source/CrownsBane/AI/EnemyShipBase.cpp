@@ -454,6 +454,9 @@ void AEnemyShipBase::OnDeath()
 				const int32 KillXP = FMath::Max(50, FMath::FloorToInt(HealthComponent->GetMaxHealth() * 0.5f));
 				CBPC->Progression->AwardXP(KillXP);
 			}
+			// Faction reputation: assume all enemies are naval — every kill
+			// loses 10 Naval rep and gains 5 Pirate rep.
+			CBPC->BumpFaction(-10.f, +5.f);
 		}
 		if (ACrownsBaneHUD* HUD = Cast<ACrownsBaneHUD>(PC->GetHUD()))
 		{

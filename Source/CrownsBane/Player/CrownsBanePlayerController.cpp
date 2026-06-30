@@ -421,3 +421,9 @@ void ACrownsBanePlayerController::ApplyPerkBonuses()
 		Ship->CannonComponent->ReloadTime = FMath::Max(0.5f, Ship->CannonComponent->ReloadTime - 1.0f);
 	}
 }
+
+void ACrownsBanePlayerController::BumpFaction(float NavalDelta, float PirateDelta)
+{
+	NavalRep  = FMath::Clamp(NavalRep + NavalDelta,  -100.f, 100.f);
+	PirateRep = FMath::Clamp(PirateRep + PirateDelta, -100.f, 100.f);
+}

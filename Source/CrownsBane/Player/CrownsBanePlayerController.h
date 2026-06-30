@@ -130,6 +130,13 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "Stats")  int32 StatGoldEarned = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "Stats")  float StatPlayTimeSeconds = 0.0f;
 
+	// ---- Faction reputation ----
+	UPROPERTY(BlueprintReadOnly, Category = "Faction")  float NavalRep  = 0.0f;
+	UPROPERTY(BlueprintReadOnly, Category = "Faction")  float PirateRep = 0.0f;
+
+	UFUNCTION(BlueprintCallable, Category = "Faction")
+	void BumpFaction(float NavalDelta, float PirateDelta);
+
 	UFUNCTION(BlueprintCallable, Category = "Stats")  void StatBumpShipsSunk();
 	UFUNCTION(BlueprintCallable, Category = "Stats")  void StatBumpBoardingsWon();
 	UFUNCTION(BlueprintCallable, Category = "Stats")  void StatBumpCannonballsFired(int32 N = 1);
