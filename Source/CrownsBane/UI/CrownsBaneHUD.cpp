@@ -350,30 +350,49 @@ void ACrownsBaneHUD::DrawReloadTimers(UCannonComponent* Cannons)
 
 void ACrownsBaneHUD::DrawWantedStars(AWantedLevelManager* WLM)
 {
-	if (!WLM) return;
+	if (!WLM || !Canvas) return;
 
-	float ScreenW = Canvas->ClipX;
-	int32 WantedLevel = WLM->GetWantedLevel();
-	int32 MaxLevel = WLM->GetWantedLevel(); // Use current as reference for max display
+	const float ScreenW = Canvas->ClipX;
+	const int32 WantedLevel = WLM->GetWantedLevel();
 
-	// Draw 5 stars at top center
-	float TotalWidth = 5.0f * (StarSize + 8.0f);
-	float StartX = (ScreenW - TotalWidth) * 0.5f;
-	float StarY = HUDPaddingY + StarSize * 0.5f;
+	// Bigger stars (1.4× original).
+	const float StarVisualR = StarSize * 0.7f;
+	const float StarGap = 12.f;
+	const float TotalWidth = 5.f * (StarVisualR * 2.f + StarGap);
+	const float StartX = (ScreenW - TotalWidth) * 0.5f;
+	const float StarY  = HUDPaddingY + StarVisualR * 0.5f + 8.f;
 
+	// Backplate panel for the row.
+	const float PadX = 18.f, PadY = 12.f;
+	DrawPanel(StartX - PadX, StarY - PadY, TotalWidth + PadX * 2.f, StarVisualR * 2.f + PadY * 2.f + 22.f,
+		(uint8)CrownStyle::EPanelStyle::Subtle);
+
+	const float Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
 	for (int32 i = 0; i < 5; ++i)
 	{
-		float StarX = StartX + i * (StarSize + 8.0f) + StarSize * 0.5f;
-		FLinearColor StarColor = (i < WLM->GetWantedLevel()) ? WantedStarColor : WantedStarEmptyColor;
-		DrawStar(StarX, StarY, StarSize * 0.5f, StarColor);
+		const float StarX = StartX + i * (StarVisualR * 2.f + StarGap) + StarVisualR;
+		const bool bActive = (i < WantedLevel);
+		FLinearColor C = bActive ? WantedStarColor : WantedStarEmptyColor;
+		if (bActive)
+		{
+			// Halo glow
+			const float Halo = 0.18f + 0.10f * CrownStyle::Pulse(Now + i * 0.13f, 1.2f);
+			DrawFilledRect(StarX - StarVisualR * 1.2f, StarY - StarVisualR * 1.2f,
+				StarVisualR * 2.4f, StarVisualR * 2.4f,
+				FLinearColor(C.R, C.G * 0.8f, 0.05f, Halo));
+		}
+		DrawStar(StarX, StarY + StarVisualR, StarVisualR, C);
 	}
 
-	// Wanted level label
-	FString WantedText = (WantedLevel > 0)
-		? FString::Printf(TEXT("WANTED - LEVEL %d"), WantedLevel)
-		: TEXT("WANTED - NONE");
-	FColor TextColor = (WantedLevel >= 4) ? FColor::Red : (WantedLevel >= 2 ? FColor::Orange : FColor::White);
-	DrawText(WantedText, TextColor, StartX, StarY + StarSize + 4.0f, nullptr, 0.9f, false);
+	// Wanted label with shadow.
+	const FString WT = (WantedLevel > 0)
+		? FString::Printf(TEXT("WANTED  LEVEL %d"), WantedLevel)
+		: TEXT("NO BOUNTY ON YE");
+	const FColor TextColor = (WantedLevel >= 4) ? FColor(220, 50, 40)
+		: (WantedLevel >= 2 ? FColor(230, 140, 50) : CrownStyle::TextPrimary);
+	const float LabelY = StarY + StarVisualR * 2.f + 8.f;
+	DrawText(WT, CrownStyle::TextShadow, StartX + 1.f, LabelY + 1.f, nullptr, 0.95f, false);
+	DrawText(WT, TextColor,              StartX,       LabelY,       nullptr, 0.95f, false);
 }
 
 void ACrownsBaneHUD::DrawResourceCounts(UPlayerInventory* Inventory)
@@ -381,31 +400,52 @@ void ACrownsBaneHUD::DrawResourceCounts(UPlayerInventory* Inventory)
 	if (!Inventory || !Canvas) return;
 
 	const float ScreenW = Canvas->ClipX;
-	const float PW = 200.f;
-	const float PH = 84.f;
+	const float PW = 220.f;
+	const float PH = 100.f;
 	const float PX = ScreenW - HUDPaddingX - PW;
-	const float PY = HUDPaddingY + 40.f; // below minimap header
+	const float PY = HUDPaddingY + 40.f;
 
-	DrawPanel(PX, PY, PW, PH, (uint8)CrownStyle::EPanelStyle::Subtle);
+	DrawPanel(PX, PY, PW, PH, (uint8)CrownStyle::EPanelStyle::Primary);
 
-	struct FRow { FLinearColor Tint; const TCHAR* Label; int32 Val; };
+	struct FRow { FLinearColor Tint; const TCHAR* Label; int32 Val; uint8 IconType; };
 	const FRow Rows[3] = {
-		{ CrownStyle::AccentGold,                                   TEXT("GOLD"),  Inventory->GetGold()  },
-		{ FLinearColor(0.65f, 0.45f, 0.25f, 1.f),                   TEXT("WOOD"),  Inventory->GetWood()  },
-		{ FLinearColor(0.75f, 0.78f, 0.85f, 1.f),                   TEXT("METAL"), Inventory->GetMetal() },
+		{ CrownStyle::AccentGold,                  TEXT("GOLD"),  Inventory->GetGold(),  0 },
+		{ FLinearColor(0.65f, 0.45f, 0.25f, 1.f),  TEXT("WOOD"),  Inventory->GetWood(),  1 },
+		{ FLinearColor(0.75f, 0.78f, 0.85f, 1.f),  TEXT("METAL"), Inventory->GetMetal(), 2 },
 	};
 
 	for (int32 i = 0; i < 3; ++i)
 	{
-		const float RY = PY + 10.f + i * 24.f;
-		// Colored badge
-		DrawFilledRect(PX + 10.f, RY + 2.f, 14.f, 14.f, Rows[i].Tint);
-		// Label + value
-		DrawText(Rows[i].Label, CrownStyle::TextSecondary,
-			PX + 32.f, RY, nullptr, 0.95f, false);
-		DrawText(FString::Printf(TEXT("%d"), Rows[i].Val),
-			Rows[i].Tint.ToFColor(true),
-			PX + PW - 80.f, RY, nullptr, 1.0f, false);
+		const float RY = PY + 16.f + i * 24.f;
+		const FLinearColor Tint = Rows[i].Tint;
+		// Icon drawn from rects.
+		const float IX = PX + 14.f;
+		const float IY = RY + 2.f;
+		switch (Rows[i].IconType)
+		{
+		case 0: // Gold coin — circle approximation (square + corner-trim rects).
+			DrawFilledRect(IX,        IY + 2.f, 14.f, 10.f, Tint);
+			DrawFilledRect(IX + 2.f,  IY,       10.f, 14.f, Tint);
+			DrawFilledRect(IX + 4.f,  IY + 4.f, 6.f,  6.f,  FLinearColor(Tint.R * 0.6f, Tint.G * 0.5f, Tint.B * 0.3f, 1.f));
+			break;
+		case 1: // Wood plank — wide rectangle with two darker grain lines.
+			DrawFilledRect(IX,        IY + 3.f, 14.f, 8.f, Tint);
+			DrawFilledRect(IX + 1.f,  IY + 5.f, 12.f, 1.f, FLinearColor(Tint.R * 0.5f, Tint.G * 0.5f, Tint.B * 0.5f, 1.f));
+			DrawFilledRect(IX + 1.f,  IY + 8.f, 12.f, 1.f, FLinearColor(Tint.R * 0.5f, Tint.G * 0.5f, Tint.B * 0.5f, 1.f));
+			break;
+		case 2: // Metal bar — angled bar shape.
+			DrawFilledRect(IX,        IY + 4.f, 14.f, 6.f, Tint);
+			DrawFilledRect(IX + 1.f,  IY + 5.f, 12.f, 4.f, FLinearColor(Tint.R * 1.2f, Tint.G * 1.2f, Tint.B * 1.2f, 1.f));
+			DrawFilledRect(IX,        IY + 4.f, 14.f, 1.f, FLinearColor(1, 1, 1, 0.5f));
+			break;
+		}
+		// Label with shadow.
+		DrawText(Rows[i].Label, CrownStyle::TextShadow,    PX + 39.f, RY + 1.f, nullptr, 0.95f, false);
+		DrawText(Rows[i].Label, CrownStyle::TextSecondary, PX + 38.f, RY,       nullptr, 0.95f, false);
+		// Value right-aligned.
+		const FString V = FString::Printf(TEXT("%d"), Rows[i].Val);
+		DrawText(V, CrownStyle::TextShadow,   PX + PW - 49.f, RY + 1.f, nullptr, 1.0f, false);
+		DrawText(V, Tint.ToFColor(true),      PX + PW - 50.f, RY,       nullptr, 1.0f, false);
 	}
 }
 
