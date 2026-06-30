@@ -192,6 +192,7 @@ void ACrownsBanePlayerController::TogglePauseMenu()
 	bShowMouseCursor = bPauseMenuOpen;
 	if (bPauseMenuOpen) SetInputMode(FInputModeGameAndUI());
 	else                SetInputMode(FInputModeGameOnly());
+	if (SoundManager) SoundManager->Play(ESoundCue::UIOpen);
 }
 
 void ACrownsBanePlayerController::ToggleTraderMenu()
@@ -313,7 +314,9 @@ bool ACrownsBanePlayerController::BuyUpgrade(uint8 CategoryByte)
 	AShipPawn* Ship = GetShipPawn();
 	if (!UM || !Ship || !PlayerInventory) return false;
 
-	return UM->PurchaseUpgrade((EUpgradeCategory)CategoryByte, PlayerInventory, Ship);
+	const bool bOK = UM->PurchaseUpgrade((EUpgradeCategory)CategoryByte, PlayerInventory, Ship);
+	if (bOK && SoundManager) SoundManager->Play(ESoundCue::UIClick, 1.2f);
+	return bOK;
 }
 
 AUpgradeManager* ACrownsBanePlayerController::GetUpgradeManager() const

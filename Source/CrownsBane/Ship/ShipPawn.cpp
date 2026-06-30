@@ -394,7 +394,7 @@ float AShipPawn::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent,
 		}
 	}
 
-	// Damage-direction marker for HUD.
+	// Damage-direction marker for HUD + sound cue.
 	if (MitigatedDamage > 0.0f && DamageCauser)
 	{
 		if (APlayerController* PC = Cast<APlayerController>(GetController()))
@@ -404,6 +404,11 @@ float AShipPawn::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent,
 				const FVector Dir = (DamageCauser->GetActorLocation() - GetActorLocation()).GetSafeNormal2D();
 				const float Yaw = FMath::RadiansToDegrees(FMath::Atan2(Dir.Y, Dir.X));
 				HUD->RegisterPlayerDamageFrom(Yaw);
+			}
+			if (ACrownsBanePlayerController* CBPC = Cast<ACrownsBanePlayerController>(PC))
+			{
+				if (CBPC->SoundManager) CBPC->SoundManager->Play(ESoundCue::DamageTaken, 1.0f);
+				CBPC->StatBumpDamageTaken(MitigatedDamage);
 			}
 		}
 	}
@@ -614,6 +619,11 @@ void AShipPawn::RegisterBoardingQTEPress()
 			GEngine->AddOnScreenDebugMessage(8888, 3.f, FColor::Green,
 				FString::Printf(TEXT("BOARDING WON — loot x%.1f"), BoardingLootMultiplier));
 		}
+		if (ACrownsBanePlayerController* CBPC = Cast<ACrownsBanePlayerController>(GetController()))
+		{
+			if (CBPC->SoundManager) CBPC->SoundManager->Play(ESoundCue::BoardingWin, 1.3f);
+			CBPC->StatBumpBoardingsWon();
+		}
 		bBoardingActive = false;
 		BoardingQTETarget = nullptr;
 		CurrentBoardingTarget = nullptr;
@@ -684,6 +694,14 @@ void AShipPawn::DoCameraAimFire()
 {
 	if (!CannonComponent || !Camera) return;
 	if (bBracing) return; // Brace blocks fire
+
+	// Cannon-fire sound (one cue per broadside; component PlayFireFX handles
+	// per-cannon muzzle FX).  Stat bump for shots fired.
+	if (ACrownsBanePlayerController* CBPC = Cast<ACrownsBanePlayerController>(GetController()))
+	{
+		if (CBPC->SoundManager) CBPC->SoundManager->Play(ESoundCue::CannonFire, 1.0f);
+		CBPC->StatBumpCannonballsFired(CannonComponent->GetCannonsPerSide());
+	}
 
 	if (bIsAiming)
 	{

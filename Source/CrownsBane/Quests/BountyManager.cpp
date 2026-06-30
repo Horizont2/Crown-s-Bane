@@ -4,6 +4,8 @@
 #include "Player/PlayerInventory.h"
 #include "Loot/ResourceTypes.h"
 #include "UI/CrownsBaneHUD.h"
+#include "Player/CrownsBanePlayerController.h"
+#include "Audio/SoundManager.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/World.h"
 #include "Engine/Engine.h"
@@ -63,7 +65,6 @@ void ABountyManager::NotifyEnemyKilled()
 			{
 				Inv->AddResource(EResourceType::Gold, Q.RewardGold);
 			}
-			// Cinematic mission-complete card on the player's HUD.
 			if (UWorld* W = GetWorld())
 			{
 				if (APlayerController* PC = UGameplayStatics::GetPlayerController(W, 0))
@@ -71,6 +72,11 @@ void ABountyManager::NotifyEnemyKilled()
 					if (ACrownsBaneHUD* HUD = Cast<ACrownsBaneHUD>(PC->GetHUD()))
 					{
 						HUD->ShowMissionComplete(Q.Title, Q.RewardGold, 0, 0);
+					}
+					// Sound cue.
+					if (ACrownsBanePlayerController* CBPC = Cast<ACrownsBanePlayerController>(PC))
+					{
+						if (CBPC->SoundManager) CBPC->SoundManager->Play(ESoundCue::QuestDone, 1.2f);
 					}
 				}
 			}
