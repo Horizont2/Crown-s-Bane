@@ -2170,30 +2170,43 @@ void ACrownsBaneHUD::DrawBanner(float DeltaTime)
 	const float D = FMath::Max(0.1f, BannerInitialDuration);
 	const float T = 1.0f - FMath::Clamp(BannerTimeRemaining / D, 0.f, 1.f);
 
-	// Letterbox in for the first 0.2s, hold, then out for last 0.5s.
-	const float HoldT = FMath::Clamp(T * 5.0f, 0.f, 1.f);
-	const float OutT  = FMath::Clamp((BannerTimeRemaining / D) * 2.0f, 0.f, 1.f);
-	const float A     = FMath::Min(HoldT, OutT);
+	// Smoothed in/out with eased curves.
+	const float InT  = CrownStyle::EaseOutCubic(FMath::Clamp(T * 5.0f, 0.f, 1.f));
+	const float OutT = CrownStyle::EaseOutCubic(FMath::Clamp((BannerTimeRemaining / D) * 2.0f, 0.f, 1.f));
+	const float A    = FMath::Min(InT, OutT);
 
 	const float SW = Canvas->ClipX;
 	const float SH = Canvas->ClipY;
-	const float Bar = SH * 0.12f * A;
+	const float Bar = SH * 0.13f * A;
 
-	// Letterbox bars
-	DrawFilledRect(0, 0, SW, Bar, FLinearColor(0,0,0, 0.85f * A));
-	DrawFilledRect(0, SH - Bar, SW, Bar, FLinearColor(0,0,0, 0.85f * A));
+	// Letterbox bars with gold accent edge.
+	DrawFilledRect(0, 0, SW, Bar, FLinearColor(0.02f, 0.02f, 0.025f, 0.92f * A));
+	DrawFilledRect(0, Bar, SW, 2.f, FLinearColor(CrownStyle::AccentGold.R, CrownStyle::AccentGold.G, CrownStyle::AccentGold.B, A * 0.9f));
+	DrawFilledRect(0, SH - Bar - 2.f, SW, 2.f, FLinearColor(CrownStyle::AccentGold.R, CrownStyle::AccentGold.G, CrownStyle::AccentGold.B, A * 0.9f));
+	DrawFilledRect(0, SH - Bar, SW, Bar, FLinearColor(0.02f, 0.02f, 0.025f, 0.92f * A));
 
-	// Title (display scale 2.0) centered.
-	const float CY = SH * 0.5f - 30.f;
-	const float CX = SW * 0.5f - 200.f;
+	// Title with shadow + glow.  Slide from below in first 25% of duration.
+	const float SlideY = (1.0f - InT) * 30.f;
+	const float CY = SH * 0.50f - 28.f + SlideY;
+	const float CX = SW * 0.5f - 220.f;
 
 	FColor TitleCol = BannerTint.ToFColor(true);
 	TitleCol.A = (uint8)(A * 255);
-	DrawText(BannerTitle, TitleCol, CX, CY, nullptr, 2.0f, false);
+	// 3-layer glow under title (faked text shadow expansion).
+	FColor GlowCol = TitleCol; GlowCol.A = (uint8)(A * 100);
+	for (int32 d = 1; d <= 3; ++d)
+	{
+		DrawText(BannerTitle, GlowCol, CX - d, CY - d, nullptr, 2.2f, false);
+		DrawText(BannerTitle, GlowCol, CX + d, CY + d, nullptr, 2.2f, false);
+	}
+	DrawText(BannerTitle, FColor(0,0,0, (uint8)(A * 220)), CX + 3, CY + 3, nullptr, 2.2f, false);
+	DrawText(BannerTitle, TitleCol, CX, CY, nullptr, 2.2f, false);
+
 	if (!BannerSubtitle.IsEmpty())
 	{
-		FColor SubCol(220, 220, 220, (uint8)(A * 220));
-		DrawText(BannerSubtitle, SubCol, CX, CY + 36.f, nullptr, 1.0f, false);
+		FColor SubCol(230, 220, 195, (uint8)(A * 230));
+		DrawText(BannerSubtitle, FColor(0,0,0, (uint8)(A * 220)), CX + 2, CY + 50.f, nullptr, 1.1f, false);
+		DrawText(BannerSubtitle, SubCol, CX, CY + 48.f, nullptr, 1.1f, false);
 	}
 }
 
