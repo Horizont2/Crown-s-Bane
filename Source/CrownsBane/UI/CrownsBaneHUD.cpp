@@ -1747,35 +1747,72 @@ void ACrownsBaneHUD::DrawLeadIndicator(AShipPawn* Ship)
 void ACrownsBaneHUD::DrawPanel(float X, float Y, float W, float H, uint8 Style)
 {
 	const CrownStyle::EPanelStyle S = static_cast<CrownStyle::EPanelStyle>(Style);
-	const FLinearColor Bg = (S == CrownStyle::EPanelStyle::Subtle) ? CrownStyle::BgLight : CrownStyle::BgDark;
-	DrawFilledRect(X, Y, W, H, Bg);
 
-	const FLinearColor Border = CrownStyle::BorderForStyle(S);
-	if (Border.A > 0.01f)
-	{
-		const float T = CrownStyle::ThicknessForStyle(S);
-		DrawBorderedRect(X, Y, W, H, CrownStyle::BgTransparent, Border, T);
-	}
+	// 1) Drop shadow under panel for floating feel.
+	DrawFilledRect(X + 3.f, Y + 3.f, W, H, FLinearColor(0.0f, 0.0f, 0.0f, 0.40f));
 
-	// Subtle highlight stripe along the top for "lit from above" feel.
+	// 2) Gradient background — 2 stacked rects with alpha to fake top-to-bottom shading.
 	if (S != CrownStyle::EPanelStyle::Subtle)
 	{
-		DrawFilledRect(X + 2.f, Y + 2.f, W - 4.f, 1.f, FLinearColor(1.0f, 1.0f, 1.0f, 0.06f));
+		DrawFilledRect(X, Y, W, H, CrownStyle::BgGradTop);
+		DrawFilledRect(X, Y + H * 0.5f, W, H * 0.5f, CrownStyle::BgGradBot);
+	}
+	else
+	{
+		DrawFilledRect(X, Y, W, H, CrownStyle::BgLight);
+	}
+
+	// 3) Outer dark border (2px), inset.
+	const FLinearColor Border = CrownStyle::BorderForStyle(S);
+	const float T = CrownStyle::ThicknessForStyle(S);
+	if (Border.A > 0.01f)
+	{
+		// Dark outline
+		DrawFilledRect(X, Y, W, T, CrownStyle::BorderOuter);
+		DrawFilledRect(X, Y + H - T, W, T, CrownStyle::BorderOuter);
+		DrawFilledRect(X, Y, T, H, CrownStyle::BorderOuter);
+		DrawFilledRect(X + W - T, Y, T, H, CrownStyle::BorderOuter);
+		// Bright inner highlight on top/left (lit-from-above)
+		DrawFilledRect(X + T, Y + T, W - 2.f * T, 1.f, Border);
+		DrawFilledRect(X + T, Y + T, 1.f, H - 2.f * T, Border * FLinearColor(1, 1, 1, 0.7f));
+		// Subtle bottom shadow inside
+		DrawFilledRect(X + T, Y + H - T - 1.f, W - 2.f * T, 1.f, FLinearColor(0, 0, 0, 0.4f));
+	}
+
+	// 4) Rivets — 4 small brass dots in panel corners.
+	if (S == CrownStyle::EPanelStyle::Highlight || S == CrownStyle::EPanelStyle::Primary)
+	{
+		const float R = CrownStyle::RivetSize;
+		const float P = 6.f;
+		const FLinearColor Rivet = CrownStyle::AccentGold;
+		DrawFilledRect(X + P,             Y + P,             R, R, Rivet);
+		DrawFilledRect(X + W - P - R,     Y + P,             R, R, Rivet);
+		DrawFilledRect(X + P,             Y + H - P - R,     R, R, Rivet);
+		DrawFilledRect(X + W - P - R,     Y + H - P - R,     R, R, Rivet);
+		// Centre dot on each rivet
+		DrawFilledRect(X + P + 1.5f,         Y + P + 1.5f,         2.f, 2.f, FLinearColor(0.05f, 0.04f, 0.02f, 1.0f));
+		DrawFilledRect(X + W - P - R + 1.5f, Y + P + 1.5f,         2.f, 2.f, FLinearColor(0.05f, 0.04f, 0.02f, 1.0f));
+		DrawFilledRect(X + P + 1.5f,         Y + H - P - R + 1.5f, 2.f, 2.f, FLinearColor(0.05f, 0.04f, 0.02f, 1.0f));
+		DrawFilledRect(X + W - P - R + 1.5f, Y + H - P - R + 1.5f, 2.f, 2.f, FLinearColor(0.05f, 0.04f, 0.02f, 1.0f));
 	}
 }
 
 void ACrownsBaneHUD::DrawBody(const FString& Text, float X, float Y, float Scale)
 {
+	// Shadow + main pass for legibility on any background.
+	DrawText(Text, CrownStyle::TextShadow, X + 1.5f, Y + 1.5f, nullptr, CrownStyle::ScaleBody * Scale, false);
 	DrawText(Text, CrownStyle::TextPrimary, X, Y, nullptr, CrownStyle::ScaleBody * Scale, false);
 }
 
 void ACrownsBaneHUD::DrawHeading(const FString& Text, float X, float Y)
 {
+	DrawText(Text, CrownStyle::TextShadow, X + 2.f, Y + 2.f, nullptr, CrownStyle::ScaleHeading, false);
 	DrawText(Text, CrownStyle::TextGold, X, Y, nullptr, CrownStyle::ScaleHeading, false);
 }
 
 void ACrownsBaneHUD::DrawCaption(const FString& Text, float X, float Y)
 {
+	DrawText(Text, CrownStyle::TextShadow, X + 1.f, Y + 1.f, nullptr, CrownStyle::ScaleCaption, false);
 	DrawText(Text, CrownStyle::TextDim, X, Y, nullptr, CrownStyle::ScaleCaption, false);
 }
 
@@ -1783,10 +1820,11 @@ void ACrownsBaneHUD::DrawSmoothBar(float X, float Y, float W, float H, float Fra
 {
 	Frac = FMath::Clamp(Frac, 0.0f, 1.0f);
 
-	// Background trough (slightly larger for outline)
-	DrawFilledRect(X - 1.f, Y - 1.f, W + 2.f, H + 2.f, FLinearColor(0.05f, 0.05f, 0.05f, 0.95f));
+	// Dark outer frame (2px) + inset shadow trough.
+	DrawFilledRect(X - 2.f, Y - 2.f, W + 4.f, H + 4.f, CrownStyle::BorderOuter);
+	DrawFilledRect(X - 1.f, Y - 1.f, W + 2.f, H + 2.f, FLinearColor(0.04f, 0.03f, 0.02f, 0.95f));
 
-	// Fill
+	// Fill with optional pulse boost.
 	const float Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
 	const float PulseAdd = bPulse ? (0.20f * CrownStyle::Pulse(Now, 1.2f)) : 0.0f;
 	FLinearColor F = Fill;
@@ -1795,8 +1833,11 @@ void ACrownsBaneHUD::DrawSmoothBar(float X, float Y, float W, float H, float Fra
 	F.B = FMath::Clamp(F.B + PulseAdd, 0.f, 1.f);
 	DrawFilledRect(X, Y, W * Frac, H, F);
 
-	// Highlight strip (top 1px)
-	DrawFilledRect(X, Y, W * Frac, 1.f, FLinearColor(1.0f, 1.0f, 1.0f, 0.4f));
+	// Top highlight strip (sheen)
+	DrawFilledRect(X, Y, W * Frac, FMath::Max(1.f, H * 0.18f), FLinearColor(1, 1, 1, 0.22f));
+	// Bottom darken strip for 3D
+	DrawFilledRect(X, Y + H - FMath::Max(1.f, H * 0.18f), W * Frac, FMath::Max(1.f, H * 0.18f),
+		FLinearColor(0, 0, 0, 0.22f));
 }
 
 // ============== UI-B: RESOURCE TOASTS + LOW-HP WARNING ==============
