@@ -1123,18 +1123,17 @@ void AShipPawn::RespawnAtLastDock()
 	// Gold penalty.
 	if (ACrownsBanePlayerController* PC = Cast<ACrownsBanePlayerController>(GetController()))
 	{
+		int32 Lost = 0;
 		if (UPlayerInventory* Inv = PC->PlayerInventory)
 		{
-			const int32 Lost = FMath::FloorToInt(Inv->GetGold() * DeathGoldPenaltyFraction);
+			Lost = FMath::FloorToInt(Inv->GetGold() * DeathGoldPenaltyFraction);
 			Inv->SpendResource(EResourceType::Gold, Lost);
-			if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 6.f, FColor::Red,
-				FString::Printf(TEXT("Death penalty: -%d gold"), Lost));
 		}
-		// Banner.
+		// Death screen overlay.
 		if (ACrownsBaneHUD* HUD = Cast<ACrownsBaneHUD>(PC->GetHUD()))
 		{
-			HUD->ShowBanner(TEXT("YE LIVED, CAPTAIN"), TEXT("Respawned at port."),
-				FLinearColor(1.0f, 0.85f, 0.3f, 1.0f), 3.0f);
+			HUD->TriggerDeathScreen(Lost, NearestDock->DockName.IsEmpty()
+				? TEXT("Port") : NearestDock->DockName);
 		}
 	}
 

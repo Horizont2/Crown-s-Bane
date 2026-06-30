@@ -320,6 +320,17 @@ private:
 	void DrawHelpOverlay();
 	void DrawXPBar(class ACrownsBanePlayerController* PC);
 	void DrawPerkChoiceOverlay(class ACrownsBanePlayerController* PC);
+
+	// Death screen — fades in during ShipPawn::TickSinking and dismisses on respawn.
+public:
+	UFUNCTION(BlueprintCallable, Category = "HUD|Death")
+	void TriggerDeathScreen(int32 GoldLost, const FString& DockName);
+private:
+	bool bDeathScreenActive = false;
+	float DeathScreenTimer = 0.0f;
+	int32 DeathScreenGoldLost = 0;
+	FString DeathScreenDockName;
+	void DrawDeathScreen(float DeltaTime);
 	// Rotating set of 3 perk offers — randomised once per pending choice.
 	TArray<uint8> PendingPerkChoices;
 	void RefreshPerkChoices(class ACrownsBanePlayerController* PC);

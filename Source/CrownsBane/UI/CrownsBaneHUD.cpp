@@ -180,6 +180,7 @@ void ACrownsBaneHUD::DrawHUD()
 			DrawPerkChoiceOverlay(CBPC3);
 		}
 	}
+	DrawDeathScreen(Dt);
 }
 
 void ACrownsBaneHUD::DrawTextWithShadow(const FString& Text, FColor TextColor, float X, float Y, UFont* Font, float Scale)
@@ -2352,5 +2353,55 @@ void ACrownsBaneHUD::DrawPerkChoiceOverlay(ACrownsBanePlayerController* PC)
 		DrawText(Line1, CrownStyle::TextPrimary, CardX + 12.f, CardY + 80.f,  nullptr, 0.95f, false);
 		if (!Line2.IsEmpty())
 			DrawText(Line2, CrownStyle::TextPrimary, CardX + 12.f, CardY + 102.f, nullptr, 0.95f, false);
+	}
+}
+
+// ============== DEATH SCREEN (Г.3) ==============
+
+void ACrownsBaneHUD::TriggerDeathScreen(int32 GoldLost, const FString& DockName)
+{
+	bDeathScreenActive    = true;
+	DeathScreenTimer      = 4.5f;
+	DeathScreenGoldLost   = GoldLost;
+	DeathScreenDockName   = DockName;
+}
+
+void ACrownsBaneHUD::DrawDeathScreen(float DeltaTime)
+{
+	if (!bDeathScreenActive || !Canvas) return;
+	DeathScreenTimer -= DeltaTime;
+	if (DeathScreenTimer <= 0.0f)
+	{
+		bDeathScreenActive = false;
+		return;
+	}
+
+	const float SW = Canvas->ClipX;
+	const float SH = Canvas->ClipY;
+	const float T = DeathScreenTimer / 4.5f;          // 1 → 0 over duration
+	const float InAlpha = FMath::Clamp((1.0f - T) * 2.5f, 0.f, 1.f);
+	const float OutAlpha = FMath::Clamp(T * 2.0f, 0.f, 1.f);
+	const float A = FMath::Min(InAlpha, OutAlpha);
+
+	// Black overlay
+	DrawFilledRect(0, 0, SW, SH, FLinearColor(0.0f, 0.0f, 0.0f, FMath::Min(0.85f, A * 0.9f)));
+
+	// Title "YE HAVE DIED"
+	FColor Red(220, 30, 30, (uint8)(A * 255));
+	DrawText(TEXT("YE HAVE DIED"), Red, SW * 0.5f - 160.f, SH * 0.32f, nullptr, 2.8f, false);
+
+	FColor Body(240, 220, 180, (uint8)(A * 255));
+	const FString GoldStr = FString::Printf(TEXT("Gold lost: %d"), DeathScreenGoldLost);
+	DrawText(GoldStr, Body, SW * 0.5f - 80.f, SH * 0.46f, nullptr, 1.2f, false);
+
+	const FString DockStr = FString::Printf(TEXT("Respawning at %s..."), *DeathScreenDockName);
+	DrawText(DockStr, Body, SW * 0.5f - 140.f, SH * 0.54f, nullptr, 1.2f, false);
+
+	// Countdown
+	const int32 Sec = FMath::CeilToInt(FMath::Max(0.0f, DeathScreenTimer - 1.5f));
+	if (Sec > 0)
+	{
+		FColor Big(255, 230, 140, (uint8)(A * 255));
+		DrawText(FString::Printf(TEXT("%d"), Sec), Big, SW * 0.5f - 14.f, SH * 0.62f, nullptr, 2.4f, false);
 	}
 }
