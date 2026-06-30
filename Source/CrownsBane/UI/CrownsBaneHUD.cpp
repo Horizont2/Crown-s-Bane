@@ -166,7 +166,11 @@ void ACrownsBaneHUD::DrawHUD()
 	{
 		if (ACrownsBanePlayerController* CBPC2 = Cast<ACrownsBanePlayerController>(RawPC2))
 		{
-			if (CBPC2->IsPauseMenuOpen()) DrawPauseMenu(CBPC2);
+			if (CBPC2->IsPauseMenuOpen())
+			{
+				if (PauseSubTab == 1) DrawSettingsPanel(CBPC2);
+				else                  DrawPauseMenu(CBPC2);
+			}
 		}
 	}
 
@@ -2403,5 +2407,64 @@ void ACrownsBaneHUD::DrawDeathScreen(float DeltaTime)
 	{
 		FColor Big(255, 230, 140, (uint8)(A * 255));
 		DrawText(FString::Printf(TEXT("%d"), Sec), Big, SW * 0.5f - 14.f, SH * 0.62f, nullptr, 2.4f, false);
+	}
+}
+
+// ============== SETTINGS PANEL (Г.2A) ==============
+
+void ACrownsBaneHUD::DrawSettingsPanel(ACrownsBanePlayerController* PC)
+{
+	if (!PC || !Canvas) return;
+
+	const float SW = Canvas->ClipX;
+	const float SH = Canvas->ClipY;
+
+	const float PW = 500.f;
+	const float PH = 420.f;
+	const float PX = (SW - PW) * 0.5f;
+	const float PY = (SH - PH) * 0.5f;
+
+	DrawPanel(PX, PY, PW, PH, (uint8)CrownStyle::EPanelStyle::Highlight);
+	DrawText(TEXT("⚙ SETTINGS"), CrownStyle::AccentGold.ToFColor(true),
+		PX + CrownStyle::Sp3, PY + 16.f, nullptr, CrownStyle::ScaleDisplay, false);
+	DrawCaption(TEXT("[ESC] or [F2] back to game"), PX + CrownStyle::Sp3, PY + 54.f);
+
+	DrawFilledRect(PX + CrownStyle::Sp3, PY + 80.f, PW - CrownStyle::Sp4, 1.f,
+		CrownStyle::AccentGold * FLinearColor(1,1,1,0.5f));
+
+	AShipPawn* Ship = Cast<AShipPawn>(PC->GetPawn());
+
+	// Build display rows.  Read-only here — sliders would need mouse handling
+	// (beyond the scope of a Canvas-only HUD); shown for visibility + the
+	// adjacent +/- hint tells the player how to change them.
+	struct FRow { const TCHAR* Label; FString Val; const TCHAR* Hint; };
+	TArray<FRow> Rows;
+	Rows.Add({ TEXT("Master Volume"),
+		FString::Printf(TEXT("%.0f%%"), (PC->SoundManager ? PC->SoundManager->MasterVolume : 1.f) * 100.f),
+		TEXT("[Q/E] adjust") });
+	Rows.Add({ TEXT("SFX Volume"),
+		FString::Printf(TEXT("%.0f%%"), (PC->SoundManager ? PC->SoundManager->SFXVolume : 1.f) * 100.f),
+		TEXT("[A/D] adjust") });
+	Rows.Add({ TEXT("Music Volume"),
+		FString::Printf(TEXT("%.0f%%"), (PC->SoundManager ? PC->SoundManager->MusicVolume : 0.8f) * 100.f),
+		TEXT("[Z/C] adjust") });
+	Rows.Add({ TEXT("Mouse Sensitivity"),
+		FString::Printf(TEXT("%.2fx"), Ship ? Ship->LookYawSensitivity : 1.2f),
+		TEXT("[R/F] adjust") });
+	Rows.Add({ TEXT("Invert Mouse Y"),
+		Ship && Ship->bInvertMouseY ? TEXT("ON") : TEXT("OFF"),
+		TEXT("[I] toggle") });
+	Rows.Add({ TEXT("Default FOV"),
+		FString::Printf(TEXT("%.0f°"), Ship ? Ship->DefaultFOV : 90.f),
+		TEXT("[T/G] adjust") });
+
+	float Y = PY + 96.f;
+	for (const FRow& R : Rows)
+	{
+		DrawFilledRect(PX + CrownStyle::Sp3, Y, PW - CrownStyle::Sp4, 36.f, CrownStyle::BgLight);
+		DrawText(R.Label, CrownStyle::TextPrimary, PX + CrownStyle::Sp4, Y + 8.f, nullptr, 1.0f, false);
+		DrawText(R.Val,   CrownStyle::TextGold,    PX + 240.f,           Y + 8.f, nullptr, 1.05f, false);
+		DrawText(R.Hint,  CrownStyle::TextDim,     PX + PW - 130.f,      Y + 8.f, nullptr, 0.85f, false);
+		Y += 44.f;
 	}
 }

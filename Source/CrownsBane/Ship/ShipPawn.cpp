@@ -150,6 +150,7 @@ void AShipPawn::EnsureInputAssetsExist()
 	MakeIA(IA_DropAnchor,  EInputActionValueType::Boolean, TEXT("IA_DropAnchor_Auto"));
 	MakeIA(IA_Pause,       EInputActionValueType::Boolean, TEXT("IA_Pause_Auto"));
 	MakeIA(IA_Help,        EInputActionValueType::Boolean, TEXT("IA_Help_Auto"));
+	MakeIA(IA_Settings,    EInputActionValueType::Boolean, TEXT("IA_Settings_Auto"));
 
 	if (!ShipMappingContext)
 	{
@@ -174,6 +175,7 @@ void AShipPawn::EnsureInputAssetsExist()
 		ShipMappingContext->MapKey(IA_DropAnchor,  EKeys::V);
 		ShipMappingContext->MapKey(IA_Pause,       EKeys::Escape);
 		ShipMappingContext->MapKey(IA_Help,        EKeys::F1);
+		ShipMappingContext->MapKey(IA_Settings,    EKeys::F2);
 	}
 }
 
@@ -213,6 +215,7 @@ void AShipPawn::AddInputMappingContext()
 	if (IA_DropAnchor)  Overlay->MapKey(IA_DropAnchor,  EKeys::V);
 	if (IA_Pause)       Overlay->MapKey(IA_Pause,       EKeys::Escape);
 	if (IA_Help)        Overlay->MapKey(IA_Help,        EKeys::F1);
+	if (IA_Settings)    Overlay->MapKey(IA_Settings,    EKeys::F2);
 
 	Subsystem->AddMappingContext(Overlay, 0);
 }
@@ -343,6 +346,7 @@ void AShipPawn::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 		if (IA_DropAnchor)  EIC->BindAction(IA_DropAnchor,  ETriggerEvent::Started, this, &AShipPawn::Input_DropAnchor);
 		if (IA_Pause)       EIC->BindAction(IA_Pause,       ETriggerEvent::Started, this, &AShipPawn::Input_Pause);
 		if (IA_Help)        EIC->BindAction(IA_Help,        ETriggerEvent::Started, this, &AShipPawn::Input_Help);
+		if (IA_Settings)    EIC->BindAction(IA_Settings,    ETriggerEvent::Started, this, &AShipPawn::Input_Settings);
 
 		bEnhancedInputReady = true;
 	}
@@ -466,6 +470,14 @@ void AShipPawn::Input_Help(const FInputActionValue&)
 	if (ACrownsBaneHUD* HUD = Cast<ACrownsBaneHUD>(GetWorld()->GetFirstPlayerController()->GetHUD()))
 	{
 		HUD->bShowHelpOverlay = !HUD->bShowHelpOverlay;
+	}
+}
+
+void AShipPawn::Input_Settings(const FInputActionValue&)
+{
+	if (ACrownsBaneHUD* HUD = Cast<ACrownsBaneHUD>(GetWorld()->GetFirstPlayerController()->GetHUD()))
+	{
+		HUD->PauseSubTab = (HUD->PauseSubTab == 1) ? 0 : 1;
 	}
 }
 

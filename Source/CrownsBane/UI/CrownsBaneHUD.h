@@ -318,6 +318,10 @@ private:
 	void DrawMissionComplete(float DeltaTime);
 	void DrawPauseMenu(class ACrownsBanePlayerController* PC);
 	void DrawHelpOverlay();
+	void DrawSettingsPanel(class ACrownsBanePlayerController* PC);
+
+	// Pause menu sub-tab.  0 = main, 1 = settings.
+	int32 PauseSubTab = 0;
 	void DrawXPBar(class ACrownsBanePlayerController* PC);
 	void DrawPerkChoiceOverlay(class ACrownsBanePlayerController* PC);
 
