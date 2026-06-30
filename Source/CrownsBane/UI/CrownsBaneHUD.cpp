@@ -220,33 +220,45 @@ void ACrownsBaneHUD::DrawHealthBar(AShipPawn* Ship)
 	const float BarX = HUDPaddingX + 10.f;
 	const float BarY = ScreenH - HUDPaddingY - HealthBarHeight - 50.f;
 
-	// Outer panel
-	DrawPanel(BarX - 6.f, BarY - 26.f, HealthBarWidth + 12.f, HealthBarHeight + 56.f,
-		(uint8)CrownStyle::EPanelStyle::Subtle);
+	// Outer styled panel with rivets + gradient.
+	DrawPanel(BarX - 12.f, BarY - 32.f, HealthBarWidth + 24.f, HealthBarHeight + 70.f,
+		(uint8)CrownStyle::EPanelStyle::Primary);
 
-	// Header
-	DrawText(FString::Printf(TEXT("HULL  %.0f / %.0f"),
-			Ship->HealthComponent->GetCurrentHealth(), Ship->HealthComponent->GetMaxHealth()),
-		CrownStyle::TextPrimary, BarX, BarY - 22.f, nullptr, 0.95f, false);
+	// Header with shadow.
+	DrawText(TEXT("HULL INTEGRITY"), CrownStyle::TextShadow, BarX + 1.f, BarY - 21.f, nullptr, 0.85f, false);
+	DrawText(TEXT("HULL INTEGRITY"), CrownStyle::TextGold,   BarX,        BarY - 22.f, nullptr, 0.85f, false);
 
-	// Segmented bar — 20 chunks separated by 1-px gutters.  Empty chunks dim,
-	// full chunks tinted by overall pct (green->red).
+	const FString HpVal = FString::Printf(TEXT("%.0f / %.0f"),
+		Ship->HealthComponent->GetCurrentHealth(), Ship->HealthComponent->GetMaxHealth());
+	DrawText(HpVal, CrownStyle::TextShadow, BarX + HealthBarWidth - 79.f, BarY - 21.f, nullptr, 0.95f, false);
+	DrawText(HpVal, CrownStyle::TextPrimary, BarX + HealthBarWidth - 80.f, BarY - 22.f, nullptr, 0.95f, false);
+
+	// Dark inset trough behind segments.
+	DrawFilledRect(BarX - 2.f, BarY - 2.f, HealthBarWidth + 4.f, HealthBarHeight + 4.f, CrownStyle::BorderOuter);
+	DrawFilledRect(BarX - 1.f, BarY - 1.f, HealthBarWidth + 2.f, HealthBarHeight + 2.f, FLinearColor(0.04f, 0.03f, 0.02f, 0.95f));
+
+	// Segmented bar — 20 chunks, deeper indents, smooth red→amber→green gradient.
 	const int32 Segments = 20;
 	const float SegW = (HealthBarWidth - (Segments - 1)) / (float)Segments;
-	const FLinearColor FillColor = FLinearColor::LerpUsingHSV(
-		FLinearColor(0.85f, 0.1f, 0.1f, 1.0f), HealthBarColor, DisplayedHealthPct);
+	FLinearColor FillColor =
+		DisplayedHealthPct > 0.6f ? FLinearColor::LerpUsingHSV(FLinearColor(0.95f, 0.78f, 0.20f, 1.f), FLinearColor(0.30f, 0.85f, 0.30f, 1.f), (DisplayedHealthPct - 0.6f) / 0.4f) :
+		DisplayedHealthPct > 0.3f ? FLinearColor::LerpUsingHSV(FLinearColor(0.92f, 0.32f, 0.18f, 1.f), FLinearColor(0.95f, 0.78f, 0.20f, 1.f), (DisplayedHealthPct - 0.3f) / 0.3f) :
+		                            FLinearColor(0.92f, 0.18f, 0.12f, 1.f);
 
 	for (int32 i = 0; i < Segments; ++i)
 	{
 		const float SegX = BarX + i * (SegW + 1.f);
 		const float ThisFrac = FMath::Clamp(DisplayedHealthPct * Segments - i, 0.f, 1.f);
-		// Background segment
-		DrawFilledRect(SegX, BarY, SegW, HealthBarHeight, FLinearColor(0.08f, 0.06f, 0.04f, 0.85f));
+		// Dark cell background
+		DrawFilledRect(SegX, BarY, SegW, HealthBarHeight, FLinearColor(0.07f, 0.05f, 0.03f, 0.95f));
 		if (ThisFrac > 0.0f)
 		{
-			DrawFilledRect(SegX, BarY, SegW * ThisFrac, HealthBarHeight, FillColor);
-			// Highlight top edge
-			DrawFilledRect(SegX, BarY, SegW * ThisFrac, 1.f, FLinearColor(1.0f, 1.0f, 1.0f, 0.35f));
+			const float FW = SegW * ThisFrac;
+			DrawFilledRect(SegX, BarY, FW, HealthBarHeight, FillColor);
+			// Sheen on top half
+			DrawFilledRect(SegX, BarY, FW, HealthBarHeight * 0.45f, FLinearColor(1.f, 1.f, 1.f, 0.16f));
+			// Bottom darken
+			DrawFilledRect(SegX, BarY + HealthBarHeight * 0.65f, FW, HealthBarHeight * 0.35f, FLinearColor(0.f, 0.f, 0.f, 0.18f));
 		}
 	}
 
@@ -275,28 +287,65 @@ void ACrownsBaneHUD::DrawHealthBar(AShipPawn* Ship)
 
 void ACrownsBaneHUD::DrawReloadTimers(UCannonComponent* Cannons)
 {
-	if (!Cannons) return;
-	float CenterX = Canvas->ClipX * 0.5f;
-	float BarY = Canvas->ClipY - HUDPaddingY - ReloadBarHeight - 20.0f;
+	if (!Cannons || !Canvas) return;
+	const float CenterX = Canvas->ClipX * 0.5f;
+	const float BarH    = ReloadBarHeight * 0.55f;
+	const float BarY    = Canvas->ClipY - HUDPaddingY - BarH - 24.0f;
+	const float Now     = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
 
-	// Пульсація для готових гармат
-	float PulseAlpha = FMath::Sin(GetWorld()->GetTimeSeconds() * 6.0f) * 0.5f + 0.5f;
-	FLinearColor PulsingReadyColor = FLinearColor::LerpUsingHSV(ReloadReadyColor, FLinearColor::White, PulseAlpha * 0.3f);
+	auto DrawCannonBar = [&](ECannonSide Side, float XOffset, const FString& LabelKey)
+	{
+		const float Progress = Cannons->GetReloadProgress(Side);
+		const float BarX = CenterX + XOffset;
 
-	auto DrawSide = [&](ECannonSide Side, float XOffset, const FString& LabelKey) {
-		float Progress = Cannons->GetReloadProgress(Side);
-		float BarX = CenterX + XOffset;
-		FLinearColor Color = (Progress >= 1.0f) ? PulsingReadyColor : FLinearColor::LerpUsingHSV(ReloadEmptyColor, ReloadReadyColor, Progress);
+		// Frame: dark outer + inset shadow.
+		DrawFilledRect(BarX - 3.f, BarY - 3.f, ReloadBarWidth + 6.f, BarH + 6.f, CrownStyle::BorderOuter);
+		DrawFilledRect(BarX - 1.f, BarY - 1.f, ReloadBarWidth + 2.f, BarH + 2.f, FLinearColor(0.04f, 0.03f, 0.02f, 0.95f));
 
-		DrawMinimalistBar(BarX, BarY, ReloadBarWidth, ReloadBarHeight * 0.4f, Progress, Color);
+		// Cannon-chamber: solid dark base.
+		DrawFilledRect(BarX, BarY, ReloadBarWidth, BarH, FLinearColor(0.08f, 0.06f, 0.04f, 1.0f));
 
-		FString Label = Cannons->CanFire(Side) ? FString::Printf(TEXT("%s READY"), *LabelKey) : FString::Printf(TEXT("RELOADING..."));
-		FColor TextColor = (Progress >= 1.0f) ? FColor(255, 215, 0, 200 + (int)(PulseAlpha * 55)) : FColor(150, 150, 150, 200);
-		DrawTextWithShadow(Label, TextColor, BarX, BarY - 18.0f, nullptr, 0.8f);
-		};
+		// Fill: amber while reloading, glowing orange-gold when ready.
+		const bool bReady = (Progress >= 1.0f);
+		FLinearColor Fill = bReady
+			? FLinearColor(1.0f, 0.78f, 0.20f, 1.0f)
+			: FLinearColor::LerpUsingHSV(FLinearColor(0.25f, 0.20f, 0.10f, 1.0f),
+			                              FLinearColor(0.85f, 0.55f, 0.15f, 1.0f), Progress);
+		if (bReady)
+		{
+			const float P = 0.65f + 0.35f * CrownStyle::Pulse(Now, 1.4f);
+			Fill.R = FMath::Clamp(Fill.R * P + 0.15f * (1.f - P), 0.f, 1.f);
+			Fill.G = FMath::Clamp(Fill.G * P, 0.f, 1.f);
+		}
+		const float FillW = ReloadBarWidth * Progress;
+		DrawFilledRect(BarX, BarY, FillW, BarH, Fill);
+		// Sheen + bottom shadow
+		DrawFilledRect(BarX, BarY, FillW, BarH * 0.35f, FLinearColor(1, 1, 1, 0.18f));
+		DrawFilledRect(BarX, BarY + BarH * 0.7f, FillW, BarH * 0.3f, FLinearColor(0, 0, 0, 0.25f));
 
-	DrawSide(ECannonSide::Left, -ReloadBarWidth - 30.0f, TEXT("PORT [Q]"));
-	DrawSide(ECannonSide::Right, 30.0f, TEXT("STBD [E]"));
+		// Glow halo around bar when ready.
+		if (bReady)
+		{
+			const float A = 0.15f + 0.20f * CrownStyle::Pulse(Now, 1.4f);
+			DrawFilledRect(BarX - 4.f, BarY - 4.f, ReloadBarWidth + 8.f, BarH + 8.f,
+				FLinearColor(1.0f, 0.78f, 0.20f, A * 0.5f));
+		}
+
+		// Label.
+		const FString Label = bReady ? FString::Printf(TEXT("%s  READY"), *LabelKey)
+		                             : FString::Printf(TEXT("%s  RELOADING %.0f%%"), *LabelKey, Progress * 100.f);
+		const FColor LabelCol = bReady ? FColor(255, 220, 110) : FColor(180, 170, 140);
+		DrawText(Label, CrownStyle::TextShadow, BarX + 1.f, BarY - 18.f, nullptr, 0.85f, false);
+		DrawText(Label, LabelCol, BarX, BarY - 19.f, nullptr, 0.85f, false);
+	};
+
+	DrawCannonBar(ECannonSide::Left,  -ReloadBarWidth - 30.0f, TEXT("PORT  [Q]"));
+	DrawCannonBar(ECannonSide::Right,  30.0f,                   TEXT("[E]  STBD"));
+
+	// Centre cannon-count indicator.
+	const FString CountStr = FString::Printf(TEXT("%d cannons / side"), Cannons->GetCannonsPerSide());
+	DrawText(CountStr, CrownStyle::TextShadow, CenterX - 70.f + 1.f, BarY + BarH + 7.f, nullptr, 0.85f, false);
+	DrawText(CountStr, CrownStyle::TextDim,    CenterX - 70.f,       BarY + BarH + 6.f, nullptr, 0.85f, false);
 }
 
 void ACrownsBaneHUD::DrawWantedStars(AWantedLevelManager* WLM)
