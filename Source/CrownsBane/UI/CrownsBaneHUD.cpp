@@ -2374,27 +2374,33 @@ void ACrownsBaneHUD::DrawXPBar(ACrownsBanePlayerController* PC)
 	UShipProgressionComponent* P = PC->Progression;
 
 	const float SW = Canvas->ClipX;
-	const float W = 220.f;
-	const float H = 12.f;
+	const float W = 260.f;
+	const float H = 14.f;
 	const float X = (SW - W) * 0.5f;
-	const float Y = HUDPaddingY + 88.f;
+	const float Y = HUDPaddingY + 108.f;
 
-	// Label
-	DrawText(FString::Printf(TEXT("LVL %d"), P->Level), CrownStyle::AccentGold.ToFColor(true),
-		X, Y - 18.f, nullptr, 0.95f, false);
+	// Level + perk-available label with shadow.
+	const FString LvlStr = FString::Printf(TEXT("LVL  %d"), P->Level);
+	DrawText(LvlStr, CrownStyle::TextShadow, X + 1.f, Y - 19.f, nullptr, 1.0f, false);
+	DrawText(LvlStr, CrownStyle::AccentGoldBright.ToFColor(true), X, Y - 20.f, nullptr, 1.0f, false);
+
 	if (P->bPerkChoicePending)
 	{
-		DrawText(TEXT("⚑ NEW PERK AVAILABLE"), FColor(255, 220, 100),
-			X + 60.f, Y - 18.f, nullptr, 0.9f, false);
+		const float Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
+		const float P01 = 0.7f + 0.3f * CrownStyle::Pulse(Now, 1.5f);
+		FColor Glow(255, (uint8)(220.f * P01), 80, 255);
+		DrawText(TEXT("◆ NEW PERK!"), CrownStyle::TextShadow, X + 71.f, Y - 19.f, nullptr, 0.95f, false);
+		DrawText(TEXT("◆ NEW PERK!"), Glow,                   X + 70.f, Y - 20.f, nullptr, 0.95f, false);
 	}
 
-	// XP bar
 	const float Frac = P->GetXPForNextLevel() > 0
 		? FMath::Clamp((float)P->XP / (float)P->GetXPForNextLevel(), 0.f, 1.f)
 		: 0.f;
 	DrawSmoothBar(X, Y, W, H, Frac, CrownStyle::AccentGold, false);
-	DrawText(FString::Printf(TEXT("%d / %d XP"), P->XP, P->GetXPForNextLevel()),
-		CrownStyle::TextSecondary, X + W * 0.5f - 30.f, Y - 1.f, nullptr, 0.7f, false);
+
+	const FString XPStr = FString::Printf(TEXT("%d / %d XP"), P->XP, P->GetXPForNextLevel());
+	DrawText(XPStr, CrownStyle::TextShadow,   X + W * 0.5f - 34.f, Y - 1.f + 1.f, nullptr, 0.7f, false);
+	DrawText(XPStr, CrownStyle::TextPrimary,  X + W * 0.5f - 35.f, Y - 1.f,       nullptr, 0.7f, false);
 }
 
 // ============== PERK CHOICE OVERLAY (Гр.1B) ==============
