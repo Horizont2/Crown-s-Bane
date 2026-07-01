@@ -230,7 +230,17 @@ void UCannonComponent::FireBroadside(ECannonSide Side)
 		{
 			if (APlayerController* PC = Cast<APlayerController>(OwnerPawn->GetController()))
 			{
-				PC->ClientStartCameraShake(FireCameraShake, FireCameraShakeScale);
+				// Screen shake scales with volley size + ammo type.
+				float ShakeScale = FireCameraShakeScale;
+				ShakeScale *= 0.7f + 0.15f * CannonsPerSide;              // volley density
+				switch (ActiveCannonballType)
+				{
+				case ECannonballType::Heavy:     ShakeScale *= 2.0f; break;
+				case ECannonballType::Explosive: ShakeScale *= 3.0f; break;
+				case ECannonballType::Grape:     ShakeScale *= 1.3f; break;
+				default: break;
+				}
+				PC->ClientStartCameraShake(FireCameraShake, ShakeScale);
 			}
 		}
 	}

@@ -686,6 +686,10 @@ void AShipPawn::DoLook(const FVector2D& Delta)
 		FRotator Rel = SpringArm->GetRelativeRotation();
 		Rel.Yaw = LookYawOffset;
 		Rel.Pitch = LookPitchOffset - 25.0f;
+		// Camera roll: lean into the turn.  Scaled by TurnInputValue and speed.
+		const float SpeedFac = MaxSpeed > 0.f ? FMath::Clamp(CurrentSpeed / MaxSpeed, 0.f, 1.f) : 0.f;
+		const float TargetCamRoll = -TurnInputValue * 4.5f * SpeedFac;
+		Rel.Roll = FMath::FInterpTo(Rel.Roll, TargetCamRoll, GetWorld() ? GetWorld()->GetDeltaSeconds() : 0.016f, 4.0f);
 		SpringArm->SetRelativeRotation(Rel);
 	}
 }

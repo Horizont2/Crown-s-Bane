@@ -160,6 +160,20 @@ float AEnemyShipBase::TakeDamage(float DamageAmount, FDamageEvent const& DamageE
 	float Actual = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
 	if (DamageAmount > 0.0f) bHasAggro = true;
 
+	// Hit-flash: briefly tint the ship mesh bright white to signal impact.
+	if (DamageAmount > 0.0f && ShipMesh)
+	{
+		ShipMesh->SetScalarParameterValueOnMaterials(TEXT("HitFlash"), 1.0f);
+		if (UWorld* W = GetWorld())
+		{
+			FTimerHandle H;
+			W->GetTimerManager().SetTimer(H, FTimerDelegate::CreateLambda([WMesh = TWeakObjectPtr<UStaticMeshComponent>(ShipMesh)]()
+			{
+				if (WMesh.IsValid()) WMesh->SetScalarParameterValueOnMaterials(TEXT("HitFlash"), 0.0f);
+			}), 0.08f, false);
+		}
+	}
+
 	// Take-a-hit reaction: chance to start an evasive maneuver (sharp turn).
 	if (DamageAmount > 0.0f && bCanEvade && TimeSinceLastEvasive >= EvasiveCooldown
 	    && CurrentState != EShipAIState::Sink
@@ -447,6 +461,15 @@ void AEnemyShipBase::OnDeath()
 	{
 		if (ACrownsBanePlayerController* CBPC = Cast<ACrownsBanePlayerController>(PC))
 		{
+			// SLOW-MO KILL — brief cinematic pause when player fells an enemy.
+			if (UWorld* W = GetWorld())
+			{
+				UGameplayStatics::SetGlobalTimeDilation(W, 0.4f);
+				FTimerHandle H;
+				W->GetTimerManager().SetTimer(H, FTimerDelegate::CreateLambda([WW = TWeakObjectPtr<UWorld>(W)]() {
+					if (WW.IsValid()) UGameplayStatics::SetGlobalTimeDilation(WW.Get(), 1.0f);
+				}), 0.24f, false); // 0.24s in dilated time = ~0.6s real
+			}
 			CBPC->StatBumpShipsSunk();
 			// XP per kill: 50 base, scaled by max HP / 100 to reward tougher kills.
 			if (CBPC->Progression && HealthComponent)
