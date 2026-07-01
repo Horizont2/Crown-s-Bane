@@ -57,6 +57,7 @@ void ACrownsBanePlayerController::HandleLevelUp(int32 NewLevel, int32 NewXP)
 		HUD->ShowBanner(FString::Printf(TEXT("LEVEL %d"), NewLevel),
 			(NewLevel % 5 == 0) ? TEXT("Choose your perk!") : TEXT("Ship grows stronger."),
 			FLinearColor(1.0f, 0.85f, 0.2f, 1.0f), 2.8f);
+		HUD->TriggerRadialBurst(FLinearColor(1.0f, 0.85f, 0.25f, 1.0f), 0.9f);
 	}
 }
 

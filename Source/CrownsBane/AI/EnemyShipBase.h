@@ -138,6 +138,27 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI")
 	bool bCanEvade = true;
 
+	// Named/legendary ship? Triggers boss intro banner + kill cam.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Named")
+	bool bNamedEnemy = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Named")
+	FString NamedTitle = TEXT("");
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Named")
+	FString NamedSubtitle = TEXT("");
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Named")
+	FLinearColor NamedTint = FLinearColor(1.0f, 0.3f, 0.3f, 1.0f);
+
+	// XP multiplier for kills (bounties/legendary yield more)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Named")
+	float XPMultiplier = 1.0f;
+
+	// One-shot: intro banner has been shown for this instance.
+	bool bIntroShown = false;
+	void CheckAndShowNamedIntro();
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI")
 	float RetreatSpeed = 700.0f;
 

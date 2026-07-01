@@ -186,6 +186,7 @@ void ACrownsBaneHUD::DrawHUD()
 	}
 	DrawDeathScreen(Dt);
 	DrawTutorialTip(Dt);
+	DrawRadialBurst(Dt);
 }
 
 void ACrownsBaneHUD::DrawTextWithShadow(const FString& Text, FColor TextColor, float X, float Y, UFont* Font, float Scale)
@@ -2679,4 +2680,50 @@ void ACrownsBaneHUD::DrawTutorialTip(float DeltaTime)
 		X + 14.f, Y + 8.f, nullptr, 0.85f, false);
 	FColor Body = CrownStyle::TextPrimary; Body.A = (uint8)(FA * 255);
 	DrawText(CurrentTipText, Body, X + 14.f, Y + 28.f, nullptr, 1.0f, false);
+}
+
+// ============== RADIAL BURST (Г.7) ==============
+
+void ACrownsBaneHUD::TriggerRadialBurst(FLinearColor Tint, float Duration)
+{
+	RadialBurstTimer   = Duration;
+	RadialBurstDuration = Duration;
+	RadialBurstTint    = Tint;
+}
+
+void ACrownsBaneHUD::DrawRadialBurst(float DeltaTime)
+{
+	if (RadialBurstTimer <= 0.0f || !Canvas) return;
+	RadialBurstTimer -= DeltaTime;
+
+	const float T   = 1.0f - FMath::Clamp(RadialBurstTimer / FMath::Max(0.01f, RadialBurstDuration), 0.f, 1.f);
+	const float SW  = Canvas->ClipX;
+	const float SH  = Canvas->ClipY;
+	const float CX  = SW * 0.5f;
+	const float CY  = SH * 0.5f;
+
+	// Ring expanding outward with ease.  Draw as N thin concentric squares to fake a ring.
+	const float ScreenDiag = FMath::Sqrt(SW*SW + SH*SH);
+	const float R = ScreenDiag * 0.6f * CrownStyle::EaseOutCubic(T);
+	const float A = FMath::Clamp((1.0f - T) * 2.0f, 0.f, 1.f) * 0.5f;
+	FLinearColor Col = RadialBurstTint;
+	Col.A = A;
+
+	// 3 rings each 3px thick, decreasing alpha inward.
+	for (int32 i = 0; i < 3; ++i)
+	{
+		const float Ri = R - i * 8.f;
+		if (Ri <= 0.f) continue;
+		FLinearColor C = Col;
+		C.A *= (1.0f - i * 0.28f);
+		const float Th = 3.f;
+		// Top edge
+		DrawFilledRect(CX - Ri, CY - Ri, Ri * 2.f, Th, C);
+		// Bottom edge
+		DrawFilledRect(CX - Ri, CY + Ri - Th, Ri * 2.f, Th, C);
+		// Left edge
+		DrawFilledRect(CX - Ri, CY - Ri, Th, Ri * 2.f, C);
+		// Right edge
+		DrawFilledRect(CX + Ri - Th, CY - Ri, Th, Ri * 2.f, C);
+	}
 }

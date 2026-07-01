@@ -325,6 +325,16 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "HUD|Tutorial")
 	void ShowTipOnce(const FString& Key, const FString& Text);
 
+	// Radial "burst" effect emanating from screen center, used for level-up etc.
+	UFUNCTION(BlueprintCallable, Category = "HUD|Cinematic")
+	void TriggerRadialBurst(FLinearColor Tint = FLinearColor(1.0f, 0.85f, 0.30f, 1.0f), float Duration = 0.8f);
+
+private:
+	float RadialBurstTimer = 0.0f;
+	float RadialBurstDuration = 0.8f;
+	FLinearColor RadialBurstTint;
+	void DrawRadialBurst(float DeltaTime);
+
 private:
 	TSet<FString> ShownTips;
 	FString  CurrentTipText;

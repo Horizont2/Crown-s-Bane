@@ -81,6 +81,12 @@ void AEnemyShipBase::Tick(float DeltaTime)
 
 	TimeSinceLastEvasive += DeltaTime;
 
+	// Boss intro: show banner once when player enters DetectionRange of a named enemy.
+	if (bNamedEnemy && !bIntroShown && IsPlayerInRange(DetectionRange))
+	{
+		CheckAndShowNamedIntro();
+	}
+
 	// Surrender + Evasive are sticky states — handle them first so the normal
 	// state machine doesn't immediately override.
 	if (CurrentState == EShipAIState::Surrender)
@@ -474,8 +480,19 @@ void AEnemyShipBase::OnDeath()
 			// XP per kill: 50 base, scaled by max HP / 100 to reward tougher kills.
 			if (CBPC->Progression && HealthComponent)
 			{
-				const int32 KillXP = FMath::Max(50, FMath::FloorToInt(HealthComponent->GetMaxHealth() * 0.5f));
+				int32 KillXP = FMath::Max(50, FMath::FloorToInt(HealthComponent->GetMaxHealth() * 0.5f));
+				KillXP = FMath::CeilToInt(KillXP * FMath::Max(1.0f, XPMultiplier));
 				CBPC->Progression->AwardXP(KillXP);
+			}
+			// Named kill banner + radial burst.
+			if (bNamedEnemy)
+			{
+				if (ACrownsBaneHUD* HUD = Cast<ACrownsBaneHUD>(CBPC->GetHUD()))
+				{
+					const FString T = NamedTitle.IsEmpty() ? TEXT("LEGEND FELLED") : NamedTitle + TEXT(" FALLEN");
+					HUD->ShowBanner(T, TEXT("A legend lies at the bottom of the sea."), NamedTint, 4.5f);
+					HUD->TriggerRadialBurst(NamedTint, 1.4f);
+				}
 			}
 			// Faction reputation: assume all enemies are naval — every kill
 			// loses 10 Naval rep and gains 5 Pirate rep.
@@ -518,4 +535,21 @@ void AEnemyShipBase::OnDeath()
 	else GetWorld()->SpawnActor<ALootSpawner>(ALootSpawner::StaticClass(), Loc, FRotator::ZeroRotator, SpawnParams);
 
 	if (CannonComponent) CannonComponent->Deactivate();
+}
+void AEnemyShipBase::CheckAndShowNamedIntro()
+{
+	bIntroShown = true;
+	if (UWorld* W = GetWorld())
+	{
+		if (APlayerController* PC = UGameplayStatics::GetPlayerController(W, 0))
+		{
+			if (ACrownsBaneHUD* HUD = Cast<ACrownsBaneHUD>(PC->GetHUD()))
+			{
+				const FString T = NamedTitle.IsEmpty() ? TEXT("LEGENDARY CAPTAIN") : NamedTitle;
+				const FString S = NamedSubtitle.IsEmpty() ? TEXT("Prepare yer cannons.") : NamedSubtitle;
+				HUD->ShowBanner(T, S, NamedTint, 3.5f);
+				HUD->TriggerRadialBurst(NamedTint, 1.0f);
+			}
+		}
+	}
 }
