@@ -34,6 +34,9 @@
 #include "Combat/Cannonball.h"
 #include "Engine/DamageEvents.h"
 
+// Forward-declared here so it's visible to Tick() below the definition further down.
+static void TryShowTip(AShipPawn* Ship, const FString& Key, const FString& Text);
+
 AShipPawn::AShipPawn()
 {
 	PrimaryActorTick.bCanEverTick = true;

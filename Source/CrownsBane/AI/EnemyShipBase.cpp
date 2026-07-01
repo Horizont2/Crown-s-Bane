@@ -20,6 +20,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Engine/World.h"
 #include "Engine/Engine.h"
+#include "Engine/DamageEvents.h"
 #include "GameFramework/PlayerController.h"
 
 AEnemyShipBase::AEnemyShipBase()

@@ -344,8 +344,13 @@ private:
 	float    CurrentTipTimer = 0.0f;
 	void DrawTutorialTip(float DeltaTime);
 
-	// Pause menu sub-tab.  0 = main, 1 = settings.
+public:
+	// Pause menu sub-tab.  0 = main, 1 = settings.  Toggled from ShipPawn IA_Settings.
 	int32 PauseSubTab = 0;
+	// Perk offers currently displayed by DrawPerkChoiceOverlay.  Read from
+	// ShipPawn raw-poll to route 1/2/3 hotkeys to ChoosePerk.
+	TArray<uint8> PendingPerkChoices;
+private:
 	void DrawXPBar(class ACrownsBanePlayerController* PC);
 	void DrawPerkChoiceOverlay(class ACrownsBanePlayerController* PC);
 
@@ -359,8 +364,6 @@ private:
 	int32 DeathScreenGoldLost = 0;
 	FString DeathScreenDockName;
 	void DrawDeathScreen(float DeltaTime);
-	// Rotating set of 3 perk offers — randomised once per pending choice.
-	TArray<uint8> PendingPerkChoices;
 	void RefreshPerkChoices(class ACrownsBanePlayerController* PC);
 
 	// Helpers for minimap
