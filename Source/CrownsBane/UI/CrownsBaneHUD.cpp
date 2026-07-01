@@ -274,16 +274,17 @@ void ACrownsBaneHUD::DrawHealthBar(AShipPawn* Ship)
 	// Speed line below.
 	const TCHAR* SailLabel = Ship->GetSailLevel() == ESailLevel::Stop ? TEXT("ANCHORED")
 		: Ship->GetSailLevel() == ESailLevel::HalfSail ? TEXT("HALF SAIL") : TEXT("FULL SAIL");
-	DrawText(FString::Printf(TEXT("%.0f knots   |   %s"), Ship->GetCurrentSpeed() / 50.f, SailLabel),
-		FColor(180, 200, 220), BarX, BarY + HealthBarHeight + 6.f, nullptr, 0.85f, false);
+	const FString SpeedStr = FString::Printf(TEXT("%.0f knots   |   %s"), Ship->GetCurrentSpeed() / 50.f, SailLabel);
+	DrawText(SpeedStr, CrownStyle::TextShadow, BarX + 1.f, BarY + HealthBarHeight + 8.f, nullptr, 1.0f, false);
+	DrawText(SpeedStr, FColor(180, 200, 220), BarX,        BarY + HealthBarHeight + 7.f, nullptr, 1.0f, false);
 
 	// Sail integrity warning when torn.
 	if (Ship->SailIntegrity < 0.99f)
 	{
 		const FColor SailCol = (Ship->SailIntegrity < 0.5f) ? FColor(255, 120, 120) : FColor(255, 200, 100);
-		DrawText(FString::Printf(TEXT("SAILS  %.0f%%"), Ship->SailIntegrity * 100.f),
-			SailCol, BarX + HealthBarWidth - 90.f, BarY + HealthBarHeight + 6.f,
-			nullptr, 0.85f, false);
+		const FString SI = FString::Printf(TEXT("SAILS  %.0f%%"), Ship->SailIntegrity * 100.f);
+		DrawText(SI, CrownStyle::TextShadow, BarX + HealthBarWidth - 99.f, BarY + HealthBarHeight + 8.f, nullptr, 1.0f, false);
+		DrawText(SI, SailCol,                BarX + HealthBarWidth - 100.f, BarY + HealthBarHeight + 7.f, nullptr, 1.0f, false);
 	}
 }
 
@@ -335,10 +336,10 @@ void ACrownsBaneHUD::DrawReloadTimers(UCannonComponent* Cannons)
 
 		// Label.
 		const FString Label = bReady ? FString::Printf(TEXT("%s  READY"), *LabelKey)
-		                             : FString::Printf(TEXT("%s  RELOADING %.0f%%"), *LabelKey, Progress * 100.f);
-		const FColor LabelCol = bReady ? FColor(255, 220, 110) : FColor(180, 170, 140);
-		DrawText(Label, CrownStyle::TextShadow, BarX + 1.f, BarY - 18.f, nullptr, 0.85f, false);
-		DrawText(Label, LabelCol, BarX, BarY - 19.f, nullptr, 0.85f, false);
+		                             : FString::Printf(TEXT("%s  %.0f%%"), *LabelKey, Progress * 100.f);
+		const FColor LabelCol = bReady ? FColor(255, 220, 110) : FColor(210, 195, 165);
+		DrawText(Label, CrownStyle::TextShadow, BarX + 1.f, BarY - 24.f + 1.f, nullptr, 1.0f, false);
+		DrawText(Label, LabelCol,               BarX,        BarY - 24.f,       nullptr, 1.0f, false);
 	};
 
 	DrawCannonBar(ECannonSide::Left,  -ReloadBarWidth - 30.0f, TEXT("PORT  [Q]"));
@@ -346,8 +347,8 @@ void ACrownsBaneHUD::DrawReloadTimers(UCannonComponent* Cannons)
 
 	// Centre cannon-count indicator.
 	const FString CountStr = FString::Printf(TEXT("%d cannons / side"), Cannons->GetCannonsPerSide());
-	DrawText(CountStr, CrownStyle::TextShadow, CenterX - 70.f + 1.f, BarY + BarH + 7.f, nullptr, 0.85f, false);
-	DrawText(CountStr, CrownStyle::TextDim,    CenterX - 70.f,       BarY + BarH + 6.f, nullptr, 0.85f, false);
+	DrawText(CountStr, CrownStyle::TextShadow, CenterX - 80.f + 1.f, BarY + BarH + 8.f, nullptr, 0.95f, false);
+	DrawText(CountStr, CrownStyle::TextSecondary, CenterX - 80.f,    BarY + BarH + 7.f, nullptr, 0.95f, false);
 }
 
 void ACrownsBaneHUD::DrawWantedStars(AWantedLevelManager* WLM)
@@ -555,16 +556,18 @@ void ACrownsBaneHUD::DrawTreasureCompass(ATreasureQuestManager* Manager, AShipPa
 		return;
 	}
 
+	// Compact left-of-minimap compass — no longer competes for top-center with
+	// the wanted stars + XP bar.  Sits directly under the resource panel.
 	const float ScreenW = Canvas->ClipX;
-	const float ScreenH = Canvas->ClipY;
-	const float CX = ScreenW * 0.5f;
-	const float CY = ScreenH * 0.18f;
-	const float Radius = 38.0f;
+	const float Radius  = 32.0f;
+	const float CX = ScreenW - HUDPaddingX - 210.f - Radius;
+	const float CY = HUDPaddingY + 175.f;
 
-	// Compass background
-	DrawFilledRect(CX - Radius - 4, CY - Radius - 4,
-		(Radius + 4) * 2, (Radius + 4) * 2,
-		FLinearColor(0.0f, 0.0f, 0.0f, 0.55f));
+	// Panel behind compass.
+	const float PPad = 8.f;
+	DrawPanel(CX - Radius - PPad, CY - Radius - PPad,
+		(Radius + PPad) * 2.f, (Radius + PPad) * 2.f + 18.f,
+		(uint8)CrownStyle::EPanelStyle::Primary);
 
 	// Direction from ship to chest, relative to world, then normalized to 2D
 	FVector ToChest = NearestLoc - ShipLoc;
@@ -572,20 +575,15 @@ void ACrownsBaneHUD::DrawTreasureCompass(ATreasureQuestManager* Manager, AShipPa
 	ToChest.Normalize();
 	const float ChestWorldAngle = FMath::RadiansToDegrees(FMath::Atan2(ToChest.Y, ToChest.X));
 
-	// Rotate relative to ship heading so arrow points forward when aligned
 	const FVector ShipFwd = Ship->GetActorForwardVector();
 	const float ShipAngle = FMath::RadiansToDegrees(FMath::Atan2(ShipFwd.Y, ShipFwd.X));
-	const float RelAngle = ChestWorldAngle - ShipAngle - 90.0f; // -90 so "up" = forward
+	const float RelAngle = ChestWorldAngle - ShipAngle - 90.0f;
 
-	DrawArrow(CX, CY, Radius, RelAngle, TreasureArrowColor);
+	DrawArrow(CX, CY, Radius, RelAngle, CrownStyle::AccentGoldBright);
 
-	const FString DistLabel = FString::Printf(TEXT("TREASURE %.0f m"), NearestDist / 100.0f);
-	DrawText(DistLabel, FColor(255, 210, 60), CX - 60.0f, CY + Radius + 6.0f, nullptr, 0.9f, false);
-
-	const FString CountLabel = (Quests.Num() > 1)
-		? FString::Printf(TEXT("+%d more maps"), Quests.Num() - 1)
-		: TEXT("Active Quest");
-	DrawText(CountLabel, FColor::White, CX - 50.0f, CY - Radius - 18.0f, nullptr, 0.75f, false);
+	const FString DistLabel = FString::Printf(TEXT("%.0fm"), NearestDist / 100.0f);
+	DrawText(DistLabel, CrownStyle::TextShadow,  CX - 20.f + 1.f, CY + Radius + 4.f, nullptr, 0.9f, false);
+	DrawText(DistLabel, CrownStyle::TextGold,    CX - 20.f,       CY + Radius + 3.f, nullptr, 0.9f, false);
 }
 
 void ACrownsBaneHUD::DrawEnemyHealthBars(AShipPawn* PlayerShip)
@@ -755,14 +753,18 @@ void ACrownsBaneHUD::DrawMinimap(AShipPawn* PlayerShip, ATreasureQuestManager* T
 	DrawCardinal(TEXT("W"), 180.f, FColor(180, 180, 180));
 
 	// Label
-	DrawText(TEXT("MINIMAP"), FColor::White, CX - 28.f, CY - MinimapRadius - 16.f, nullptr, 0.75f, false);
-	const FString ScaleLabel = FString::Printf(TEXT("%.0fm"), MinimapWorldRadius / 100.f);
-	DrawText(ScaleLabel, FColor::Silver, CX - 12.f, CY + MinimapRadius + 4.f, nullptr, 0.7f, false);
+	DrawText(TEXT("MINIMAP"), CrownStyle::TextShadow, CX - 32.f + 1.f, CY - MinimapRadius - 17.f, nullptr, 0.9f, false);
+	DrawText(TEXT("MINIMAP"), CrownStyle::TextGold,   CX - 32.f,       CY - MinimapRadius - 18.f, nullptr, 0.9f, false);
 
-	// Heading degrees (ship yaw in compass form: 0=N, 90=E, etc.)
+	const FString ScaleLabel = FString::Printf(TEXT("%.0fm"), MinimapWorldRadius / 100.f);
+	DrawText(ScaleLabel, CrownStyle::TextShadow,     CX - 12.f + 1.f, CY + MinimapRadius + 5.f, nullptr, 0.8f, false);
+	DrawText(ScaleLabel, CrownStyle::TextSecondary,  CX - 12.f,       CY + MinimapRadius + 4.f, nullptr, 0.8f, false);
+
+	// Heading compass yaw.
 	const float CompassYaw = FMath::Fmod(450.f - ShipYawDeg, 360.f);
 	const FString Heading = FString::Printf(TEXT("HDG  %.0f°"), CompassYaw);
-	DrawText(Heading, FColor(220, 220, 220), CX - 30.f, CY + MinimapRadius + 16.f, nullptr, 0.85f, false);
+	DrawText(Heading, CrownStyle::TextShadow, CX - 32.f + 1.f, CY + MinimapRadius + 20.f, nullptr, 0.95f, false);
+	DrawText(Heading, CrownStyle::TextPrimary, CX - 32.f,      CY + MinimapRadius + 19.f, nullptr, 0.95f, false);
 }
 
 void ACrownsBaneHUD::DrawMinimapDot(float CX, float CY, float DotX, float DotY, float DotSize, FLinearColor Color)
@@ -1371,16 +1373,13 @@ void ACrownsBaneHUD::DrawActiveQuestTracker(ATreasureQuestManager* Mgr, AShipPaw
 		if (D < Best) { Best = D; QuestName = Q.QuestName.IsEmpty() ? TEXT("Treasure Hunt") : Q.QuestName.ToString(); }
 	}
 
-	const float W = 320.f;
-	const float H = 78.f;
+	const float W = 340.f;
+	const float H = 90.f;
 	const float X = HUDPaddingX;
-	const float Y = Canvas->ClipY - H - 220.f; // sits above the wind/storm panels
+	const float Y = Canvas->ClipY - H - 240.f;
 
-	// Solid styled panel using UI-A helpers — opaque background so text is always legible.
-	DrawFilledRect(X, Y, W, H, FLinearColor(0.04f, 0.05f, 0.08f, 0.92f));
-	DrawBorderedRect(X, Y, W, H, FLinearColor(0,0,0,0), CrownStyle::AccentGold, 2.0f);
-	// Left accent stripe — gold band as a visual anchor.
-	DrawFilledRect(X, Y, 4.f, H, CrownStyle::AccentGold);
+	// Full styled panel: gradient + rivets + brass border + drop shadow.
+	DrawPanel(X, Y, W, H, (uint8)CrownStyle::EPanelStyle::Primary);
 
 	// Bearing arrow indicator on the right.
 	const FVector ToTarget = (Closest - Ship->GetActorLocation()).GetSafeNormal2D();
@@ -1388,23 +1387,26 @@ void ACrownsBaneHUD::DrawActiveQuestTracker(ATreasureQuestManager* Mgr, AShipPaw
 	float RelYaw = FMath::RadiansToDegrees(FMath::Atan2(
 		FVector::CrossProduct(ShipFwd, ToTarget).Z,
 		FVector::DotProduct(ShipFwd, ToTarget)));
-	DrawArrow(X + W - 30.f, Y + 28.f, 14.f, RelYaw - 90.f, CrownStyle::AccentGold);
+	DrawArrow(X + W - 36.f, Y + 40.f, 16.f, RelYaw - 90.f, CrownStyle::AccentGoldBright);
 
 	const FString DistStr = FString::Printf(TEXT("%.0f m"), Dist * 0.01f);
 
-	// Header label with subtle dim, then big quest name, then distance + counter row.
-	DrawText(TEXT("ACTIVE QUEST"), CrownStyle::TextDim,
-		X + 14.f, Y + 8.f, nullptr, CrownStyle::ScaleCaption, false);
-	DrawText(QuestName, CrownStyle::AccentGold.ToFColor(true),
-		X + 14.f, Y + 26.f, nullptr, CrownStyle::ScaleHeading, false);
+	// Header caption (shadowed).
+	DrawText(TEXT("ACTIVE QUEST"), CrownStyle::TextShadow, X + 21.f, Y + 13.f, nullptr, 0.9f, false);
+	DrawText(TEXT("ACTIVE QUEST"), CrownStyle::TextDim,    X + 20.f, Y + 12.f, nullptr, 0.9f, false);
+	// Quest name (shadowed gold heading).
+	DrawText(QuestName, CrownStyle::TextShadow,                   X + 21.f, Y + 33.f, nullptr, 1.25f, false);
+	DrawText(QuestName, CrownStyle::AccentGoldBright.ToFColor(true), X + 20.f, Y + 32.f, nullptr, 1.25f, false);
 
-	DrawText(DistStr, CrownStyle::TextPrimary,
-		X + 14.f, Y + 54.f, nullptr, CrownStyle::ScaleBody, false);
+	// Distance body.
+	DrawText(DistStr, CrownStyle::TextShadow,   X + 21.f, Y + 64.f, nullptr, 1.05f, false);
+	DrawText(DistStr, CrownStyle::TextPrimary,  X + 20.f, Y + 63.f, nullptr, 1.05f, false);
 
 	if (Quests.Num() > 1)
 	{
-		const FString More = FString::Printf(TEXT("+%d more — J"), Quests.Num() - 1);
-		DrawText(More, CrownStyle::TextSecondary, X + 100.f, Y + 56.f, nullptr, CrownStyle::ScaleCaption, false);
+		const FString More = FString::Printf(TEXT("+%d more — J for log"), Quests.Num() - 1);
+		DrawText(More, CrownStyle::TextShadow,   X + 121.f, Y + 66.f, nullptr, 0.85f, false);
+		DrawText(More, CrownStyle::TextSecondary, X + 120.f, Y + 65.f, nullptr, 0.85f, false);
 	}
 }
 
@@ -2419,24 +2421,26 @@ void ACrownsBaneHUD::DrawXPBar(ACrownsBanePlayerController* PC)
 	if (!PC || !PC->Progression || !Canvas) return;
 	UShipProgressionComponent* P = PC->Progression;
 
+	// Positioned well below the wanted-stars panel (which extends ~ +100 from top)
+	// so the two never overlap.
 	const float SW = Canvas->ClipX;
-	const float W = 260.f;
+	const float W = 280.f;
 	const float H = 14.f;
 	const float X = (SW - W) * 0.5f;
-	const float Y = HUDPaddingY + 108.f;
+	const float Y = HUDPaddingY + 138.f;
 
 	// Level + perk-available label with shadow.
 	const FString LvlStr = FString::Printf(TEXT("LVL  %d"), P->Level);
-	DrawText(LvlStr, CrownStyle::TextShadow, X + 1.f, Y - 19.f, nullptr, 1.0f, false);
-	DrawText(LvlStr, CrownStyle::AccentGoldBright.ToFColor(true), X, Y - 20.f, nullptr, 1.0f, false);
+	DrawText(LvlStr, CrownStyle::TextShadow, X + 1.f, Y - 21.f, nullptr, 1.05f, false);
+	DrawText(LvlStr, CrownStyle::AccentGoldBright.ToFColor(true), X, Y - 22.f, nullptr, 1.05f, false);
 
 	if (P->bPerkChoicePending)
 	{
 		const float Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
 		const float P01 = 0.7f + 0.3f * CrownStyle::Pulse(Now, 1.5f);
 		FColor Glow(255, (uint8)(220.f * P01), 80, 255);
-		DrawText(TEXT("◆ NEW PERK!"), CrownStyle::TextShadow, X + 71.f, Y - 19.f, nullptr, 0.95f, false);
-		DrawText(TEXT("◆ NEW PERK!"), Glow,                   X + 70.f, Y - 20.f, nullptr, 0.95f, false);
+		DrawText(TEXT("◆ NEW PERK!"), CrownStyle::TextShadow, X + 82.f, Y - 21.f, nullptr, 1.0f, false);
+		DrawText(TEXT("◆ NEW PERK!"), Glow,                   X + 81.f, Y - 22.f, nullptr, 1.0f, false);
 	}
 
 	const float Frac = P->GetXPForNextLevel() > 0
@@ -2445,8 +2449,8 @@ void ACrownsBaneHUD::DrawXPBar(ACrownsBanePlayerController* PC)
 	DrawSmoothBar(X, Y, W, H, Frac, CrownStyle::AccentGold, false);
 
 	const FString XPStr = FString::Printf(TEXT("%d / %d XP"), P->XP, P->GetXPForNextLevel());
-	DrawText(XPStr, CrownStyle::TextShadow,   X + W * 0.5f - 34.f, Y - 1.f + 1.f, nullptr, 0.7f, false);
-	DrawText(XPStr, CrownStyle::TextPrimary,  X + W * 0.5f - 35.f, Y - 1.f,       nullptr, 0.7f, false);
+	DrawText(XPStr, CrownStyle::TextShadow,   X + W - 90.f + 1.f, Y - 21.f, nullptr, 0.85f, false);
+	DrawText(XPStr, CrownStyle::TextSecondary, X + W - 90.f,      Y - 22.f, nullptr, 0.85f, false);
 }
 
 // ============== PERK CHOICE OVERLAY (Гр.1B) ==============
@@ -2745,17 +2749,22 @@ void ACrownsBaneHUD::DrawWaypointArrow(ACrownsBanePlayerController* PC)
 		FVector::CrossProduct(ShipFwd, Dir).Z,
 		FVector::DotProduct(ShipFwd, Dir)));
 
+	// Left-of-minimap on the same row as treasure compass but stacked below it,
+	// so it never overlaps wanted stars or XP bar (which live top-center).
 	const float SW = Canvas->ClipX;
-	const float CX = SW * 0.5f;
-	const float Y  = HUDPaddingY + 160.f;
+	const float PW = 210.f;
+	const float PH = 48.f;
+	const float PX = SW - HUDPaddingX - 240.f - PW - 20.f;
+	const float PY = HUDPaddingY + 250.f;
 
-	// Panel behind arrow + label.
-	DrawFilledRect(CX - 80.f, Y, 160.f, 40.f, FLinearColor(0.05f, 0.05f, 0.08f, 0.85f));
-	DrawArrow(CX - 55.f, Y + 20.f, 14.f, Rel - 90.f, FLinearColor(0.4f, 0.8f, 1.0f, 1.0f));
-	const FString Label = FString::Printf(TEXT("%s"), *PC->WaypointLabel);
+	DrawPanel(PX, PY, PW, PH, (uint8)CrownStyle::EPanelStyle::Primary);
+	DrawArrow(PX + 22.f, PY + 23.f, 12.f, Rel - 90.f, FLinearColor(0.4f, 0.8f, 1.0f, 1.0f));
+	DrawText(TEXT("WAYPOINT"), CrownStyle::TextShadow, PX + 46.f + 1.f, PY + 6.f, nullptr, 0.75f, false);
+	DrawText(TEXT("WAYPOINT"), FColor(140, 200, 255),  PX + 46.f,       PY + 5.f, nullptr, 0.75f, false);
+	const FString Label = PC->WaypointLabel.Left(14);
+	DrawText(Label, CrownStyle::TextShadow,  PX + 46.f + 1.f, PY + 22.f, nullptr, 0.95f, false);
+	DrawText(Label, CrownStyle::TextPrimary, PX + 46.f,       PY + 21.f, nullptr, 0.95f, false);
 	const FString DistStr = FString::Printf(TEXT("%.0fm"), Dist);
-	DrawText(Label, CrownStyle::TextShadow,  CX - 32.f + 1.f, Y + 4.f, nullptr, 0.9f, false);
-	DrawText(Label, CrownStyle::TextPrimary, CX - 32.f,       Y + 3.f, nullptr, 0.9f, false);
-	DrawText(DistStr, CrownStyle::TextShadow,  CX - 32.f + 1.f, Y + 22.f, nullptr, 0.85f, false);
-	DrawText(DistStr, FColor(180, 220, 255),   CX - 32.f,       Y + 21.f, nullptr, 0.85f, false);
+	DrawText(DistStr, CrownStyle::TextShadow,  PX + PW - 60.f + 1.f, PY + 22.f, nullptr, 0.95f, false);
+	DrawText(DistStr, FColor(180, 220, 255),   PX + PW - 60.f,       PY + 21.f, nullptr, 0.95f, false);
 }
