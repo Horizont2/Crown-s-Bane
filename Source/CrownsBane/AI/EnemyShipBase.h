@@ -155,6 +155,31 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Named")
 	float XPMultiplier = 1.0f;
 
+	// ---- Special variants ----
+	// Ghost Ship: semi-transparent + can only be hit at night.  Big loot drops.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Variant")
+	bool bIsGhostShip = false;
+
+	// Leviathan: massive HP, huge collider, spawns tentacle-slam AoE around it.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Variant")
+	bool bIsLeviathan = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Variant")
+	float LeviathanSlamRadius = 1500.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Variant")
+	float LeviathanSlamDamage = 25.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Variant")
+	float LeviathanSlamCooldown = 8.0f;
+
+	float LeviathanSlamTimer = 4.0f;
+	void TickLeviathanSlam(float DeltaTime);
+
+	// Merchant Frigate: neutral, doesn't attack unless attacked.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Variant")
+	bool bIsMerchantFrigate = false;
+
 	// One-shot: intro banner has been shown for this instance.
 	bool bIntroShown = false;
 	void CheckAndShowNamedIntro();

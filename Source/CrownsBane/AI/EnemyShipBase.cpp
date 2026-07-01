@@ -6,6 +6,7 @@
 #include "Loot/LootSpawner.h"
 #include "Systems/WantedLevelManager.h"
 #include "Systems/DynamicMusicManager.h"
+#include "Systems/DayNightSystem.h"
 #include "Quests/BountyManager.h"
 #include "UI/CrownsBaneHUD.h"
 #include "Player/CrownsBanePlayerController.h"
@@ -87,6 +88,18 @@ void AEnemyShipBase::Tick(float DeltaTime)
 		CheckAndShowNamedIntro();
 	}
 
+	// Leviathan periodic slam.
+	if (bIsLeviathan)
+	{
+		TickLeviathanSlam(DeltaTime);
+	}
+
+	// Merchant Frigate: no aggro until attacked; force patrol state early.
+	if (bIsMerchantFrigate && !bHasAggro)
+	{
+		if (CurrentState != EShipAIState::Patrol) TransitionToState(EShipAIState::Patrol);
+	}
+
 	// Surrender + Evasive are sticky states — handle them first so the normal
 	// state machine doesn't immediately override.
 	if (CurrentState == EShipAIState::Surrender)
@@ -163,6 +176,17 @@ void AEnemyShipBase::Tick(float DeltaTime)
 
 float AEnemyShipBase::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
 {
+	// Ghost Ship — no damage during the day (day-check via DayNightSystem).
+	if (bIsGhostShip)
+	{
+		bool bIsNight = false;
+		for (TActorIterator<ADayNightSystem> It(GetWorld()); It; ++It)
+		{
+			if (*It) { bIsNight = (*It)->IsNight(); break; }
+		}
+		if (!bIsNight) return 0.0f;
+	}
+
 	float Actual = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
 	if (DamageAmount > 0.0f) bHasAggro = true;
 
@@ -550,6 +574,34 @@ void AEnemyShipBase::CheckAndShowNamedIntro()
 				HUD->ShowBanner(T, S, NamedTint, 3.5f);
 				HUD->TriggerRadialBurst(NamedTint, 1.0f);
 			}
+		}
+	}
+}
+
+void AEnemyShipBase::TickLeviathanSlam(float DeltaTime)
+{
+	LeviathanSlamTimer -= DeltaTime;
+	if (LeviathanSlamTimer > 0.0f) return;
+	LeviathanSlamTimer = LeviathanSlamCooldown;
+
+	UWorld* W = GetWorld();
+	if (!W) return;
+
+	APawn* Player = UGameplayStatics::GetPlayerPawn(W, 0);
+	if (!Player) return;
+
+	const float D2 = FVector::DistSquared(GetActorLocation(), Player->GetActorLocation());
+	if (D2 > LeviathanSlamRadius * LeviathanSlamRadius) return;
+
+	// Deal AoE damage to player + toast warning.
+	FDamageEvent DmgEvent;
+	Player->TakeDamage(LeviathanSlamDamage, DmgEvent, nullptr, this);
+	if (APlayerController* PC = UGameplayStatics::GetPlayerController(W, 0))
+	{
+		if (ACrownsBaneHUD* HUD = Cast<ACrownsBaneHUD>(PC->GetHUD()))
+		{
+			HUD->PushResourceToast(TEXT("⚠ LEVIATHAN SLAM"), FLinearColor(0.8f, 0.2f, 0.8f, 1.0f));
+			HUD->TriggerDamageFlash(0.8f);
 		}
 	}
 }
