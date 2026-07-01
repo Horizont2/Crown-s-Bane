@@ -137,6 +137,25 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Faction")
 	void BumpFaction(float NavalDelta, float PirateDelta);
 
+	// ---- Fast travel & waypoint ----
+	UFUNCTION(BlueprintCallable, Category = "Travel")
+	bool FastTravelToNearestDock();
+
+	UPROPERTY(BlueprintReadOnly, Category = "Travel")
+	bool bHasWaypoint = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Travel")
+	FVector WaypointLocation = FVector::ZeroVector;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Travel")
+	FString WaypointLabel;
+
+	UFUNCTION(BlueprintCallable, Category = "Travel")
+	void SetWaypoint(FVector Location, const FString& Label);
+
+	UFUNCTION(BlueprintCallable, Category = "Travel")
+	void ClearWaypoint() { bHasWaypoint = false; }
+
 	UFUNCTION(BlueprintCallable, Category = "Stats")  void StatBumpShipsSunk();
 	UFUNCTION(BlueprintCallable, Category = "Stats")  void StatBumpBoardingsWon();
 	UFUNCTION(BlueprintCallable, Category = "Stats")  void StatBumpCannonballsFired(int32 N = 1);

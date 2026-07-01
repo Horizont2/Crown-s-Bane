@@ -19,6 +19,7 @@
 #include "Player/PlayerInventory.h"
 #include "Player/ShipProgressionComponent.h"
 #include "Audio/SoundManager.h"
+#include "EngineUtils.h"
 
 ACrownsBanePlayerController::ACrownsBanePlayerController()
 {
@@ -430,4 +431,46 @@ void ACrownsBanePlayerController::BumpFaction(float NavalDelta, float PirateDelt
 {
 	NavalRep  = FMath::Clamp(NavalRep + NavalDelta,  -100.f, 100.f);
 	PirateRep = FMath::Clamp(PirateRep + PirateDelta, -100.f, 100.f);
+}
+
+bool ACrownsBanePlayerController::FastTravelToNearestDock()
+{
+	UWorld* W = GetWorld();
+	if (!W) return false;
+	AShipPawn* Ship = GetShipPawn();
+	if (!Ship || !PlayerInventory) return false;
+	if (!PlayerInventory->SpendResource(EResourceType::Gold, 50)) return false;
+
+	ADocksZone* Best = nullptr;
+	float BestD2 = TNumericLimits<float>::Max();
+	for (TActorIterator<ADocksZone> It(W); It; ++It)
+	{
+		ADocksZone* D = *It;
+		if (!D) continue;
+		const float D2 = FVector::DistSquared(Ship->GetActorLocation(), D->GetActorLocation());
+		if (D2 < BestD2) { BestD2 = D2; Best = D; }
+	}
+	if (!Best) { PlayerInventory->AddResource(EResourceType::Gold, 50); return false; }
+
+	Ship->SetActorLocation(Best->GetActorLocation() + FVector(0, 0, 60));
+	Ship->SetActorRotation(Best->GetActorRotation());
+	if (ACrownsBaneHUD* HUD = Cast<ACrownsBaneHUD>(GetHUD()))
+	{
+		HUD->ShowBanner(TEXT("FAST TRAVEL"),
+			FString::Printf(TEXT("Arrived at %s"), *Best->DockName),
+			FLinearColor(0.4f, 0.75f, 1.0f, 1.0f), 3.0f);
+	}
+	return true;
+}
+
+void ACrownsBanePlayerController::SetWaypoint(FVector Location, const FString& Label)
+{
+	bHasWaypoint = true;
+	WaypointLocation = Location;
+	WaypointLabel = Label;
+	if (ACrownsBaneHUD* HUD = Cast<ACrownsBaneHUD>(GetHUD()))
+	{
+		HUD->PushResourceToast(FString::Printf(TEXT("↖ Waypoint set: %s"), *Label),
+			FLinearColor(0.4f, 0.75f, 1.0f, 1.0f));
+	}
 }

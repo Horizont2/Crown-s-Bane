@@ -182,6 +182,7 @@ void ACrownsBaneHUD::DrawHUD()
 		{
 			DrawXPBar(CBPC3);
 			DrawPerkChoiceOverlay(CBPC3);
+			DrawWaypointArrow(CBPC3);
 		}
 	}
 	DrawDeathScreen(Dt);
@@ -2726,4 +2727,35 @@ void ACrownsBaneHUD::DrawRadialBurst(float DeltaTime)
 		// Right edge
 		DrawFilledRect(CX + Ri - Th, CY - Ri, Th, Ri * 2.f, C);
 	}
+}
+
+// ============== WAYPOINT ARROW (Г.8) ==============
+
+void ACrownsBaneHUD::DrawWaypointArrow(ACrownsBanePlayerController* PC)
+{
+	if (!PC || !PC->bHasWaypoint || !Canvas) return;
+	AShipPawn* Ship = GetPlayerShip();
+	if (!Ship) return;
+
+	const FVector Delta = PC->WaypointLocation - Ship->GetActorLocation();
+	const float Dist = Delta.Size() * 0.01f;
+	const FVector Dir = Delta.GetSafeNormal2D();
+	const FVector ShipFwd = Ship->GetActorForwardVector();
+	float Rel = FMath::RadiansToDegrees(FMath::Atan2(
+		FVector::CrossProduct(ShipFwd, Dir).Z,
+		FVector::DotProduct(ShipFwd, Dir)));
+
+	const float SW = Canvas->ClipX;
+	const float CX = SW * 0.5f;
+	const float Y  = HUDPaddingY + 160.f;
+
+	// Panel behind arrow + label.
+	DrawFilledRect(CX - 80.f, Y, 160.f, 40.f, FLinearColor(0.05f, 0.05f, 0.08f, 0.85f));
+	DrawArrow(CX - 55.f, Y + 20.f, 14.f, Rel - 90.f, FLinearColor(0.4f, 0.8f, 1.0f, 1.0f));
+	const FString Label = FString::Printf(TEXT("%s"), *PC->WaypointLabel);
+	const FString DistStr = FString::Printf(TEXT("%.0fm"), Dist);
+	DrawText(Label, CrownStyle::TextShadow,  CX - 32.f + 1.f, Y + 4.f, nullptr, 0.9f, false);
+	DrawText(Label, CrownStyle::TextPrimary, CX - 32.f,       Y + 3.f, nullptr, 0.9f, false);
+	DrawText(DistStr, CrownStyle::TextShadow,  CX - 32.f + 1.f, Y + 22.f, nullptr, 0.85f, false);
+	DrawText(DistStr, FColor(180, 220, 255),   CX - 32.f,       Y + 21.f, nullptr, 0.85f, false);
 }
