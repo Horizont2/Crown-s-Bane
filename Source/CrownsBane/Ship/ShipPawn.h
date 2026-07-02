@@ -343,6 +343,16 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Visual")
 	float WaterLineOffset = 0.0f;
 
+	// Passive wave rocking amplitudes.  Set all to 0 for perfectly calm sea.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Visual|Waves", meta=(ClampMin="0.0", ClampMax="15.0"))
+	float WavePitchAmplitude = 0.4f;   // degrees; was 1.5
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Visual|Waves", meta=(ClampMin="0.0", ClampMax="15.0"))
+	float WaveRollAmplitude = 0.25f;   // degrees; was 0.8
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Visual|Waves", meta=(ClampMin="0.0", ClampMax="15.0"))
+	float WaveBobAmplitude  = 1.5f;    // cm; was 4
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wind")
 	float WindInfluenceFactor = 0.2f;
 
