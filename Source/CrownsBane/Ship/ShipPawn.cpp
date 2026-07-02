@@ -985,11 +985,24 @@ void AShipPawn::UpdateVisualRoll(float DeltaTime)
 {
 	if (!ShipMesh) return;
 
+	// Gentle bank into turns; damped so nose can't dive.
 	float TargetRoll = -TurnInputValue * MaxVisualRoll;
 	CurrentVisualRoll = FMath::FInterpTo(CurrentVisualRoll, TargetRoll, DeltaTime, VisualRollInterpSpeed);
 
+	// Subtle wave-driven pitch (small, so the nose never plunges).
+	const float T = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
+	const float WavePitch = FMath::Sin(T * 0.6f) * 1.5f;    // ±1.5° gentle rocking
+	const float WaveRoll  = FMath::Sin(T * 0.4f) * 0.8f;    // ±0.8° extra roll
+
 	FRotator LocalRot = ShipMesh->GetRelativeRotation();
-	LocalRot.Roll = CurrentVisualRoll;
+	// CLAMP roll+pitch to hard limits so combined effects never dip the bow into the ocean.
+	LocalRot.Roll  = FMath::Clamp(CurrentVisualRoll + WaveRoll, -12.0f, 12.0f);
+	LocalRot.Pitch = FMath::Clamp(WavePitch, -3.0f, 3.0f);
+	// Water-line adjust: keep mesh Z clamped near WaterLineOffset (0 by default).
+	FVector LocalLoc = ShipMesh->GetRelativeLocation();
+	LocalLoc.Z = FMath::FInterpTo(LocalLoc.Z, WaterLineOffset + FMath::Sin(T * 0.5f) * 4.f,
+		DeltaTime, 3.0f);
+	ShipMesh->SetRelativeLocation(LocalLoc);
 	ShipMesh->SetRelativeRotation(LocalRot);
 }
 

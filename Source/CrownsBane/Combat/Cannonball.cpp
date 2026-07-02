@@ -102,9 +102,25 @@ void ACannonball::InitCannonball(const FCannonballData& InData, AActor* InInstig
 	CannonballData = InData;
 	OwnerInstigator = InInstigator;
 
+	// CRITICAL: ignore collision with the firing ship so the ball can leave the
+	// hull without immediately getting stuck against the ship's own collider.
+	if (InInstigator && CollisionSphere)
+	{
+		CollisionSphere->IgnoreActorWhenMoving(InInstigator, true);
+		// Ignore attached child actors (cannon meshes etc.) too.
+		TArray<AActor*> Attached;
+		InInstigator->GetAttachedActors(Attached);
+		for (AActor* A : Attached)
+		{
+			if (A) CollisionSphere->IgnoreActorWhenMoving(A, true);
+		}
+	}
+
 	ProjectileMovement->InitialSpeed = InData.InitialSpeed;
 	ProjectileMovement->MaxSpeed = InData.MaxSpeed;
 	ProjectileMovement->ProjectileGravityScale = InData.GravityScale;
+	// Kick velocity in the fire direction so ProjectileMovement doesn't wait a frame.
+	ProjectileMovement->Velocity = GetActorForwardVector() * InData.InitialSpeed;
 }
 
 void ACannonball::OnHit(UPrimitiveComponent* HitComponent, AActor* OtherActor,

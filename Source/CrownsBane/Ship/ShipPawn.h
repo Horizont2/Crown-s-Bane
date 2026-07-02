@@ -338,6 +338,11 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Visual")
 	float VisualRollInterpSpeed = 2.0f;
 
+	// Z offset (cm) applied to ShipMesh so the hull sits AT the water line.
+	// Tweak per imported mesh: negative = lower into water, positive = raise it.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Visual")
+	float WaterLineOffset = 0.0f;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wind")
 	float WindInfluenceFactor = 0.2f;
 

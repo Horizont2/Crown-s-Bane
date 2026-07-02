@@ -93,6 +93,22 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cannon")
 	FName RightSocketPrefix = TEXT("CannonRight_");
 
+	// ---- Fallback spawn positions (used when the mesh has no sockets) ----
+	// If 0, auto-computed from mesh bounds at BeginPlay.  Override in BP if you
+	// know exact numbers for your ship model.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cannon|Fallback")
+	float FallbackShipHalfWidth = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cannon|Fallback")
+	float FallbackCannonSpacing = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cannon|Fallback")
+	float FallbackCannonHeight = 50.0f;
+
+	// Called once at BeginPlay to auto-compute FallbackShipHalfWidth /
+	// FallbackCannonSpacing from the owner mesh's Bounds if they were left at 0.
+	void AutoComputeFallbackFromMeshBounds();
+
 	// Default Elevation (used when NOT aiming)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cannon")
 	float ElevationAngle = 5.0f;

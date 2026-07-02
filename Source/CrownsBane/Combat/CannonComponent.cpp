@@ -28,6 +28,44 @@ void UCannonComponent::BeginPlay()
 	RightReloadTimer = 0.0f;
 	bLeftReady = true;
 	bRightReady = true;
+
+	AutoComputeFallbackFromMeshBounds();
+}
+
+void UCannonComponent::AutoComputeFallbackFromMeshBounds()
+{
+	// If designer already set values, leave them.
+	if (FallbackShipHalfWidth > 0.0f && FallbackCannonSpacing > 0.0f) return;
+
+	AActor* Owner = GetOwner();
+	if (!Owner) return;
+	UMeshComponent* Mesh = Owner->FindComponentByClass<UStaticMeshComponent>();
+	if (!Mesh) Mesh = Owner->FindComponentByClass<USkeletalMeshComponent>();
+	if (!Mesh) return;
+
+	// Local-space bounds (independent of actor scale here since mesh comp has its own scale).
+	const FBoxSphereBounds LB = Mesh->CalcLocalBounds();
+	const FVector Extent = LB.BoxExtent;
+
+	// Half-width of ship along Y (starboard axis) plus a little outward offset so
+	// cannons peek from the hull rather than through it.
+	if (FallbackShipHalfWidth <= 0.0f)
+	{
+		FallbackShipHalfWidth = FMath::Max(80.0f, Extent.Y * 0.9f);
+	}
+	// Spacing along X (fore/aft) — divide usable length by max cannon slots.
+	if (FallbackCannonSpacing <= 0.0f)
+	{
+		const int32 Slots = FMath::Max(2, CannonsPerSide);
+		FallbackCannonSpacing = FMath::Max(60.0f, (Extent.X * 1.5f) / (Slots + 1));
+	}
+	// Cannon height ~55% of half-height so they sit around deck line.
+	FallbackCannonHeight = FMath::Max(20.0f, Extent.Z * 0.55f);
+
+	UE_LOG(LogTemp, Log,
+		TEXT("[CannonComponent] Auto-fallback for %s: HalfWidth=%.0f Spacing=%.0f Height=%.0f (from Ext %s)"),
+		*Owner->GetName(), FallbackShipHalfWidth, FallbackCannonSpacing, FallbackCannonHeight,
+		*Extent.ToString());
 }
 
 void UCannonComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -210,8 +248,10 @@ void UCannonComponent::FireBroadside(ECannonSide Side)
 
 	if (!bFiredFromSocket)
 	{
-		float ShipHalfWidth = 300.0f;
-		float CannonSpacing = 250.0f;
+		// Use UPROPERTY fallbacks (auto-computed from mesh bounds at BeginPlay unless overridden).
+		const float ShipHalfWidth = FallbackShipHalfWidth > 0.f ? FallbackShipHalfWidth : 300.0f;
+		const float CannonSpacing = FallbackCannonSpacing > 0.f ? FallbackCannonSpacing : 250.0f;
+		const float CannonHeight  = FallbackCannonHeight;
 		FVector OwnerRight = Owner->GetActorRightVector();
 		FVector BaseOffset = ((Side == ECannonSide::Left) ? -OwnerRight : OwnerRight) * ShipHalfWidth;
 
@@ -219,7 +259,7 @@ void UCannonComponent::FireBroadside(ECannonSide Side)
 		{
 			float LengthOffset = (i - (CannonsPerSide - 1) * 0.5f) * CannonSpacing;
 			FVector LengthDir = Owner->GetActorForwardVector();
-			FVector SpawnLoc = Owner->GetActorLocation() + BaseOffset + LengthDir * LengthOffset + FVector(0.0f, 0.0f, 50.0f);
+			FVector SpawnLoc = Owner->GetActorLocation() + BaseOffset + LengthDir * LengthOffset + FVector(0.0f, 0.0f, CannonHeight);
 			FireOneCannon(SpawnLoc);
 		}
 	}
@@ -354,8 +394,8 @@ void UCannonComponent::GetAimPrediction(ECannonSide Side, float SeaLevelZ, TArra
 
 	if (SpawnLocations.Num() == 0)
 	{
-		const float ShipHalfWidth = 300.0f;
-		const float CannonSpacing = 250.0f;
+		const float ShipHalfWidth = FallbackShipHalfWidth > 0.f ? FallbackShipHalfWidth : 300.0f;
+		const float CannonSpacing = FallbackCannonSpacing > 0.f ? FallbackCannonSpacing : 250.0f;
 		FVector OwnerRight = Owner->GetActorRightVector();
 		FVector BaseOffset = ((Side == ECannonSide::Left) ? -OwnerRight : OwnerRight) * ShipHalfWidth;
 		const FVector LengthDir = Owner->GetActorForwardVector();
